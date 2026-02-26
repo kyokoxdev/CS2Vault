@@ -324,31 +324,6 @@
     font-size: 24px;
   }
 }
-  .header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
-  
-  .headerActions {
-    width: 100%;
-    justify-content: space-between;
-  }
-  
-  .summaryRow {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .inventoryTable {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  
-  /* Force table to be wide enough to scroll */
-  .inventoryTable :global(table) {
-    min-width: 800px;
-  }
-}
 
 @media (max-width: 480px) {
   .headerActions {

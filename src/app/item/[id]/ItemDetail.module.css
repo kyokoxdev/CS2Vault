@@ -109,19 +109,6 @@
     max-height: 300px;
   }
 }
-  .header {
-    flex-direction: column;
-    gap: 16px;
-  }
-  
-  .headerRight {
-    text-align: left;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
 
 @media (max-width: 480px) {
   .headerRight {

@@ -222,31 +222,3 @@
     padding: 16px;
   }
 }
-  .sidebar {
-    display: none;
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 260px;
-    z-index: 100;
-    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
-  }
-  
-  /* Class to show sidebar when toggled (future use) */
-  .sidebar.open {
-    display: flex;
-  }
-  
-  /* Overlay when sidebar is open (future use) */
-  .sidebarOverlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 90;
-    backdrop-filter: blur(4px);
-  }
-}
