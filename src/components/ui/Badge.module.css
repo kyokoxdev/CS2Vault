@@ -1,0 +1,44 @@
+.badge {
+  display: inline-block;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
+/* Size Variants */
+.sizeSm {
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+.sizeMd {
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
+/* Color Variants */
+.success {
+  color: var(--bull);
+  background-color: rgba(0, 192, 118, 0.12);
+}
+
+.danger {
+  color: var(--bear);
+  background-color: rgba(255, 77, 79, 0.12);
+}
+
+.warning {
+  color: var(--yellow, #FAAD14);
+  background-color: rgba(250, 173, 20, 0.12);
+}
+
+.neutral {
+  color: var(--text-secondary-60);
+  background-color: rgba(140, 140, 140, 0.12);
+}
+
+.info {
+  color: var(--accent-primary, #6c5ce7);
+  background-color: rgba(108, 92, 231, 0.12);
+}
