@@ -1,32 +1,12 @@
 "use client";
 
-/**
- * Market Overview Page (Home)
- *
- * Shows:
- * - Stats summary (total items, watched, last sync)
- * - Add item via search autocomplete
- * - Watchlist table with live prices + actions
- * - Quick sync button
- */
-
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import ItemSearch from "@/components/ui/ItemSearch";
-
-interface Item {
-  id: string;
-  marketHashName: string;
-  name: string;
-  category: string;
-  type: string | null;
-  rarity: string | null;
-  exterior: string | null;
-  isWatched: boolean;
-  currentPrice: number | null;
-  priceSource: string | null;
-  lastUpdated: string | null;
-}
+import { useRouter } from "next/navigation";
+import { StatCard } from "@/components/ui/StatCard";
+import { WatchlistTable, type Item } from "@/components/market/WatchlistTable";
+import { AddItemPanel } from "@/components/market/AddItemPanel";
+import styles from "./MarketOverview.module.css";
+import { Card } from "@/components/ui/Card";
 
 interface SyncLog {
   id: number;
@@ -126,7 +106,19 @@ export default function MarketOverview() {
     return () => clearInterval(timer);
   }, [fetchMarketSummary, handleSync]);
 
-  async function handleAddItem(selected: { hashName: string; name: string; category: string; rarity: string | null; exterior: string | null; type: string | null }) {
+  const router = useRouter();
+
+
+
+
+  async function handleAddItem(selected: {
+    hashName: string;
+    name: string;
+    category: string;
+    rarity: string | null;
+    exterior: string | null;
+    type: string | null;
+  }) {
     setAddStatus("Adding...");
     try {
       const res = await fetch("/api/items", {
@@ -176,9 +168,11 @@ export default function MarketOverview() {
     (sum, i) => sum + (i.currentPrice ?? 0),
     0
   );
-  const marketCapLabel = marketSummary?.marketCapUsd
+  
+  const marketCapValue = marketSummary?.marketCapUsd
     ? `$${marketSummary.marketCapUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : "N/A";
+    
   const marketCapSubLabel = marketSummary?.marketCapUsd
     ? `Source: CSFloat${marketSummary.sampleSize ? ` • ${marketSummary.sampleSize} items` : ""}`
     : marketSummary?.status === "missing_key"
@@ -188,57 +182,54 @@ export default function MarketOverview() {
         : "No data returned";
 
   return (
-    <>
+    <div className={styles.page}>
       {/* Stats Grid */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">Estimated Market Cap</div>
-          <div className="stat-value">{marketCapLabel}</div>
-          <div className="stat-change" style={{ color: "var(--text-muted)" }}>
-            {marketCapSubLabel}
+      <div className={styles.statsRow}>
+        <Card padding="md">
+          <div className={styles.statCardContent}>
+            <div className={styles.statLabel}>Estimated Market Cap</div>
+            <div className={styles.statValue}>{marketCapValue}</div>
+            <div className={styles.statSubtext}>{marketCapSubLabel}</div>
           </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Watched</div>
-          <div className="stat-value">{watchedCount}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Portfolio Value</div>
-          <div className="stat-value" style={{ color: "var(--green)" }}>
-            ${totalValue.toFixed(2)}
+        </Card>
+        
+        <StatCard
+          label="Watched"
+          value={watchedCount}
+        />
+        
+        <StatCard
+          label="Portfolio Value"
+          value={totalValue.toFixed(2)}
+          prefix="$"
+        />
+        
+        <Card padding="md">
+          <div className={styles.statCardContent}>
+            <div className={styles.statLabel}>Last Sync</div>
+            <div className={styles.statValueSmall}>
+               {lastSync
+                  ? new Date(lastSync.timestamp).toLocaleTimeString()
+                  : "Never"}
+            </div>
+            <div className={styles.statSubtext}>
+               {lastSync ? `${lastSync.itemCount} items • ${lastSync.duration}ms` : ""}
+            </div>
           </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Last Sync</div>
-          <div className="stat-value" style={{ fontSize: 16 }}>
-            {lastSync
-              ? new Date(lastSync.timestamp).toLocaleTimeString()
-              : "Never"}
-          </div>
-          <div className="stat-change" style={{ color: "var(--text-muted)" }}>
-            {lastSync ? `${lastSync.itemCount} items • ${lastSync.duration}ms` : ""}
-          </div>
-        </div>
+        </Card>
       </div>
 
       {/* Toolbar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 16,
-        }}
-      >
-        <h3 style={{ fontSize: 14, fontWeight: 600 }}>Watchlist</h3>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div className={styles.toolbar}>
+        <h3 className={styles.toolbarTitle}>Watchlist</h3>
+        <div className={styles.toolbarActions}>
           {syncStatus && (
-            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            <span className={styles.statusMessage}>
               {syncStatus}
             </span>
           )}
           {addStatus && (
-            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            <span className={styles.statusMessage}>
               {addStatus}
             </span>
           )}
@@ -258,125 +249,17 @@ export default function MarketOverview() {
         </div>
       </div>
 
-      {/* Add Item — Search Autocomplete */}
+      {/* Add Item Panel */}
       {showAddForm && (
-        <div className="card" style={{ marginBottom: 16, overflow: "visible" }}>
-          <div className="card-body" style={{ overflow: "visible" }}>
-            <div style={{ marginBottom: 6 }}>
-              <label style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                Search Steam Market to add items
-              </label>
-            </div>
-            <ItemSearch
-              onSelect={handleAddItem}
-              placeholder="Type to search... e.g. AK-47 Redline, AWP Dragon Lore"
-            />
-          </div>
-        </div>
+        <AddItemPanel onAdd={handleAddItem} status={addStatus} />
       )}
 
       {/* Items Table */}
-      <div className="card">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Category</th>
-              <th>Weapon Type</th>
-              <th>Rarity</th>
-              <th>Price</th>
-              <th>Source</th>
-              <th>Updated</th>
-              <th>Status</th>
-              <th style={{ width: 140 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id}>
-                <td>
-                  <Link
-                    href={`/item/${item.id}`}
-                    style={{ fontWeight: 500, color: "var(--text-primary)" }}
-                  >
-                    {item.name}
-                  </Link>
-                  <br />
-                  <small style={{ color: "var(--text-muted)", fontSize: 11 }}>
-                    {item.marketHashName}
-                  </small>
-                </td>
-                <td style={{ textTransform: "capitalize" }}>{item.category}</td>
-                <td>
-                  {item.category === "weapon" && item.type ? (
-                    <span className="badge badge-gray">{item.type}</span>
-                  ) : (
-                    <span style={{ color: "var(--text-muted)" }}>—</span>
-                  )}
-                </td>
-                <td>
-                  {item.rarity ? (
-                    <span className="badge badge-green">{item.rarity}</span>
-                  ) : (
-                    <span style={{ color: "var(--text-muted)" }}>—</span>
-                  )}
-                </td>
-                <td
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontWeight: 600,
-                    color: item.currentPrice
-                      ? "var(--green)"
-                      : "var(--text-muted)",
-                  }}
-                >
-                  {item.currentPrice ? `$${item.currentPrice.toFixed(2)}` : "—"}
-                </td>
-                <td style={{ textTransform: "uppercase", fontSize: 11 }}>
-                  {item.priceSource ?? "—"}
-                </td>
-                <td style={{ color: "var(--text-muted)", fontSize: 12 }}>
-                  {item.lastUpdated
-                    ? new Date(item.lastUpdated).toLocaleString()
-                    : "—"}
-                </td>
-                <td>
-                  {item.isWatched ? (
-                    <span className="badge badge-green">Watching</span>
-                  ) : (
-                    <span className="badge badge-red">Unwatched</span>
-                  )}
-                </td>
-                <td>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => handleToggleWatch(item.id, item.isWatched)}
-                      title="Remove from watchlist"
-                    >
-                      Unwatch
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr>
-                <td
-                  colSpan={9}
-                  style={{
-                    textAlign: "center",
-                    padding: 40,
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  No items yet. Click &quot;＋ Add Item&quot; above to search and add CS2 items.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </>
+      <WatchlistTable 
+        items={items} 
+        onToggleWatch={handleToggleWatch}
+
+      />
+    </div>
   );
 }
