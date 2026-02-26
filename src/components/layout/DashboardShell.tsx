@@ -18,6 +18,7 @@ import {
     FaRobot,
     FaCog
 } from 'react-icons/fa';
+import styles from './DashboardShell.module.css';
 
 const NAV_ITEMS = [
     { href: "/", label: "Market Overview", icon: <FaChartPie /> },
@@ -52,81 +53,63 @@ export default function DashboardShell({
     const isSignedIn = !!session?.user;
 
     return (
-        <div className="app-shell">
+        <div className={styles.appShell}>
             {/* Sidebar */}
-            <aside className="sidebar">
-                <div className="sidebar-brand">
+            <aside className={styles.sidebar}>
+                <div className={styles.sidebarBrand}>
                     <h1>CS2Vault</h1>
-                    <span className="version">v0.1</span>
+                    <span className={styles.version}>v0.1</span>
                 </div>
 
-                <nav className="sidebar-nav">
-                    <div className="nav-section-label">Dashboard</div>
+                <nav className={styles.sidebarNav}>
+                    <div className={styles.navSectionLabel}>Dashboard</div>
                     {NAV_ITEMS.map((item) => (
                         <Link
                             key={item.href}
                             href={item.href}
-                            className={`nav-link ${pathname === item.href ? "active" : ""}`}
+                            className={`${styles.navLink} ${pathname === item.href ? styles.navLinkActive : ""}`}
                         >
-                            <span className="icon">{item.icon}</span>
+                            <span className={styles.icon}>{item.icon}</span>
                             {item.label}
                         </Link>
                     ))}
 
-                    <div className="nav-section-label">Tools</div>
+                    <div className={styles.navSectionLabel}>Tools</div>
                     {NAV_TOOLS.map((item) => (
                         <Link
                             key={item.href}
                             href={item.href}
-                            className={`nav-link ${pathname === item.href ? "active" : ""}`}
+                            className={`${styles.navLink} ${pathname === item.href ? styles.navLinkActive : ""}`}
                         >
-                            <span className="icon">{item.icon}</span>
+                            <span className={styles.icon}>{item.icon}</span>
                             {item.label}
                         </Link>
                     ))}
                 </nav>
 
-                <div className="sidebar-footer">
+                <div className={styles.sidebarFooter}>
                     {isLoading ? (
-                        <div className="sidebar-user">
-                            <div>
-                                <div className="user-name" style={{ opacity: 0.5 }}>Loading...</div>
+                        <div className={styles.sidebarUser}>
+                            <div className={styles.userInfo}>
+                                <div className={styles.userName} style={{ opacity: 0.5 }}>Loading...</div>
                             </div>
                         </div>
                     ) : isSignedIn ? (
-                        <div className="sidebar-user">
+                        <div className={styles.sidebarUser}>
                             {session.user?.image && (
                                 <img
                                     src={session.user.image}
                                     alt={session.user.name ?? "User"}
-                                    style={{
-                                        width: 36,
-                                        height: 36,
-                                        borderRadius: 8,
-                                        objectFit: "cover",
-                                    }}
+                                    className={styles.userAvatar}
                                 />
                             )}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div className="user-name" style={{
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                }}>
+                            <div className={styles.userInfo}>
+                                <div className={styles.userName}>
                                     {session.user?.name}
                                 </div>
                                 <button
                                     onClick={() => signOut()}
-                                    style={{
-                                        background: "none",
-                                        border: "none",
-                                        color: "var(--text-muted)",
-                                        cursor: "pointer",
-                                        padding: 0,
-                                        fontSize: 11,
-                                    }}
-                                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
-                                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+                                    className={styles.signOutBtn}
                                 >
                                     Sign out
                                 </button>
@@ -135,32 +118,14 @@ export default function DashboardShell({
                     ) : (
                         <Link
                             href="/api/auth/steam/login"
-                            className="sidebar-user"
-                            style={{
-                                textDecoration: "none",
-                                cursor: "pointer",
-                                transition: "background 0.15s",
-                            }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tertiary)")}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            className={styles.sidebarUser}
                         >
-                            <div
-                                style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 8,
-                                    background: "var(--bg-tertiary)",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    fontSize: 18,
-                                }}
-                            >
+                            <div className={styles.userAvatarPlaceholder}>
                                 🎮
                             </div>
-                            <div>
-                                <div className="user-name">Sign in with Steam</div>
-                                <div className="user-status">Login to sync inventory</div>
+                            <div className={styles.userInfo}>
+                                <div className={styles.userName}>Sign in with Steam</div>
+                                <div className={styles.userStatus}>Login to sync inventory</div>
                             </div>
                         </Link>
                     )}
@@ -168,11 +133,11 @@ export default function DashboardShell({
             </aside>
 
             {/* Main */}
-            <main className="main-content">
-                <header className="main-header">
+            <main className={styles.mainContent}>
+                <header className={styles.mainHeader}>
                     <h2>{pageTitle}</h2>
                 </header>
-                <div className="main-body">{children}</div>
+                <div className={styles.mainBody}>{children}</div>
             </main>
         </div>
     );
