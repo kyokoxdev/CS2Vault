@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { StatCard } from "@/components/ui/StatCard";
 import { WatchlistTable, type Item } from "@/components/market/WatchlistTable";
 import { AddItemPanel } from "@/components/market/AddItemPanel";
+import { TopMovers, type TopMover } from "@/components/market/TopMovers";
 import styles from "./MarketOverview.module.css";
+import { NewsFeed, type FeedItem } from "@/components/market/NewsFeed";
 import { Card } from "@/components/ui/Card";
 
 interface SyncLog {
@@ -30,7 +32,11 @@ export default function MarketOverview() {
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
+  const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[] }>({ gainers: [], losers: [] });
+  const [topMoversLoading, setTopMoversLoading] = useState(true);
 
+  const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
+  const [feedLoading, setFeedLoading] = useState(true);
   // Add item state
   const [showAddForm, setShowAddForm] = useState(false);
   const [addStatus, setAddStatus] = useState("");
@@ -67,6 +73,33 @@ export default function MarketOverview() {
     }
   }, []);
 
+  const fetchTopMovers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/market/top-movers');
+      const data = await res.json();
+      if (data.success) {
+        setTopMovers({ gainers: data.data.gainers, losers: data.data.losers });
+      }
+    } catch (err) {
+      console.warn('Top movers fetch error:', err);
+    } finally {
+      setTopMoversLoading(false);
+    }
+  }, []);
+  const fetchNewsFeed = useCallback(async () => {
+    try {
+      const res = await fetch("/api/market/news-feed?limit=20");
+      const data = await res.json();
+      if (data.success) {
+        setFeedItems(data.data.items);
+      }
+    } catch (err) {
+      console.warn("News feed fetch error:", err);
+    } finally {
+      setFeedLoading(false);
+    }
+  }, []);
+
   const handleSync = useCallback(async () => {
     setSyncing(true);
     setSyncStatus("Syncing...");
@@ -90,7 +123,25 @@ export default function MarketOverview() {
   useEffect(() => {
     fetchData();
     fetchMarketSummary();
-  }, [fetchData, fetchMarketSummary]);
+    fetchTopMovers();
+    fetchNewsFeed();
+  }, [fetchData, fetchMarketSummary, fetchTopMovers, fetchNewsFeed]);
+
+  useEffect(() => {
+    const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
+    const intervalMin = rawInterval ? Number.parseInt(rawInterval, 10) : 5;
+    if (!Number.isFinite(intervalMin) || intervalMin <= 0) return;
+
+    const intervalMs = intervalMin * 60 * 1000;
+    const timer = setInterval(() => {
+      handleSync();
+      fetchMarketSummary();
+      fetchTopMovers();
+      fetchNewsFeed();
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [fetchMarketSummary, handleSync, fetchTopMovers, fetchNewsFeed]);
 
   useEffect(() => {
     const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
@@ -218,6 +269,12 @@ export default function MarketOverview() {
           </div>
         </Card>
       </div>
+
+      {/* Top Movers */}
+      <TopMovers gainers={topMovers.gainers} losers={topMovers.losers} isLoading={topMoversLoading} />
+
+      {/* News Feed */}
+      <NewsFeed items={feedItems} isLoading={feedLoading} />
 
       {/* Toolbar */}
       <div className={styles.toolbar}>
