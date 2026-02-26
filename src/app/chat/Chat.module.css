@@ -1,0 +1,13 @@
+.page {
+  height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-0);
+}
+
+.chatContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

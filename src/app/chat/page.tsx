@@ -1,3 +1,4 @@
+import styles from './Chat.module.css';
 import AIChat from "@/components/chat/AIChat";
 
 export const metadata = {
@@ -7,7 +8,7 @@ export const metadata = {
 
 export default function ChatPage() {
     return (
-        <div style={{ height: "calc(100vh - 120px)", display: "flex", flexDirection: "column" }}>
+        <div className={styles.page}>
             <AIChat />
         </div>
     );
