@@ -1,0 +1,29 @@
+.card {
+  border: 1px solid var(--border-primary, #262626);
+  border-radius: var(--radius-md, 8px);
+  transition: background-color var(--transition-fast, 150ms ease);
+}
+
+.default {
+  background-color: var(--surface-2, #141414);
+}
+
+.elevated {
+  background-color: var(--surface-3, #1A1A1A);
+}
+
+.paddingSm {
+  padding: 12px;
+}
+
+.paddingMd {
+  padding: 16px;
+}
+
+.paddingLg {
+  padding: 24px;
+}
+
+.noPadding {
+  padding: 0;
+}

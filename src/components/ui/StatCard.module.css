@@ -1,0 +1,53 @@
+.container {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--text-secondary-60, #8C8C8C);
+}
+
+.content {
+  flex: 1;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary-60, #8C8C8C);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.value {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary-90, rgba(255, 255, 255, 0.9));
+  font-family: var(--font-numeric, 'Inter', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  margin-bottom: 4px;
+}
+
+.change {
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.changePositive {
+  color: var(--bull, #00C076);
+}
+
+.changeNegative {
+  color: var(--bear, #FF4D4F);
+}
+
+.changeNeutral {
+  color: var(--text-secondary-60, #8C8C8C);
+}
