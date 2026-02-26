@@ -109,15 +109,3 @@
     max-height: 300px;
   }
 }
-
-@media (max-width: 480px) {
-  .headerRight {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-  
-  .statsGrid {
-    grid-template-columns: 1fr;
-  }
-}
