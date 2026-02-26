@@ -6,7 +6,7 @@
 import { ReactNode } from "react";
 import styles from "./DataTable.module.css";
 
-export interface Column<T extends Record<string, unknown>> {
+export interface Column<T> {
   key: keyof T | string;
   header: string;
   align?: "left" | "right";
@@ -14,7 +14,7 @@ export interface Column<T extends Record<string, unknown>> {
   width?: string;
 }
 
-export interface DataTableProps<T extends Record<string, unknown>> {
+export interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
   onRowClick?: (row: T) => void;
@@ -40,7 +40,7 @@ function SkeletonRows() {
   );
 }
 
-export function DataTable<T extends Record<string, unknown>>({
+export function DataTable<T>({
   columns,
   data,
   onRowClick,
@@ -54,10 +54,8 @@ export function DataTable<T extends Record<string, unknown>>({
           {columns.map((col) => (
             <th
               key={String(col.key)}
-              style={{
-                textAlign: col.align || "left",
-                width: col.width,
-              }}
+              className={col.align === "right" ? styles.alignRight : undefined}
+              style={col.width ? { width: col.width } : undefined}
             >
               {col.header}
             </th>
@@ -86,15 +84,14 @@ export function DataTable<T extends Record<string, unknown>>({
               {columns.map((col) => (
                 <td
                   key={String(col.key)}
-                  style={{
-                    textAlign: col.align || "left",
-                    width: col.width,
-                    fontFamily: col.align === "right" ? "var(--font-numeric)" : undefined,
-                  }}
+                  className={[
+                    col.align === "right" ? styles.alignRight : "",
+                    col.align === "right" ? styles.numericCell : "",
+                  ].filter(Boolean).join(" ") || undefined}
                 >
                   {col.render
                     ? col.render(row[col.key as keyof T], row)
-                    : String(row[col.key as keyof T] ?? "—")}
+                    : String(row[col.key as keyof T] ?? "\u2014")}
                 </td>
               ))}
             </tr>
