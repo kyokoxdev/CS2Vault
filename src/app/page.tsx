@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { StatCard } from "@/components/ui/StatCard";
 import { WatchlistTable, type Item } from "@/components/market/WatchlistTable";
 import { AddItemPanel } from "@/components/market/AddItemPanel";
@@ -142,25 +141,6 @@ export default function MarketOverview() {
 
     return () => clearInterval(timer);
   }, [fetchMarketSummary, handleSync, fetchTopMovers, fetchNewsFeed]);
-
-  useEffect(() => {
-    const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
-    const intervalMin = rawInterval ? Number.parseInt(rawInterval, 10) : 5;
-    if (!Number.isFinite(intervalMin) || intervalMin <= 0) return;
-
-    const intervalMs = intervalMin * 60 * 1000;
-    const timer = setInterval(() => {
-      handleSync();
-      fetchMarketSummary();
-    }, intervalMs);
-
-    return () => clearInterval(timer);
-  }, [fetchMarketSummary, handleSync]);
-
-  const router = useRouter();
-
-
-
 
   async function handleAddItem(selected: {
     hashName: string;
