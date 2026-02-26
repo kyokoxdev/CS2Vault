@@ -1,0 +1,134 @@
+/**
+ * CSFloat Market Data Provider
+ *
+ * Endpoints:
+ *   - /api/v1/listings — active market listings (with item SCM prices)
+ *   - /api/v1/history/{item}/sales — recent sales (40 most recent)
+ *
+ * Auth: API key via Authorization header
+ * Prices are returned in USD cents.
+ * Rate limits: per-endpoint, not publicly documented — we use conservative 1 req/2s.
+ */
+
+import type { MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
+import { csfloatQueue } from "@/lib/api-queue";
+import { prisma } from "@/lib/db";
+
+const BASE_URL = "https://csfloat.com/api/v1";
+
+async function getApiKey(): Promise<string> {
+    const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
+    const key = settings?.csfloatApiKey || process.env.CSFLOAT_API_KEY;
+    if (!key) throw new Error("CSFLOAT_API_KEY is not configured in DB or ENV");
+    return key;
+}
+
+async function makeHeaders(): Promise<HeadersInit> {
+    return {
+        Authorization: await getApiKey(),
+        "Content-Type": "application/json",
+    };
+}
+
+interface CSFloatListing {
+    id: string;
+    price: number; // cents
+    item: {
+        market_hash_name: string;
+        float_value: number;
+        paint_seed: number;
+        icon_url: string;
+        scm?: {
+            price: number;  // Steam Community Market price in cents
+            volume: number;
+        };
+        item_name: string;
+        wear_name: string;
+    };
+}
+
+export const csfloatProvider: MarketDataProvider = {
+    name: "csfloat",
+
+    async fetchItemPrice(marketHashName: string): Promise<PriceData> {
+        const listings = await csfloatQueue.enqueue(async () => {
+            const url = new URL(`${BASE_URL}/listings`);
+            url.searchParams.set("market_hash_name", marketHashName);
+            url.searchParams.set("sort_by", "lowest_price");
+            url.searchParams.set("limit", "5");
+
+            const headers = await makeHeaders();
+            const res = await fetch(url.toString(), { headers });
+            if (!res.ok) {
+                throw new Error(`CSFloat API error: ${res.status} ${res.statusText}`);
+            }
+            return res.json() as Promise<CSFloatListing[]>;
+        });
+
+        if (!listings || listings.length === 0) {
+            throw new Error(`No CSFloat listings found for "${marketHashName}"`);
+        }
+
+        // Use the lowest listing price as the current price
+        const lowest = listings[0];
+        const priceUsd = lowest.price / 100;
+
+        return {
+            price: priceUsd,
+            volume: lowest.item.scm?.volume ?? undefined,
+            source: "csfloat",
+            timestamp: new Date(),
+        };
+    },
+
+    async fetchBulkPrices(items: string[]): Promise<Map<string, PriceData>> {
+        const result = new Map<string, PriceData>();
+
+        // CSFloat doesn't have a dedicated bulk endpoint.
+        // We fetch listings for each item individually through the queue.
+        for (const marketHashName of items) {
+            try {
+                const priceData = await csfloatProvider.fetchItemPrice(marketHashName);
+                result.set(marketHashName, priceData);
+            } catch (error) {
+                console.warn(
+                    `[CSFloat] Failed to fetch price for "${marketHashName}":`,
+                    error instanceof Error ? error.message : error
+                );
+            }
+        }
+
+        return result;
+    },
+
+    async fetchItemHistory(marketHashName: string, _days: number): Promise<PricePoint[]> {
+        // CSFloat provides recent sales via the history endpoint
+        const sales = await csfloatQueue.enqueue(async () => {
+            const encoded = encodeURIComponent(marketHashName);
+            const url = `${BASE_URL}/history/${encoded}/sales`;
+
+            const headers = await makeHeaders();
+            const res = await fetch(url, { headers });
+            if (!res.ok) {
+                if (res.status === 404) return [];
+                throw new Error(`CSFloat history error: ${res.status} ${res.statusText}`);
+            }
+            return res.json();
+        });
+
+        if (!Array.isArray(sales)) return [];
+
+        return sales.map((sale: { sold_at: string; price: number }) => ({
+            price: sale.price / 100,
+            timestamp: new Date(sale.sold_at),
+        }));
+    },
+
+    getRateLimitConfig(): RateLimitConfig {
+        return {
+            maxRequestsPerMinute: 30,
+            maxRequestsPerDay: 5000,
+            minDelayMs: 2000,
+        };
+    },
+};

@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id             String          @id @default(cuid())
+  steamId        String          @unique
+  displayName    String
+  avatarUrl      String?
+  createdAt      DateTime        @default(now())
+  lastLogin      DateTime        @default(now())
+  chatMessages   ChatMessage[]
+  inventoryItems InventoryItem[]
+}
+
+model Item {
+  id             String          @id @default(cuid())
+  marketHashName String          @unique
+  name           String
+  weapon         String?
+  skin           String?
+  category       String
+  rarity         String?
+  exterior       String?
+  imageUrl       String?
+  isWatched      Boolean         @default(false)
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  type           String?
+  candlesticks   Candlestick[]
+  inventoryItems InventoryItem[]
+  priceSnapshots PriceSnapshot[]
+}
+
+model PriceSnapshot {
+  id        Int      @id @default(autoincrement())
+  itemId    String
+  price     Float
+  volume    Int?
+  source    String   @default("pricempire")
+  timestamp DateTime @default(now())
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, timestamp])
+}
+
+model Candlestick {
+  id        Int      @id @default(autoincrement())
+  itemId    String
+  interval  String
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Int      @default(0)
+  timestamp DateTime
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, interval, timestamp])
+  @@index([itemId, interval, timestamp])
+}
+
+model InventoryItem {
+  id            String    @id @default(cuid())
+  userId        String
+  itemId        String
+  assetId       String    @unique
+  floatValue    Float?
+  paintSeed     Int?
+  stickers      String?
+  acquiredAt    DateTime  @default(now())
+  acquiredPrice Float?
+  soldAt        DateTime?
+  soldPrice     Float?
+  item          Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  content   String
+  metadata  String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model SyncLog {
+  id        Int      @id @default(autoincrement())
+  type      String
+  status    String
+  itemCount Int      @default(0)
+  duration  Int?
+  error     String?
+  timestamp DateTime @default(now())
+}
+
+model AppSettings {
+  id                 String    @id @default("singleton")
+  activeMarketSource String    @default("pricempire")
+  activeAIProvider   String    @default("gemini-pro")
+  openAiApiKey       String?
+  geminiApiKey       String?
+  csfloatApiKey      String?
+  syncIntervalMin    Int       @default(5)
+  watchlistOnly      Boolean   @default(true)
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleTokenExpiry  DateTime?
+}
