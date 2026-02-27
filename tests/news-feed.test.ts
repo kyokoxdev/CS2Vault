@@ -372,3 +372,107 @@ describe("fetchSteamNews", () => {
     expect(items[0].contents.length).toBeLessThanOrEqual(200);
   });
 });
+
+describe("90-day date filtering", () => {
+  it("filters out Steam news items older than 90 days", async () => {
+    const OLD_DATE = NOW_TS - (91 * 24 * 3600); // 91 days ago
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      makeSteamNewsResponse([{
+        gid: "old-1",
+        title: "Very Old News",
+        url: "https://example.com/old",
+        author: "Valve",
+        contents: "Old content",
+        date: OLD_DATE,
+      }])
+    ));
+    mockFindMany.mockResolvedValue([] as never);
+    const res = await GET(makeRequest());
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.items).toHaveLength(0);
+  });
+
+  it("allows recent Steam news items through", async () => {
+    const RECENT_DATE = NOW_TS - 3600; // 1 hour ago
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      makeSteamNewsResponse([{
+        gid: "recent-1",
+        title: "Recent News",
+        url: "https://example.com/recent",
+        author: "Valve",
+        contents: "Recent content",
+        date: RECENT_DATE,
+      }])
+    ));
+    mockFindMany.mockResolvedValue([] as never);
+    const res = await GET(makeRequest());
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.items).toHaveLength(1);
+    expect(body.data.items[0].title).toBe("Recent News");
+  });
+
+  it("filters old RSS items via post-merge cutoff", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(makeSteamNewsResponse([])));
+    mockFindMany.mockResolvedValue([] as never);
+    mockFetchRssFeeds.mockResolvedValue([{
+      id: "rss-old-1",
+      title: "Old RSS Article",
+      url: "https://example.com/old-rss",
+      author: "hltv",
+      contents: "Old RSS content",
+      date: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000), // 100 days ago
+      source: "hltv" as const,
+    }]);
+    const res = await GET(makeRequest());
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.items).toHaveLength(0);
+  });
+
+  it("returns success with empty items when all items are older than 90 days", async () => {
+    const OLD_DATE = NOW_TS - (120 * 24 * 3600); // 120 days ago
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      makeSteamNewsResponse([{
+        gid: "old-2",
+        title: "Ancient News",
+        url: "https://example.com/ancient",
+        author: "Valve",
+        contents: "Ancient content",
+        date: OLD_DATE,
+      }])
+    ));
+    mockFindMany.mockResolvedValue([] as never);
+    mockFetchRssFeeds.mockResolvedValue([{
+      id: "rss-old-2",
+      title: "Ancient RSS",
+      url: "https://example.com/ancient-rss",
+      author: "reddit",
+      contents: "Ancient RSS content",
+      date: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000), // 200 days ago
+      source: "reddit" as const,
+    }]);
+    const res = await GET(makeRequest());
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.items).toHaveLength(0);
+  });
+
+  it("keeps only recent items when mixing old and new Steam news", async () => {
+    const OLD_DATE = NOW_TS - (95 * 24 * 3600); // 95 days ago
+    const RECENT_DATE = NOW_TS - 7200; // 2 hours ago
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      makeSteamNewsResponse([
+        { gid: "mix-old", title: "Old Mix", url: "https://example.com/old", author: "Valve", contents: "Old", date: OLD_DATE },
+        { gid: "mix-recent", title: "Recent Mix", url: "https://example.com/recent", author: "Valve", contents: "Recent", date: RECENT_DATE },
+      ])
+    ));
+    mockFindMany.mockResolvedValue([] as never);
+    const res = await GET(makeRequest());
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.items).toHaveLength(1);
+    expect(body.data.items[0].title).toBe("Recent Mix");
+  });
+});

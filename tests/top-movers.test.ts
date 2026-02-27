@@ -284,4 +284,112 @@ describe("GET /api/market/top-movers", () => {
         // Prisma should only be called once (cached on second call)
         expect(mockItemFindMany).toHaveBeenCalledTimes(1);
     });
+
+    it("normal path returns source 'pricempire'", async () => {
+        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+            { name: "AK-47 | Redline (Field-Tested)", price: 120 },
+        ]));
+        mockItemFindMany.mockResolvedValue([
+            { id: "item1", name: "AK-47 | Redline", marketHashName: "AK-47 | Redline (Field-Tested)" },
+        ] as never);
+
+        mockSnapshotFindMany.mockResolvedValue([
+            { price: 100, timestamp: hoursAgo(20) },
+            { price: 120, timestamp: hoursAgo(1) },
+        ] as never);
+
+        const result = await computeTopMovers();
+
+        expect(result.source).toBe("pricempire");
+        expect(result.gainers).toHaveLength(1);
+    });
+
+    it("fallback returns source 'watchlist' when fetchAllPrices throws", async () => {
+        mockFetchAllPrices.mockRejectedValue(new Error("Pricempire down"));
+        mockItemFindMany.mockResolvedValue([
+            {
+                id: "w1",
+                name: "AWP | Asiimov",
+                marketHashName: "AWP | Asiimov (Field-Tested)",
+                isWatched: true,
+                isActive: true,
+                priceSnapshots: [
+                    { price: 130, timestamp: hoursAgo(1) },
+                    { price: 100, timestamp: hoursAgo(20) },
+                ],
+            },
+        ] as never);
+
+        const result = await computeTopMovers();
+
+        expect(result.source).toBe("watchlist");
+        expect(result.updatedAt).toBeDefined();
+        expect(result.gainers).toHaveLength(1);
+        expect(result.gainers[0].id).toBe("w1");
+        expect(result.gainers[0].name).toBe("AWP | Asiimov");
+    });
+
+    it("fallback computes valid gainers/losers from watchlist data", async () => {
+        mockFetchAllPrices.mockRejectedValue(new Error("Pricempire down"));
+        mockItemFindMany.mockResolvedValue([
+            {
+                id: "wg1",
+                name: "Gainer Watch",
+                marketHashName: "Gainer Watch (FT)",
+                isWatched: true,
+                isActive: true,
+                priceSnapshots: [
+                    { price: 150, timestamp: hoursAgo(1) },
+                    { price: 100, timestamp: hoursAgo(20) },
+                ],
+            },
+            {
+                id: "wl1",
+                name: "Loser Watch",
+                marketHashName: "Loser Watch (FT)",
+                isWatched: true,
+                isActive: true,
+                priceSnapshots: [
+                    { price: 60, timestamp: hoursAgo(1) },
+                    { price: 100, timestamp: hoursAgo(20) },
+                ],
+            },
+            {
+                id: "wf1",
+                name: "Flat Watch",
+                marketHashName: "Flat Watch (FT)",
+                isWatched: true,
+                isActive: true,
+                priceSnapshots: [
+                    { price: 100, timestamp: hoursAgo(1) },
+                    { price: 100, timestamp: hoursAgo(20) },
+                ],
+            },
+        ] as never);
+
+        const result = await computeTopMovers();
+
+        expect(result.source).toBe("watchlist");
+        // Gainer: 100 -> 150 = +50%
+        expect(result.gainers).toHaveLength(1);
+        expect(result.gainers[0].id).toBe("wg1");
+        expect(result.gainers[0].change24h).toBeCloseTo(50);
+        expect(result.gainers[0].price).toBe(150);
+        // Loser: 100 -> 60 = -40%
+        expect(result.losers).toHaveLength(1);
+        expect(result.losers[0].id).toBe("wl1");
+        expect(result.losers[0].change24h).toBeCloseTo(-40);
+        expect(result.losers[0].price).toBe(60);
+    });
+
+    it("fallback with empty watchlist returns empty arrays", async () => {
+        mockFetchAllPrices.mockRejectedValue(new Error("Pricempire down"));
+        mockItemFindMany.mockResolvedValue([] as never);
+
+        const result = await computeTopMovers();
+
+        expect(result.source).toBe("watchlist");
+        expect(result.gainers).toEqual([]);
+        expect(result.losers).toEqual([]);
+    });
 });
