@@ -89,3 +89,11 @@
     background-position: -200% 0;
   }
 }
+
+.alignRight {
+  text-align: right;
+}
+
+.numericCell {
+  font-family: var(--font-numeric);
+}

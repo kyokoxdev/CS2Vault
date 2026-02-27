@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FaNewspaper, FaArrowUp, FaArrowDown } from "react-icons/fa";
 import styles from "./NewsFeed.module.css";
 
 export interface FeedItem {
@@ -75,14 +76,14 @@ export function NewsFeed({ items, isLoading }: NewsFeedProps) {
           const isPositive =
             item.type === "price_alert" && (item.meta?.priceChange ?? 0) > 0;
           
-          let icon = "📰";
+          let icon = <FaNewspaper />;
           if (item.type === "price_alert") {
-            icon = isPositive ? "📈" : "📉";
+            icon = isPositive ? <FaArrowUp style={{ color: '#22c55e' }} /> : <FaArrowDown style={{ color: '#ef4444' }} />;
           }
 
           return (
             <li key={item.id} className={styles.item}>
-              <span className={styles.icon}>{icon}</span>
+              <span className={styles.icon} style={{ fontSize: '1rem' }}>{icon}</span>
               <div className={styles.content}>
                 <h3 className={styles.itemTitle}>
                   {isNews && item.url ? (

@@ -12,7 +12,13 @@ vi.mock("@/lib/db", () => ({
     },
 }));
 
+// Mock Pricempire (fetchAllPrices returns full market catalog)
+vi.mock("@/lib/market/pricempire", () => ({
+    fetchAllPrices: vi.fn(),
+}));
+
 import { prisma } from "@/lib/db";
+import { fetchAllPrices } from "@/lib/market/pricempire";
 import {
     computeTopMovers,
     __resetCache,
@@ -20,10 +26,26 @@ import {
 
 const mockItemFindMany = vi.mocked(prisma.item.findMany);
 const mockSnapshotFindMany = vi.mocked(prisma.priceSnapshot.findMany);
+const mockFetchAllPrices = vi.mocked(fetchAllPrices);
 
 // Helper to create a Date relative to now
 function hoursAgo(hours: number): Date {
     return new Date(Date.now() - hours * 60 * 60 * 1000);
+}
+
+// Helper to create a price map (simulates Pricempire API response)
+function makePriceMap(
+    items: Array<{ name: string; price?: number }>
+): Map<string, { price: number; source: string; timestamp: Date }> {
+    const map = new Map<string, { price: number; source: string; timestamp: Date }>();
+    for (const item of items) {
+        map.set(item.name, {
+            price: item.price ?? 100,
+            source: "pricempire",
+            timestamp: new Date(),
+        });
+    }
+    return map;
 }
 
 beforeEach(() => {
@@ -33,6 +55,7 @@ beforeEach(() => {
 
 describe("GET /api/market/top-movers", () => {
     it("returns empty gainers/losers when DB has no active items", async () => {
+        mockFetchAllPrices.mockResolvedValue(new Map());
         mockItemFindMany.mockResolvedValue([]);
 
         const result = await computeTopMovers();
@@ -44,6 +67,9 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("excludes items with only 1 price snapshot", async () => {
+        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+            { name: "AK-47 | Redline (Field-Tested)" },
+        ]));
         mockItemFindMany.mockResolvedValue([
             { id: "item1", name: "AK-47 | Redline", marketHashName: "AK-47 | Redline (Field-Tested)" },
         ] as never);
@@ -59,6 +85,13 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("correctly sorts gainers descending and losers ascending", async () => {
+        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+            { name: "Gainer Big" },
+            { name: "Gainer Small" },
+            { name: "Loser Big" },
+            { name: "Loser Small" },
+            { name: "Flat Item" },
+        ]));
         mockItemFindMany.mockResolvedValue([
             { id: "g1", name: "Gainer Big", marketHashName: "Gainer Big" },
             { id: "g2", name: "Gainer Small", marketHashName: "Gainer Small" },
@@ -106,6 +139,9 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("excludes 0% change items from both gainers and losers", async () => {
+        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+            { name: "Flat" },
+        ]));
         mockItemFindMany.mockResolvedValue([
             { id: "flat", name: "Flat", marketHashName: "Flat" },
         ] as never);
@@ -127,6 +163,9 @@ describe("GET /api/market/top-movers", () => {
             name: `Item ${i}`,
             marketHashName: `Item ${i}`,
         }));
+        mockFetchAllPrices.mockResolvedValue(makePriceMap(
+            items.map((item) => ({ name: item.marketHashName }))
+        ));
         mockItemFindMany.mockResolvedValue(items as never);
 
         // First 7 are gainers (ascending: +10, +20, ..., +70)
@@ -155,6 +194,9 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("returns fewer than 5 if not enough items", async () => {
+        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+            { name: "Gainer" },
+        ]));
         mockItemFindMany.mockResolvedValue([
             { id: "g1", name: "Gainer", marketHashName: "Gainer" },
         ] as never);
@@ -171,16 +213,19 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("validates sparkline data shape", async () => {
+        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+            { name: "Spark Item" },
+        ]));
         mockItemFindMany.mockResolvedValue([
             { id: "s1", name: "Spark Item", marketHashName: "Spark Item" },
         ] as never);
 
-        // Multiple snapshots across different days
+        // Multiple snapshots across different hours
         const now = Date.now();
         const dayMs = 86400000;
         mockSnapshotFindMany.mockResolvedValue([
             { price: 90, timestamp: new Date(now - 2 * dayMs) },
-            { price: 91, timestamp: new Date(now - 2 * dayMs + 3600000) }, // Same day, should be deduped
+            { price: 91, timestamp: new Date(now - 2 * dayMs + 3600000) }, // Different hour key, not deduped
             { price: 95, timestamp: new Date(now - 1 * dayMs) },
             { price: 100, timestamp: new Date(now) },
         ] as never);
@@ -190,8 +235,8 @@ describe("GET /api/market/top-movers", () => {
         expect(result.gainers).toHaveLength(1);
         const sparkline = result.gainers[0].sparkline;
 
-        // Should be 3 data points (3 different days), first snap of each day
-        expect(sparkline.length).toBeLessThanOrEqual(30);
+        // Hourly grouping: 4 unique hours → up to 4 data points, capped at 24
+        expect(sparkline.length).toBeLessThanOrEqual(24);
         expect(sparkline.length).toBeGreaterThanOrEqual(1);
 
         // Validate shape of each sparkline point
@@ -212,6 +257,9 @@ describe("GET /api/market/top-movers", () => {
         // Import the GET handler
         const { GET } = await import("@/app/api/market/top-movers/route");
 
+        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+            { name: "Cache Item" },
+        ]));
         mockItemFindMany.mockResolvedValue([
             { id: "c1", name: "Cache Item", marketHashName: "Cache Item" },
         ] as never);

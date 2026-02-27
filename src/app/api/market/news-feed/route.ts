@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { fetchSteamNews } from "@/lib/news/steam-news";
 import { detectSignificantChanges } from "@/lib/market/price-activity";
+import { fetchRssFeeds } from "@/lib/news/rss-feeds";
 
 export type FeedItem = {
   id: string;
@@ -30,10 +31,15 @@ let cachedAt = 0;
 const CACHE_MS = 5 * 60 * 1000;
 
 async function buildFeed(limit: number): Promise<FeedData> {
-  const [newsItems, priceActivities] = await Promise.all([
+  const results = await Promise.allSettled([
     fetchSteamNews(10),
+    fetchRssFeeds(),
     detectSignificantChanges({ limit: 10 }),
   ]);
+
+  const newsItems = results[0].status === 'fulfilled' ? results[0].value : [];
+  const rssItems = results[1].status === 'fulfilled' ? results[1].value : [];
+  const priceActivities = results[2].status === 'fulfilled' ? results[2].value : [];
 
   const feedItems: FeedItem[] = [];
 
@@ -45,6 +51,17 @@ async function buildFeed(limit: number): Promise<FeedData> {
       summary: news.contents,
       timestamp: news.date,
       url: news.url,
+    });
+  }
+
+  for (const rss of rssItems) {
+    feedItems.push({
+      id: `rss-${rss.id}`,
+      type: "news",
+      title: rss.title,
+      summary: rss.contents,
+      timestamp: rss.date,
+      url: rss.url,
     });
   }
 

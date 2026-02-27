@@ -1,0 +1,23 @@
+.panel {
+  margin-bottom: 16px;
+  overflow: visible !important;
+}
+
+.label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.statusMessage {
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.statusMessage[data-error="true"] {
+  color: var(--bear);
+}
+
+.statusMessage[data-error="false"] {
+  color: var(--bull);
+}

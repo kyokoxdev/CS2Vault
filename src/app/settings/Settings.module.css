@@ -26,13 +26,11 @@
     font-size: 2.5rem;
     font-weight: 700;
     margin-bottom: 0.5rem;
-    background: linear-gradient(135deg, var(--text-primary), var(--text-muted));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--text-primary-90);
 }
 
 .subtitle {
-    color: var(--text-secondary);
+    color: var(--text-secondary-60);
     font-size: 1.1rem;
 }
 
@@ -50,18 +48,16 @@
 }
 
 .panel {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+    background: var(--surface-1);
+    border: 1px solid var(--border-primary);
     border-radius: 12px;
     padding: 2rem;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: none;
+    transition: border-color var(--transition-fast);
 }
 
 .panel:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
-    border-color: rgba(255, 255, 255, 0.1);
+    border-color: var(--border-active);
 }
 
 .panelHeader {
@@ -70,19 +66,19 @@
     gap: 1rem;
     margin-bottom: 2rem;
     padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-primary);
 }
 
 .icon {
     font-size: 1.8rem;
-    color: var(--accent-primary);
+    color: var(--text-primary-90);
 }
 
 .panelHeader h2 {
     font-size: 1.4rem;
     font-weight: 600;
     margin: 0;
-    color: var(--text-primary);
+    color: var(--text-primary-90);
 }
 
 .formGroup {
@@ -95,7 +91,7 @@
 .formGroup label {
     font-size: 0.95rem;
     font-weight: 500;
-    color: var(--text-secondary);
+    color: var(--text-secondary-60);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -103,17 +99,17 @@
 
 .inlineIcon {
     font-size: 1.1rem;
-    color: var(--text-muted);
+    color: var(--text-secondary-60);
 }
 
 .input,
 .select {
     width: 100%;
     padding: 0.8rem 1rem;
-    background: var(--bg-hover);
-    border: 1px solid var(--border);
+    background: var(--surface-hover);
+    border: 1px solid var(--border-primary);
     border-radius: 8px;
-    color: var(--text-primary);
+    color: var(--text-primary-90);
     font-size: 1rem;
     transition: all 0.2s ease;
     outline: none;
@@ -121,13 +117,13 @@
 
 .input:focus,
 .select:focus {
-    border-color: var(--accent-primary);
-    background: rgba(255, 255, 255, 0.05);
-    box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.2);
+    border-color: var(--border-active);
+    background: var(--surface-2);
+    box-shadow: 0 0 0 2px rgba(67, 67, 67, 0.3);
 }
 
 .input::placeholder {
-    color: var(--text-muted);
+    color: var(--text-secondary-60);
 }
 
 .select {
@@ -141,13 +137,13 @@
 }
 
 .select option {
-    background: var(--bg-primary);
-    color: var(--text-primary);
+    background: var(--surface-0);
+    color: var(--text-primary-90);
 }
 
 .helpText {
     font-size: 0.85rem;
-    color: var(--text-muted);
+    color: var(--text-secondary-60);
     margin: 0;
     line-height: 1.4;
 }
@@ -165,21 +161,21 @@
     align-items: center;
     gap: 0.8rem;
     padding: 1rem 2.5rem;
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary));
-    color: white;
+    background: var(--text-primary-90);
+    color: var(--surface-0);
     border: none;
     border-radius: 30px;
     font-size: 1.1rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 15px var(--accent-glow);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
 .saveBtn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px var(--accent-glow);
-    background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary));
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    background: var(--text-primary-90);
+    opacity: 0.9;
 }
 
 .saveBtn:disabled {
@@ -228,7 +224,7 @@
     justify-content: center;
     align-items: center;
     min-height: 200px;
-    color: var(--text-secondary);
+    color: var(--text-secondary-60);
     font-size: 1.1rem;
 }
 @media (max-width: 1200px) {

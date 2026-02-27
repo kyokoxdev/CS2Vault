@@ -23,6 +23,7 @@ vi.mock("react-icons/fa", () => ({
     FaBoxOpen: () => <span data-testid="icon-box">icon</span>,
     FaRobot: () => <span data-testid="icon-robot">icon</span>,
     FaCog: () => <span data-testid="icon-cog">icon</span>,
+    FaSteam: () => <span data-testid="icon-steam">icon</span>,
 }));
 
 // Mock next/link

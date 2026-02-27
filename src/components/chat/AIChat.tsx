@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import { FaRobot, FaTimes, FaPlus, FaArrowRight } from "react-icons/fa";
 import styles from "./AIChat.module.css";
 import type { ChatMessageData, AIProviderName } from "@/types";
 import { AI_MODELS } from "@/lib/ai/model-labels";
@@ -161,8 +162,8 @@ export default function AIChat() {
     return (
         <div className={styles.container}>
             <div className={styles.header}>
-                <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                    <div className={styles.headerIcon} aria-hidden="true">🤖</div>
+                <div className={styles.headerContent}>
+                    <div className={styles.headerIcon} aria-hidden="true"><FaRobot /></div>
                     <div>
                         <div className={styles.headerTitle}>CS2Vault AI Agent</div>
                         <div className={styles.headerSub}>Powered by Gemini & OpenAI Fast Fallback</div>
@@ -176,7 +177,7 @@ export default function AIChat() {
                         <div className={styles.dot}></div>
                         <div className={styles.dot}></div>
                         <div className={styles.dot}></div>
-                        <span style={{ marginLeft: "8px" }}>Loading chat history...</span>
+                        <span className={styles.loadingText}>Loading chat history...</span>
                     </div>
                 )}
                 {!historyLoading && messages.map((msg, idx) => (
@@ -196,7 +197,7 @@ export default function AIChat() {
                         <div className={styles.dot}></div>
                         <div className={styles.dot}></div>
                         <div className={styles.dot}></div>
-                        <span style={{ marginLeft: "8px" }}>Fetching market context...</span>
+                        <span className={styles.loadingText}>Fetching market context...</span>
                     </div>
                 )}
                 <div ref={messagesEndRef} />
@@ -206,7 +207,7 @@ export default function AIChat() {
                 {attachedImage && (
                     <div className={styles.imagePreviewContainer}>
                         <img src={attachedImage} alt="Attached" className={styles.imagePreview} />
-                        <button type="button" className={styles.clearImageBtn} onClick={() => setAttachedImage(null)} aria-label="Remove image">✕</button>
+                        <button type="button" className={styles.clearImageBtn} onClick={() => setAttachedImage(null)} aria-label="Remove image"><FaTimes /></button>
                     </div>
                 )}
                 {error && (
@@ -223,12 +224,12 @@ export default function AIChat() {
                         title="Upload image (or Ctrl+V)"
                         aria-label="Attach image"
                     >
-                        +
+                        <FaPlus />
                     </button>
                     <input
                         type="file"
                         ref={fileInputRef}
-                        style={{ display: "none" }}
+                        className={styles.hiddenInput}
                         accept="image/*"
                         onChange={(e) => {
                             const file = e.target.files?.[0];
@@ -266,7 +267,7 @@ export default function AIChat() {
                         disabled={(!input.trim() && !attachedImage) || isLoading}
                         aria-label="Send message"
                     >
-                        ➤
+                        <FaArrowRight />
                     </button>
                 </div>
             </form>

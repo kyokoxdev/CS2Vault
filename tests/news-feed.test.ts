@@ -8,11 +8,18 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+// Mock RSS feeds (fetchRssFeeds is called via Promise.allSettled in the route)
+vi.mock("@/lib/news/rss-feeds", () => ({
+  fetchRssFeeds: vi.fn(),
+}));
+
 import { prisma } from "@/lib/db";
+import { fetchRssFeeds } from "@/lib/news/rss-feeds";
 import { GET, __resetCache } from "../src/app/api/market/news-feed/route";
 import { fetchSteamNews } from "../src/lib/news/steam-news";
 
 const mockFindMany = vi.mocked(prisma.priceSnapshot.findMany);
+const mockFetchRssFeeds = vi.mocked(fetchRssFeeds);
 
 function makeSnapshot(overrides: {
   id?: number;
@@ -63,6 +70,8 @@ function makeRequest(limit?: number): Request {
 beforeEach(() => {
   vi.clearAllMocks();
   __resetCache();
+  // Default: RSS feeds return empty (most tests don't need RSS data)
+  mockFetchRssFeeds.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -88,7 +97,7 @@ describe("GET /api/market/news-feed", () => {
       )
     );
 
-    // Price activity from 1 hour ago
+    // Price activity from 1 hour ago (15% change > 5% threshold)
     mockFindMany.mockResolvedValue([
       makeSnapshot({
         id: 1,
@@ -114,7 +123,7 @@ describe("GET /api/market/news-feed", () => {
     expect(body.data.items.length).toBe(2);
     expect(body.data.updatedAt).toBeDefined();
 
-    // Price alert (1hr ago) should come before news (2hrs ago)
+    // Price alert (detected now) should come before news (2hrs ago)
     expect(body.data.items[0].type).toBe("price_alert");
     expect(body.data.items[1].type).toBe("news");
 
@@ -270,6 +279,39 @@ describe("GET /api/market/news-feed", () => {
 
     // Prisma should only have been called once
     expect(mockFindMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("includes RSS feed items when available", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        makeSteamNewsResponse([])
+      )
+    );
+
+    mockFindMany.mockResolvedValue([] as never);
+
+    // RSS returns items
+    mockFetchRssFeeds.mockResolvedValue([
+      {
+        id: "rss-hltv-1",
+        title: "HLTV: Major Update",
+        url: "https://www.hltv.org/news/1",
+        author: "hltv",
+        contents: "Major tournament announced",
+        date: new Date(Date.now() - 3600000),
+        source: "hltv" as const,
+      },
+    ]);
+
+    const res = await GET(makeRequest());
+    const body = await res.json();
+
+    expect(body.success).toBe(true);
+    expect(body.data.items.length).toBe(1);
+    expect(body.data.items[0].type).toBe("news");
+    expect(body.data.items[0].id).toBe("rss-rss-hltv-1");
+    expect(body.data.items[0].title).toBe("HLTV: Major Update");
   });
 });
 

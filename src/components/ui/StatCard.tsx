@@ -4,7 +4,7 @@ import styles from './StatCard.module.css';
 
 interface StatCardProps {
   label: string;
-  value: string | number;
+  value: string | number | ReactNode;
   change?: number;
   icon?: ReactNode;
   prefix?: string;

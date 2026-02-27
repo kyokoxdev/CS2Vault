@@ -1,0 +1,64 @@
+.itemNameLink {
+  font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: none;
+  display: block;
+}
+
+.itemNameLink:hover {
+  text-decoration: underline;
+  color: var(--accent-primary);
+}
+
+.itemHashName {
+  color: var(--text-muted);
+  font-size: 11px;
+  display: block;
+  margin-top: 2px;
+}
+
+.categoryCell {
+  text-transform: capitalize;
+}
+
+.priceCell {
+  font-family: var(--font-numeric);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.pricePositive {
+  color: var(--bull);
+}
+
+.sourceCell {
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--text-secondary-60);
+}
+
+.dateCell {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.actionsCell {
+  display: flex;
+  gap: 4px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+}
+
+.tableWrapper {
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.mutedText {
+  color: var(--text-muted);
+}

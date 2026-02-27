@@ -10,6 +10,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import CandlestickChart from "@/components/charts/CandlestickChart";
+import { StatCard } from "@/components/ui/StatCard";
+import { Badge } from "@/components/ui/Badge";
+import styles from "./ItemDetail.module.css";
 
 interface ItemDetail {
     id: string;
@@ -69,7 +72,7 @@ export default function ItemDetailPage() {
 
     if (loading) {
         return (
-            <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted)" }}>
+            <div className={styles.loadingState}>
                 Loading...
             </div>
         );
@@ -77,61 +80,48 @@ export default function ItemDetailPage() {
 
     if (!item) {
         return (
-            <div style={{ padding: 40, textAlign: "center" }}>
+            <div className={styles.notFound}>
                 <h3>Item not found</h3>
-                <Link href="/" style={{ marginTop: 16, display: "inline-block" }}>
+                <Link href="/" className={styles.backLink}>
                     ← Back to Market
                 </Link>
             </div>
         );
     }
 
+    const getRarityVariant = (rarity: string | null): "danger" | "warning" | "info" | "neutral" | "success" => {
+        if (!rarity) return "neutral";
+        const r = rarity.toLowerCase();
+        if (r.includes("contraband") || r.includes("covert")) return "danger";
+        if (r.includes("classified")) return "warning";
+        if (r.includes("restricted")) return "info";
+        return "neutral";
+    };
+
     return (
-        <>
+        <div className={styles.page}>
             {/* Back link */}
-            <Link
-                href="/"
-                style={{
-                    fontSize: 13,
-                    color: "var(--text-muted)",
-                    marginBottom: 16,
-                    display: "inline-block",
-                }}
-            >
+            <Link href="/" className={styles.backLink}>
                 ← Back to Market Overview
             </Link>
 
             {/* Item Header */}
-            <div
-                style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    marginBottom: 24,
-                }}
-            >
+            <div className={styles.header}>
                 <div>
-                    <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
+                    <h2 className={styles.itemName}>
                         {item.name}
                     </h2>
-                    <div style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                    <div className={styles.marketHashName}>
                         {item.marketHashName}
                     </div>
                 </div>
-                <div style={{ textAlign: "right" }}>
+                <div className={styles.headerRight}>
                     {latestPrice && (
                         <>
-                            <div
-                                style={{
-                                    fontSize: 28,
-                                    fontWeight: 700,
-                                    fontFamily: "var(--font-mono)",
-                                    color: "var(--green)",
-                                }}
-                            >
+                            <div className={styles.price}>
                                 ${latestPrice.price.toFixed(2)}
                             </div>
-                            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                            <div className={styles.priceSource}>
                                 via {latestPrice.source} •{" "}
                                 {new Date(latestPrice.timestamp).toLocaleString()}
                             </div>
@@ -141,51 +131,55 @@ export default function ItemDetailPage() {
             </div>
 
             {/* Stats Row */}
-            <div className="stats-grid" style={{ marginBottom: 24 }}>
-                <div className="stat-card">
-                    <div className="stat-label">Category</div>
-                    <div className="stat-value" style={{ fontSize: 16, textTransform: "capitalize" }}>
-                        {item.category}
-                    </div>
-                </div>
+            <div className={styles.statsGrid}>
+                <StatCard
+                    label="Category"
+                    value={
+                        <span className={styles.capitalized}>
+                            {item.category}
+                        </span>
+                    }
+                />
+                
                 {item.category === "weapon" && item.type && (
-                    <div className="stat-card">
-                        <div className="stat-label">Weapon Type</div>
-                        <div className="stat-value" style={{ fontSize: 16 }}>
-                            {item.type}
-                        </div>
-                    </div>
+                    <StatCard
+                        label="Weapon Type"
+                        value={item.type}
+                    />
                 )}
+
                 {item.rarity && (
-                    <div className="stat-card">
-                        <div className="stat-label">Rarity</div>
-                        <div className="stat-value" style={{ fontSize: 16 }}>
-                            {item.rarity}
-                        </div>
-                    </div>
+                    <StatCard
+                        label="Rarity"
+                        value={
+                            <Badge variant={getRarityVariant(item.rarity)}>
+                                {item.rarity}
+                            </Badge>
+                        }
+                    />
                 )}
+
                 {item.exterior && (
-                    <div className="stat-card">
-                        <div className="stat-label">Exterior</div>
-                        <div className="stat-value" style={{ fontSize: 16 }}>
-                            {item.exterior}
-                        </div>
-                    </div>
+                    <StatCard
+                        label="Exterior"
+                        value={item.exterior}
+                    />
                 )}
-                <div className="stat-card">
-                    <div className="stat-label">Status</div>
-                    <div className="stat-value" style={{ fontSize: 16 }}>
-                        {item.isWatched ? (
-                            <span style={{ color: "var(--green)" }}>✅ Watching</span>
+
+                <StatCard
+                    label="Status"
+                    value={
+                        item.isWatched ? (
+                            <Badge variant="success">Watching</Badge>
                         ) : (
-                            <span style={{ color: "var(--text-muted)" }}>Not watched</span>
-                        )}
-                    </div>
-                </div>
+                            <Badge variant="neutral">Not watched</Badge>
+                        )
+                    }
+                />
             </div>
 
             {/* Chart */}
             <CandlestickChart itemId={id} itemName={item.name} height={450} />
-        </>
+        </div>
     );
 }

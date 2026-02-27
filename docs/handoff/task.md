@@ -182,8 +182,22 @@
 - [x] [Medium] Build verification: `npm run build` succeeds with zero TypeScript errors.
 
 ## Phase 8: Final Polish & Production Readiness
-- [ ] Premium dark theme design
-- [ ] Animations & micro-interactions
-- [ ] Responsive design
-- [ ] Error monitoring (Sentry or similar)
-- [ ] Final UX audit
+- [x] [High] OKX-inspired dark theme redesign (globals.css tokens, Card/StatCard/Table primitives)
+- [x] [High] Dashboard layout overhaul (CSS Grid stats row, skeleton loaders, smooth transitions)
+- [x] [High] Chart components modernization (gradient fills, custom tooltips, no-data states)
+- [x] [Medium] Micro-interactions and hover effects (card lifts, button feedback, nav indicators)
+- [x] [Medium] Responsive design (mobile nav, fluid grids, touch targets)
+- [x] [Medium] Typography and spacing standardization (font scale, section headers)
+- [x] [Low] Final UX audit and Playwright QA verification
+
+## Phase 9: Fixes & Improvements
+- [x] [High] Fix blank sparkline charts (hourly data grouping)
+- [x] [High] Expand Top 5 Movers to full market via Pricempire API
+- [x] [High] Fix portfolio value stat to use actual inventory data
+- [x] [High] Broaden news sources (HLTV, Reddit, SteamDB, Valve via RSS)
+- [x] [Medium] Move news feed to bottom of Market Overview layout
+- [x] [Medium] Replace all emoji icons with react-icons
+- [x] [High] Full redesign of AI Chat page (OKX dark theme)
+- [x] [High] Full redesign of Settings page (OKX dark theme)
+- [x] [Medium] Update tests for top-movers and news-feed changes
+- [x] [Medium] Final verification: build passes, 146/146 tests pass, deprecated tokens cleaned

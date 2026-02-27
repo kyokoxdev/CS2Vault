@@ -102,3 +102,40 @@ export const pricempireProvider: MarketDataProvider = {
         };
     },
 };
+
+/**
+ * Fetch ALL item prices from Pricempire (full market catalog).
+ * Unlike fetchBulkPrices which filters by a provided list,
+ * this returns every item in the Pricempire response.
+ */
+export async function fetchAllPrices(): Promise<Map<string, PriceData>> {
+    const result = new Map<string, PriceData>();
+
+    const data = await pricempireQueue.enqueue(async () => {
+        const url = new URL(`${BASE_URL}/v4/paid/items/prices`);
+        url.searchParams.set("api_key", getApiKey());
+        url.searchParams.set("currency", "USD");
+        url.searchParams.set("source", "buff,steam");
+
+        const res = await fetch(url.toString());
+        if (!res.ok) {
+            throw new Error(`Pricempire API error: ${res.status} ${res.statusText}`);
+        }
+        return res.json();
+    });
+
+    for (const marketHashName of Object.keys(data)) {
+        const itemData = data[marketHashName];
+        if (itemData) {
+            const price = itemData?.steam?.price ?? itemData?.buff?.price ?? 0;
+            result.set(marketHashName, {
+                price: price / 100,
+                volume: itemData?.steam?.volume ?? undefined,
+                source: "pricempire",
+                timestamp: new Date(),
+            });
+        }
+    }
+
+    return result;
+}

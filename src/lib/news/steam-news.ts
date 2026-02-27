@@ -1,3 +1,5 @@
+export type NewsSource = "steam" | "hltv" | "reddit" | "steamdb" | "valve";
+
 export type NewsItem = {
   id: string;
   title: string;
@@ -5,7 +7,7 @@ export type NewsItem = {
   author: string;
   contents: string;
   date: Date;
-  source: "steam";
+  source: NewsSource;
 };
 
 function decodeHtmlEntities(text: string): string {
@@ -21,7 +23,7 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, "");
 }
 
-function sanitizeContents(raw: string): string {
+export function sanitizeContents(raw: string): string {
   const stripped = stripHtml(raw);
   const decoded = decodeHtmlEntities(stripped);
   return decoded.length > 200 ? decoded.slice(0, 200) : decoded;

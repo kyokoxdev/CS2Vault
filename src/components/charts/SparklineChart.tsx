@@ -41,6 +41,10 @@ export default function SparklineChart({
     useEffect(() => {
         if (!containerRef.current || data.length === 0) return;
 
+        // Set container dimensions via CSS custom properties
+        containerRef.current.style.width = typeof width === "number" ? `${width}px` : `${width}`;
+        containerRef.current.style.height = typeof height === "number" ? `${height}px` : `${height}`;
+
         // Auto-detect trend color
         const bullColor = "#00C076";
         const bearColor = "#FF4D4F";
@@ -104,7 +108,6 @@ export default function SparklineChart({
         <div
             ref={containerRef}
             className={`${styles.container}${className ? ` ${className}` : ""}`}
-            style={{ width, height }}
         />
     );
 }

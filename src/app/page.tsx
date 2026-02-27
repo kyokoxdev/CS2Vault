@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
+import { FaCheckCircle, FaTimesCircle, FaTimes, FaPlus, FaSpinner, FaSyncAlt } from "react-icons/fa";
 import { StatCard } from "@/components/ui/StatCard";
 import { WatchlistTable, type Item } from "@/components/market/WatchlistTable";
 import { AddItemPanel } from "@/components/market/AddItemPanel";
@@ -33,6 +35,8 @@ export default function MarketOverview() {
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
   const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[] }>({ gainers: [], losers: [] });
   const [topMoversLoading, setTopMoversLoading] = useState(true);
+  const [portfolioValue, setPortfolioValue] = useState<number | null>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(true);
 
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
@@ -85,6 +89,31 @@ export default function MarketOverview() {
       setTopMoversLoading(false);
     }
   }, []);
+
+  const fetchPortfolioValue = useCallback(async () => {
+    const { status } = useSession();
+
+    if (status === "unauthenticated") {
+      setPortfolioLoading(false);
+      return;
+    }
+
+    if (status !== "authenticated") {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/portfolio");
+      const data = await res.json();
+      if (data.success && data.data?.totalCurrentValue !== undefined) {
+        setPortfolioValue(data.data.totalCurrentValue);
+      }
+    } catch (err) {
+      console.warn("Portfolio fetch error:", err);
+    } finally {
+      setPortfolioLoading(false);
+    }
+  }, []);
   const fetchNewsFeed = useCallback(async () => {
     try {
       const res = await fetch("/api/market/news-feed?limit=20");
@@ -119,12 +148,16 @@ export default function MarketOverview() {
     setSyncing(false);
   }, [fetchData]);
 
+  const { status: authStatus } = useSession();
+
   useEffect(() => {
     fetchData();
     fetchMarketSummary();
     fetchTopMovers();
     fetchNewsFeed();
-  }, [fetchData, fetchMarketSummary, fetchTopMovers, fetchNewsFeed]);
+    fetchPortfolioValue();
+  }, [fetchData, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchPortfolioValue]);
+
 
   useEffect(() => {
     const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
@@ -195,10 +228,6 @@ export default function MarketOverview() {
 
   const watchedCount = items.filter((i) => i.isWatched).length;
   const lastSync = syncLogs[0];
-  const totalValue = items.reduce(
-    (sum, i) => sum + (i.currentPrice ?? 0),
-    0
-  );
   
   const marketCapValue = marketSummary?.marketCapUsd
     ? `$${marketSummary.marketCapUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
@@ -229,11 +258,27 @@ export default function MarketOverview() {
           value={watchedCount}
         />
         
-        <StatCard
-          label="Portfolio Value"
-          value={totalValue.toFixed(2)}
-          prefix="$"
-        />
+        {authStatus === "unauthenticated" ? (
+          <Card padding="md">
+            <div className={styles.statCardContent}>
+              <div className={styles.statLabel}>Portfolio Value</div>
+              <div className={styles.statValue}>Login required</div>
+            </div>
+          </Card>
+        ) : portfolioLoading ? (
+          <Card padding="md">
+            <div className={styles.statCardContent}>
+              <div className={styles.statLabel}>Portfolio Value</div>
+              <div className={styles.statValue}>Loading...</div>
+            </div>
+          </Card>
+        ) : (
+          <StatCard
+            label="Portfolio Value"
+            value={portfolioValue ? portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
+            prefix="$"
+          />
+        )}
         
         <Card padding="md">
           <div className={styles.statCardContent}>
@@ -274,14 +319,26 @@ export default function MarketOverview() {
             className="btn btn-ghost btn-sm"
             onClick={() => setShowAddForm(!showAddForm)}
           >
-            {showAddForm ? "✕ Cancel" : "＋ Add Item"}
+            {showAddForm ? <>
+              <FaTimes style={{ fontSize: '0.875rem', marginRight: '4px' }} />
+              Cancel
+            </> : <>
+              <FaPlus style={{ fontSize: '0.875rem', marginRight: '4px' }} />
+              Add Item
+            </>}
           </button>
           <button
             className="btn btn-primary btn-sm"
             onClick={handleSync}
             disabled={syncing}
           >
-            {syncing ? "⏳ Syncing..." : "🔄 Sync Now"}
+            {syncing ? <>
+              <FaSpinner style={{ fontSize: '0.875rem', marginRight: '4px', animation: 'spin 1s linear infinite' }} />
+              Syncing...
+            </> : <>
+              <FaSyncAlt style={{ fontSize: '0.875rem', marginRight: '4px' }} />
+              Sync Now
+            </>}
           </button>
         </div>
       </div>

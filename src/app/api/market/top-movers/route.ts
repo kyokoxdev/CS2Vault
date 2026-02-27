@@ -4,6 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { fetchAllPrices } from "@/lib/market/pricempire";
 
 interface SparklinePoint {
     time: number;
@@ -27,22 +28,29 @@ interface TopMoversData {
 
 let cachedData: TopMoversData | null = null;
 let cachedAt = 0;
-const CACHE_MS = 2 * 60 * 1000;
+const CACHE_MS = 5 * 60 * 1000;
 
 async function computeTopMovers(): Promise<TopMoversData> {
     const now = new Date();
     const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // Get all active items
-    const items = await prisma.item.findMany({
+    // 1. Fetch ALL market prices from Pricempire
+    const allPrices = await fetchAllPrices();
+
+    // 2. Get local items that have price snapshots (for 24h change calculation)
+    const localItems = await prisma.item.findMany({
         where: { isActive: true },
         select: { id: true, name: true, marketHashName: true },
     });
 
-    const movers: Mover[] = [];
+    // Build a lookup: marketHashName -> local item info
+    const localItemMap = new Map(
+        localItems.map((item) => [item.marketHashName, item])
+    );
 
-    for (const item of items) {
-        // Get snapshots from last 24h ordered by timestamp ascending
+    // 3. For local items, fetch 24h snapshots for change calculation + sparkline
+    const snapshotsByHash = new Map<string, { price: number; timestamp: Date }[]>();
+    for (const item of localItems) {
         const snapshots = await prisma.priceSnapshot.findMany({
             where: {
                 itemId: item.id,
@@ -51,55 +59,70 @@ async function computeTopMovers(): Promise<TopMoversData> {
             orderBy: { timestamp: "asc" },
             select: { price: true, timestamp: true },
         });
+        if (snapshots.length >= 2) {
+            snapshotsByHash.set(item.marketHashName, snapshots);
+        }
+    }
 
-        // Skip items with only 1 snapshot (can't compute change)
-        if (snapshots.length < 2) continue;
+    // 4. Build movers from ALL Pricempire items
+    const movers: Mover[] = [];
 
-        const earliest = snapshots[0];
-        const latest = snapshots[snapshots.length - 1];
+    for (const [marketHashName, priceData] of allPrices) {
+        if (priceData.price <= 0) continue;
 
-        if (earliest.price === 0) continue;
+        const localItem = localItemMap.get(marketHashName);
+        const snapshots = snapshotsByHash.get(marketHashName);
 
-        const change24h =
-            ((latest.price - earliest.price) / earliest.price) * 100;
+        let change24h = 0;
+        let sparkline: SparklinePoint[] = [];
 
-        // Build sparkline: up to 30 daily data points
-        // Group by day using floor(timestamp/86400000)
-        const dayMap = new Map<number, { time: number; value: number }>();
-        for (const snap of snapshots) {
-            const ts = snap.timestamp.getTime();
-            const dayKey = Math.floor(ts / 86400000);
-            // Take first snapshot of each day
-            if (!dayMap.has(dayKey)) {
-                dayMap.set(dayKey, {
-                    time: Math.floor(ts / 1000),
-                    value: snap.price,
-                });
+        if (snapshots && snapshots.length >= 2) {
+            // Has local history — compute real 24h change
+            const earliest = snapshots[0];
+            const latest = snapshots[snapshots.length - 1];
+
+            if (earliest.price > 0) {
+                change24h =
+                    ((latest.price - earliest.price) / earliest.price) * 100;
             }
+
+            // Build sparkline: hourly data points (from Task 2 logic)
+            const hourMap = new Map<number, { time: number; value: number }>();
+            for (const snap of snapshots) {
+                const ts = snap.timestamp.getTime();
+                const hourKey = Math.floor(ts / 3600000);
+                if (!hourMap.has(hourKey)) {
+                    hourMap.set(hourKey, {
+                        time: Math.floor(ts / 1000),
+                        value: snap.price,
+                    });
+                }
+            }
+
+            sparkline = [...hourMap.values()]
+                .sort((a, b) => a.time - b.time)
+                .slice(-24);
         }
 
-        const sparkline = [...dayMap.values()]
-            .sort((a, b) => a.time - b.time)
-            .slice(-30); // Keep most recent 30
+        // Only include items that have a meaningful change (skip zero-change items without history)
+        if (change24h === 0 && !snapshots) continue;
 
         movers.push({
-            id: item.id,
-            name: item.name,
-            marketHashName: item.marketHashName,
-            price: latest.price,
+            id: localItem?.id ?? marketHashName,
+            name: localItem?.name ?? marketHashName,
+            marketHashName,
+            price: priceData.price,
             change24h,
             sparkline,
         });
     }
 
-    // Sort: 0% change items rank last
-    // Gainers: descending by change24h (positive changes first)
+    // Sort: Gainers descending, Losers ascending
     const gainers = movers
         .filter((m) => m.change24h > 0)
         .sort((a, b) => b.change24h - a.change24h)
         .slice(0, 5);
 
-    // Losers: ascending by change24h (most negative first)
     const losers = movers
         .filter((m) => m.change24h < 0)
         .sort((a, b) => a.change24h - b.change24h)

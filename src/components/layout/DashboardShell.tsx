@@ -16,7 +16,8 @@ import {
     FaWallet,
     FaBoxOpen,
     FaRobot,
-    FaCog
+    FaCog,
+    FaSteam
 } from 'react-icons/fa';
 import styles from './DashboardShell.module.css';
 
@@ -91,7 +92,7 @@ export default function DashboardShell({
                     {isLoading ? (
                         <div className={styles.sidebarUser}>
                             <div className={styles.userInfo}>
-                                <div className={styles.userName} style={{ opacity: 0.5 }}>Loading...</div>
+                                <div className={`${styles.userName} ${styles.userNameLoading}`}>Loading...</div>
                             </div>
                         </div>
                     ) : isSignedIn ? (
@@ -121,7 +122,7 @@ export default function DashboardShell({
                             className={styles.sidebarUser}
                         >
                             <div className={styles.userAvatarPlaceholder}>
-                                🎮
+                                <FaSteam style={{ fontSize: '1.5rem' }} />
                             </div>
                             <div className={styles.userInfo}>
                                 <div className={styles.userName}>Sign in with Steam</div>
