@@ -17,9 +17,10 @@ interface TopMoversProps {
   gainers: TopMover[];
   losers: TopMover[];
   isLoading?: boolean;
+  source?: 'pricempire' | 'watchlist';
 }
 
-export function TopMovers({ gainers, losers, isLoading = false }: TopMoversProps) {
+export function TopMovers({ gainers, losers, isLoading = false, source }: TopMoversProps) {
   const router = useRouter();
 
   const handleItemClick = (id: string) => {
@@ -66,15 +67,22 @@ export function TopMovers({ gainers, losers, isLoading = false }: TopMoversProps
   }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.section}>
-        <div className={styles.sectionTitle}>Top Gainers</div>
-        {isLoading ? renderSkeletons() : gainers.slice(0, 5).map(item => renderCard(item, 'gainer'))}
+    <>
+      {source === 'watchlist' && (
+        <div className={styles.fallbackNotice}>
+          Live market data unavailable — showing watchlist items only
+        </div>
+      )}
+      <div className={styles.container}>
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Top Gainers</div>
+          {isLoading ? renderSkeletons() : gainers.slice(0, 5).map(item => renderCard(item, 'gainer'))}
+        </div>
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Top Losers</div>
+          {isLoading ? renderSkeletons() : losers.slice(0, 5).map(item => renderCard(item, 'loser'))}
+        </div>
       </div>
-      <div className={styles.section}>
-        <div className={styles.sectionTitle}>Top Losers</div>
-        {isLoading ? renderSkeletons() : losers.slice(0, 5).map(item => renderCard(item, 'loser'))}
-      </div>
-    </div>
+    </>
   );
 }

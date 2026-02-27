@@ -78,7 +78,7 @@ export function NewsFeed({ items, isLoading }: NewsFeedProps) {
           
           let icon = <FaNewspaper />;
           if (item.type === "price_alert") {
-            icon = isPositive ? <FaArrowUp style={{ color: '#22c55e' }} /> : <FaArrowDown style={{ color: '#ef4444' }} />;
+            icon = isPositive ? <FaArrowUp style={{ color: 'var(--bull)' }} /> : <FaArrowDown style={{ color: 'var(--bear)' }} />;
           }
 
           return (

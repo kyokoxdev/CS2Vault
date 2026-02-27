@@ -1,17 +1,17 @@
 .itemNameLink {
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-primary-90);
   text-decoration: none;
   display: block;
 }
 
 .itemNameLink:hover {
   text-decoration: underline;
-  color: var(--accent-primary);
+  color: var(--text-primary-90);
 }
 
 .itemHashName {
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   font-size: 11px;
   display: block;
   margin-top: 2px;
@@ -24,7 +24,7 @@
 .priceCell {
   font-family: var(--font-numeric);
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
 }
 
 .pricePositive {
@@ -38,7 +38,7 @@
 }
 
 .dateCell {
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   font-size: 12px;
 }
 
@@ -50,7 +50,7 @@
 .emptyState {
   text-align: center;
   padding: 40px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
 }
 
 .tableWrapper {
@@ -60,5 +60,5 @@
   overflow: hidden;
 }
 .mutedText {
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
 }

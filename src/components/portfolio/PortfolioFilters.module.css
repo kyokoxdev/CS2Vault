@@ -11,14 +11,14 @@
 
 .label {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   font-weight: 600;
 }
 
 .select {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
+  background: var(--surface-1);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary-90);
   border-radius: 6px;
   padding: 6px 10px;
   font-size: 12px;
@@ -26,9 +26,9 @@
 }
 
 .input {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
+  background: var(--surface-1);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary-90);
   border-radius: 6px;
   padding: 6px 10px;
   font-size: 12px;
@@ -36,9 +36,9 @@
 }
 
 .button {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
+  background: var(--surface-3);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary-90);
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 12px;
@@ -47,8 +47,8 @@
 
 .clearButton {
   background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary-60);
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 12px;
@@ -58,5 +58,5 @@
 .count {
   margin-left: auto;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
 }

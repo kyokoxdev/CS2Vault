@@ -1,11 +1,11 @@
-.panel {
+.panel.panel {
   margin-bottom: 16px;
-  overflow: visible !important;
+  overflow: visible;
 }
 
 .label {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   margin-bottom: 6px;
 }
 

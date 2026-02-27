@@ -44,7 +44,7 @@
 .itemName {
   flex: 1;
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--text-primary-90);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -54,7 +54,7 @@
 .itemPrice {
   font-family: var(--font-numeric);
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--text-primary-90);
   min-width: 70px;
   text-align: right;
 }
@@ -74,8 +74,15 @@
 .emptyState {
   text-align: center;
   padding: 40px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   font-size: 13px;
+}
+
+.fallbackNotice {
+  color: var(--text-secondary-60);
+  font-size: 12px;
+  padding: 8px 0;
+  text-align: center;
 }
 
 @keyframes pulse {

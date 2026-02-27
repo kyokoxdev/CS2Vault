@@ -80,13 +80,20 @@ async function buildFeed(limit: number): Promise<FeedData> {
     });
   }
 
+  // Filter out items older than 90 days
+  const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+  const cutoff = new Date(Date.now() - NINETY_DAYS_MS);
+  const recentItems = feedItems.filter(
+    (item) => new Date(item.timestamp).getTime() >= cutoff.getTime()
+  );
+
   // Sort by timestamp descending
-  feedItems.sort(
+  recentItems.sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
 
   return {
-    items: feedItems.slice(0, limit),
+    items: recentItems.slice(0, limit),
     updatedAt: new Date().toISOString(),
   };
 }

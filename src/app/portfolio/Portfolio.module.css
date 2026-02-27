@@ -12,12 +12,12 @@
 
 .title {
   margin: 0;
-  color: var(--text-primary);
+  color: var(--text-primary-90);
 }
 
 .subtitle {
   margin: 4px 0 0;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   font-size: 13px;
 }
 
@@ -28,9 +28,9 @@
 }
 
 .refreshButton {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-primary-90);
+  border: 1px solid var(--border-primary);
   padding: 10px 16px;
   border-radius: 8px;
   cursor: pointer;
@@ -43,13 +43,13 @@
 }
 
 .refreshButton:disabled {
-  background: var(--bg-tertiary);
+  background: var(--surface-3);
   cursor: not-allowed;
 }
 
 .syncButton {
-  background: var(--accent);
-  color: #000;
+  background: var(--text-primary-90);
+  color: var(--surface-0);
   border: none;
   padding: 10px 20px;
   border-radius: 8px;
@@ -63,8 +63,8 @@
 }
 
 .syncButton:disabled {
-  background: var(--bg-tertiary);
-  color: var(--text-muted);
+  background: var(--surface-3);
+  color: var(--text-secondary-60);
   cursor: not-allowed;
 }
 
@@ -78,18 +78,18 @@
   padding: 10px 14px;
   border-radius: 8px;
   font-size: 13px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-primary);
 }
 
 .syncStatusSuccess {
   background: rgba(0, 200, 83, 0.1);
-  color: var(--green);
+  color: var(--bull);
   border-color: rgba(0, 200, 83, 0.2);
 }
 
 .syncStatusError {
   background: rgba(255, 82, 82, 0.1);
-  color: var(--red);
+  color: var(--bear);
   border-color: rgba(255, 82, 82, 0.2);
 }
 
@@ -108,12 +108,12 @@
 }
 
 .emptyTitle {
-  color: var(--text-primary);
+  color: var(--text-primary-90);
   margin-bottom: 8px;
 }
 
 .emptyDescription {
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   margin-bottom: 24px;
   max-width: 400px;
   margin: 0 auto 24px;
@@ -128,7 +128,7 @@
 
 .loadingContent {
   text-align: center;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
 }
 
 .loadingIcon {
@@ -154,7 +154,7 @@
   height: 30px;
   object-fit: contain;
   border-radius: 4px;
-  background: var(--bg-tertiary);
+  background: var(--surface-3);
 }
 
 .itemName {
@@ -164,7 +164,7 @@
 
 .itemExterior {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
 }
 
 .categoryCell {
@@ -205,16 +205,16 @@
   width: 80px;
   padding: 4px 6px;
   border-radius: 4px;
-  border: 1px solid var(--accent);
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  border: 1px solid var(--border-active);
+  background: var(--surface-0);
+  color: var(--text-primary-90);
   font-size: 12px;
   font-family: var(--font-numeric);
 }
 
 .editButton {
-  background: var(--accent);
-  color: #000;
+  background: var(--text-primary-90);
+  color: var(--surface-0);
   border: none;
   border-radius: 4px;
   padding: 4px 8px;
@@ -226,7 +226,7 @@
   cursor: pointer;
   font-family: var(--font-numeric);
   font-size: 13px;
-  border-bottom: 1px dashed var(--text-muted);
+  border-bottom: 1px dashed var(--text-secondary-60);
   padding-bottom: 1px;
 }
 
@@ -247,7 +247,7 @@
 }
 
 .pnlNeutral {
-  color: var(--text-secondary);
+  color: var(--text-secondary-60);
 }
 
 .pnlPercent {
@@ -257,7 +257,7 @@
 }
 
 .textMuted {
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
 }
 
 .textItalic {

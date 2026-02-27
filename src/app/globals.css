@@ -319,22 +319,22 @@ button {
 }
 
 .btn-primary {
-  background: var(--accent-primary);
-  color: #fff;
+  background: var(--text-primary-90);
+  color: var(--surface-0);
 }
 .btn-primary:hover {
-  background: var(--accent-secondary);
+  filter: brightness(0.9);
 }
 
 .btn-ghost {
   background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
+  color: var(--text-secondary-60);
+  border: 1px solid var(--border-primary);
 }
 .btn-ghost:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-color: var(--border-hover);
+  background: var(--surface-hover);
+  color: var(--text-primary-90);
+  border-color: var(--border-active);
 }
 
 .btn-sm {

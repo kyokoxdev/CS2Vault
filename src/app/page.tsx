@@ -33,7 +33,7 @@ export default function MarketOverview() {
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
-  const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[] }>({ gainers: [], losers: [] });
+  const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[]; source?: 'pricempire' | 'watchlist' }>({ gainers: [], losers: [] });
   const [topMoversLoading, setTopMoversLoading] = useState(true);
   const [portfolioValue, setPortfolioValue] = useState<number | null>(null);
   const [portfolioLoading, setPortfolioLoading] = useState(true);
@@ -81,7 +81,7 @@ export default function MarketOverview() {
       const res = await fetch('/api/market/top-movers');
       const data = await res.json();
       if (data.success) {
-        setTopMovers({ gainers: data.data.gainers, losers: data.data.losers });
+        setTopMovers({ gainers: data.data.gainers, losers: data.data.losers, source: data.data.source });
       }
     } catch (err) {
       console.warn('Top movers fetch error:', err);
@@ -91,25 +91,15 @@ export default function MarketOverview() {
   }, []);
 
   const fetchPortfolioValue = useCallback(async () => {
-    const { status } = useSession();
-
-    if (status === "unauthenticated") {
-      setPortfolioLoading(false);
-      return;
-    }
-
-    if (status !== "authenticated") {
-      return;
-    }
-
     try {
-      const res = await fetch("/api/portfolio");
+      setPortfolioLoading(true);
+      const res = await fetch('/api/portfolio');
       const data = await res.json();
       if (data.success && data.data?.totalCurrentValue !== undefined) {
         setPortfolioValue(data.data.totalCurrentValue);
       }
     } catch (err) {
-      console.warn("Portfolio fetch error:", err);
+      console.warn('Portfolio fetch error:', err);
     } finally {
       setPortfolioLoading(false);
     }
@@ -151,12 +141,21 @@ export default function MarketOverview() {
   const { status: authStatus } = useSession();
 
   useEffect(() => {
+    if (authStatus === 'unauthenticated') {
+      setPortfolioLoading(false);
+      return;
+    }
+    if (authStatus === 'authenticated') {
+      fetchPortfolioValue();
+    }
+  }, [authStatus, fetchPortfolioValue]);
+
+  useEffect(() => {
     fetchData();
     fetchMarketSummary();
     fetchTopMovers();
     fetchNewsFeed();
-    fetchPortfolioValue();
-  }, [fetchData, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchPortfolioValue]);
+  }, [fetchData, fetchMarketSummary, fetchTopMovers, fetchNewsFeed]);
 
 
   useEffect(() => {

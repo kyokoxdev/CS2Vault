@@ -24,6 +24,7 @@ interface TopMoversData {
     gainers: Mover[];
     losers: Mover[];
     updatedAt: string;
+    source: "pricempire" | "watchlist";
 }
 
 let cachedData: TopMoversData | null = null;
@@ -34,10 +35,90 @@ async function computeTopMovers(): Promise<TopMoversData> {
     const now = new Date();
     const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // 1. Fetch ALL market prices from Pricempire
-    const allPrices = await fetchAllPrices();
+    // 1. Try to fetch ALL market prices from Pricempire
+    let allPrices: Awaited<ReturnType<typeof fetchAllPrices>> | null = null;
+    let dataSource: "pricempire" | "watchlist" = "pricempire";
+    try {
+        allPrices = await fetchAllPrices();
+    } catch (error) {
+        console.warn(
+            "[Top Movers] Pricempire unavailable, falling back to watchlist:",
+            error
+        );
+        dataSource = "watchlist";
+    }
 
-    // 2. Get local items that have price snapshots (for 24h change calculation)
+    // 2. Watchlist fallback path
+    if (dataSource === "watchlist") {
+        const watchedItems = await prisma.item.findMany({
+            where: { isWatched: true, isActive: true },
+            include: {
+                priceSnapshots: {
+                    where: { timestamp: { gte: cutoff24h } },
+                    orderBy: { timestamp: "desc" },
+                },
+            },
+        });
+
+        const movers: Mover[] = [];
+        for (const item of watchedItems) {
+            const snapshots = item.priceSnapshots;
+            if (snapshots.length === 0) continue;
+
+            const latest = snapshots[0];
+            const earliest = snapshots[snapshots.length - 1];
+            const price = latest.price;
+            let change24h = 0;
+            if (snapshots.length >= 2 && earliest.price > 0) {
+                change24h =
+                    ((latest.price - earliest.price) / earliest.price) * 100;
+            }
+
+            // Build sparkline from ascending order
+            const hourMap = new Map<number, { time: number; value: number }>();
+            for (const snap of [...snapshots].reverse()) {
+                const ts = snap.timestamp.getTime();
+                const hourKey = Math.floor(ts / 3600000);
+                if (!hourMap.has(hourKey)) {
+                    hourMap.set(hourKey, {
+                        time: Math.floor(ts / 1000),
+                        value: snap.price,
+                    });
+                }
+            }
+            const sparkline = [...hourMap.values()]
+                .sort((a, b) => a.time - b.time)
+                .slice(-24);
+
+            movers.push({
+                id: item.id,
+                name: item.name,
+                marketHashName: item.marketHashName,
+                price,
+                change24h,
+                sparkline,
+            });
+        }
+
+        const gainers = movers
+            .filter((m) => m.change24h > 0)
+            .sort((a, b) => b.change24h - a.change24h)
+            .slice(0, 5);
+
+        const losers = movers
+            .filter((m) => m.change24h < 0)
+            .sort((a, b) => a.change24h - b.change24h)
+            .slice(0, 5);
+
+        return {
+            gainers,
+            losers,
+            updatedAt: now.toISOString(),
+            source: dataSource,
+        };
+    }
+
+    // 3. Pricempire path — get local items for 24h change calculation
     const localItems = await prisma.item.findMany({
         where: { isActive: true },
         select: { id: true, name: true, marketHashName: true },
@@ -48,8 +129,11 @@ async function computeTopMovers(): Promise<TopMoversData> {
         localItems.map((item) => [item.marketHashName, item])
     );
 
-    // 3. For local items, fetch 24h snapshots for change calculation + sparkline
-    const snapshotsByHash = new Map<string, { price: number; timestamp: Date }[]>();
+    // 4. For local items, fetch 24h snapshots for change calculation + sparkline
+    const snapshotsByHash = new Map<
+        string,
+        { price: number; timestamp: Date }[]
+    >();
     for (const item of localItems) {
         const snapshots = await prisma.priceSnapshot.findMany({
             where: {
@@ -59,15 +143,15 @@ async function computeTopMovers(): Promise<TopMoversData> {
             orderBy: { timestamp: "asc" },
             select: { price: true, timestamp: true },
         });
-        if (snapshots.length >= 2) {
+        if (snapshots.length >= 1) {
             snapshotsByHash.set(item.marketHashName, snapshots);
         }
     }
 
-    // 4. Build movers from ALL Pricempire items
+    // 5. Build movers from ALL Pricempire items
     const movers: Mover[] = [];
 
-    for (const [marketHashName, priceData] of allPrices) {
+    for (const [marketHashName, priceData] of allPrices!) {
         if (priceData.price <= 0) continue;
 
         const localItem = localItemMap.get(marketHashName);
@@ -104,8 +188,8 @@ async function computeTopMovers(): Promise<TopMoversData> {
                 .slice(-24);
         }
 
-        // Only include items that have a meaningful change (skip zero-change items without history)
-        if (change24h === 0 && !snapshots) continue;
+        // Include items with at least 1 snapshot
+        if (!snapshots || snapshots.length === 0) continue;
 
         movers.push({
             id: localItem?.id ?? marketHashName,
@@ -132,6 +216,7 @@ async function computeTopMovers(): Promise<TopMoversData> {
         gainers,
         losers,
         updatedAt: now.toISOString(),
+        source: dataSource,
     };
 }
 

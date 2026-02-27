@@ -29,15 +29,20 @@ async function fetchSingleFeed(
     const result = await parser.parseURL(feed.url);
     clearTimeout(timeout);
 
-    return (result.items ?? []).map((item) => ({
+    const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+    const cutoff = new Date(Date.now() - NINETY_DAYS_MS);
+
+    const mapped = (result.items ?? []).map((item) => ({
       id: item.guid ?? item.link ?? crypto.randomUUID(),
       title: item.title ?? "Untitled",
       url: item.link ?? "",
       author: item.creator ?? item.author ?? feed.name,
       contents: sanitizeContents(item.contentSnippet ?? item.content ?? ""),
-      date: item.isoDate ? new Date(item.isoDate) : new Date(),
+      date: item.isoDate ? new Date(item.isoDate) : new Date(0),
       source: feed.source,
     }));
+
+    return mapped.filter((item) => item.date >= cutoff);
   } catch (error) {
     clearTimeout(timeout);
     console.error(`[RSS ${feed.name}] Fetch failed:`, error);

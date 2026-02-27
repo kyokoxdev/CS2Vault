@@ -1,13 +1,13 @@
 .dataTable {
   width: 100%;
   border-collapse: collapse;
-  background: var(--bg-primary);
+  background: var(--surface-0);
 }
 
 .dataTable thead {
   position: sticky;
   top: 0;
-  background: var(--bg-primary);
+  background: var(--surface-0);
   z-index: 10;
 }
 
@@ -18,7 +18,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   border-bottom: 1px solid var(--border-primary);
 }
 
@@ -43,7 +43,7 @@
 .emptyCell {
   text-align: center;
   padding: 40px 16px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
 }
 
 /* Loading state — Skeleton rows */
