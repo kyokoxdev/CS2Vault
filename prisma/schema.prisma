@@ -105,9 +105,19 @@ model SyncLog {
   timestamp DateTime @default(now())
 }
 
+model MarketCapSnapshot {
+  id             String   @id @default(cuid())
+  totalMarketCap Float
+  totalListings  Int?
+  provider       String   @default("youpin")
+  topItems       String?
+  timestamp      DateTime @default(now())
+}
+
 model AppSettings {
   id                 String    @id @default("singleton")
-  activeMarketSource String    @default("pricempire")
+  activeMarketSource String    @default("csfloat")
+  csgotraderSubProvider String @default("csfloat")
   activeAIProvider   String    @default("gemini-pro")
   openAiApiKey       String?
   geminiApiKey       String?
