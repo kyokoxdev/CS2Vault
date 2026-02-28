@@ -3,7 +3,7 @@
 export interface PriceData {
     price: number;         // USD
     volume?: number;       // 24h trade volume
-    source: string;        // "pricempire" | "csfloat" | "steam"
+    source: string;        // provider name or sub-provider name
     timestamp: Date;
 }
 
@@ -134,11 +134,30 @@ export interface ApiResponse<T> {
 
 // ─── App Settings ───────────────────────────────────────
 
-export type MarketSource = "pricempire" | "csfloat" | "steam";
+export type MarketSource = "pricempire" | "csfloat" | "csgotrader" | "steam";
 export type AIProviderName = "gemini-pro" | "gemini-flash" | "openai";
+
+export type CSGOTraderSubProvider = "csgotrader" | "bitskins" | "steam" | "csmoney" | "csgotm" | "lootfarm" | "skinport" | "csgoempire" | "swapgg" | "buff163" | "cstrade" | "csfloat" | "youpin" | "lisskins";
+
+// CSGOTrader JSON format families
+export interface CSGOTraderSimplePrice {
+    price: number | null;
+}
+
+export interface CSGOTraderMultiModePrice {
+    starting_at?: number | { price: number };
+    highest_order?: { price: number };
+    suggested_price?: number | null;
+    instant_sale_price?: number;
+    last_24h?: number;
+    last_7d?: number;
+    last_30d?: number;
+    price?: number | null;
+}
 
 export interface AppSettingsData {
     activeMarketSource: MarketSource;
+    csgotraderSubProvider?: CSGOTraderSubProvider;
     activeAIProvider: AIProviderName;
     syncIntervalMin: number;
     watchlistOnly: boolean;
