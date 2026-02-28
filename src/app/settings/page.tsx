@@ -12,6 +12,7 @@ interface AppSettings {
     openAiApiKey: string;
     geminiApiKey: string;
     csfloatApiKey: string;
+    csgotraderSubProvider: string;
 }
 
 export default function SettingsPage() {
@@ -131,12 +132,40 @@ export default function SettingsPage() {
                             onChange={(e) => handleChange("activeMarketSource", e.target.value)}
                             className={styles.select}
                         >
-                            <option value="pricempire">Pricempire (Recommended)</option>
-                            <option value="csfloat">CSFloat API</option>
+                            <option value="pricempire">Pricempire</option>
+                            <option value="csfloat">CSFloat API (Recommended)</option>
+                            <option value="csgotrader">CSGOTrader Multi-Market</option>
                             <option value="steam">Steam Community Market</option>
                         </select>
-                        <p className={styles.helpText}>Third-party endpoints like Pricempire bypass Steam&apos;s aggressive 25-item timeout limit.</p>
+                        <p className={styles.helpText}>Choose your primary pricing feed. CSFloat uses bulk cache + API fallback. CSGOTrader aggregates 14 markets.</p>
                     </div>
+
+                    {settings.activeMarketSource === "csgotrader" && (
+                        <div className={styles.formGroup} style={{ marginLeft: "1.5rem" }}>
+                            <label>Sub-Provider</label>
+                            <select
+                                value={settings.csgotraderSubProvider}
+                                onChange={(e) => handleChange("csgotraderSubProvider", e.target.value)}
+                                className={styles.select}
+                            >
+                                <option value="csfloat">CSFloat (Recommended)</option>
+                                <option value="buff163">Buff163</option>
+                                <option value="steam">Steam</option>
+                                <option value="bitskins">BitSkins</option>
+                                <option value="skinport">Skinport</option>
+                                <option value="csmoney">CS.Money</option>
+                                <option value="csgoempire">CSGOEmpire</option>
+                                <option value="csgotm">CS:GO Trade Market</option>
+                                <option value="lootfarm">LootFarm</option>
+                                <option value="swapgg">Swap.gg</option>
+                                <option value="cstrade">CS.Trade</option>
+                                <option value="csgotrader">CSGOTrader</option>
+                                <option value="youpin">YouPin</option>
+                                <option value="lisskins">Lisskins</option>
+                            </select>
+                            <p className={styles.helpText}>Select which market&apos;s pricing data to use via CSGOTrader aggregation.</p>
+                        </div>
+                    )}
 
                     <div className={styles.formGroup}>
                         <label>CSFloat API Key</label>

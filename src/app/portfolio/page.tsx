@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import styles from "./Portfolio.module.css";
 import { PortfolioFilters } from "@/components/portfolio/PortfolioFilters";
 import { StatCard } from "@/components/ui/StatCard";
@@ -99,6 +99,8 @@ export default function PortfolioPage() {
   const [searchFilter, setSearchFilter] = useState("");
   const [refreshingPrices, setRefreshingPrices] = useState(false);
 
+  const initialSyncRef = useRef(false);
+
   const fetchPortfolio = useCallback(async () => {
     try {
       const params = new URLSearchParams();
@@ -121,6 +123,12 @@ export default function PortfolioPage() {
   useEffect(() => {
     fetchPortfolio();
   }, [fetchPortfolio]);
+
+  useEffect(() => {
+    if (initialSyncRef.current) return;
+    initialSyncRef.current = true;
+    handleSync();
+  }, []);
 
   async function handleSync() {
     setSyncing(true);

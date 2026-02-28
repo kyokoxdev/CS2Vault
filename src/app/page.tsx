@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { FaCheckCircle, FaTimesCircle, FaTimes, FaPlus, FaSpinner, FaSyncAlt } from "react-icons/fa";
 import { StatCard } from "@/components/ui/StatCard";
@@ -38,10 +38,17 @@ export default function MarketOverview() {
   const [portfolioValue, setPortfolioValue] = useState<number | null>(null);
   const [portfolioLoading, setPortfolioLoading] = useState(true);
 
+  const [pricempireMarketCap, setPricempireMarketCap] = useState<{
+    totalMarketCap: number;
+    totalListings: number;
+    provider: string;
+  } | null>(null);
+
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   // Add item state
   const [showAddForm, setShowAddForm] = useState(false);
+  const initialSyncRef = useRef(false);
   const [addStatus, setAddStatus] = useState("");
 
   const fetchData = useCallback(async () => {
@@ -118,6 +125,22 @@ export default function MarketOverview() {
     }
   }, []);
 
+  const fetchMarketCap = useCallback(async () => {
+    try {
+      const res = await fetch("/api/market/market-cap");
+      const data = await res.json();
+      if (data.success && data.data) {
+        setPricempireMarketCap({
+          totalMarketCap: data.data.totalMarketCap,
+          totalListings: data.data.totalListings,
+          provider: data.data.provider,
+        });
+      }
+    } catch (err) {
+      console.warn("Market cap fetch error:", err);
+    }
+  }, []);
+
   const handleSync = useCallback(async () => {
     setSyncing(true);
     setSyncStatus("Syncing...");
@@ -155,8 +178,14 @@ export default function MarketOverview() {
     fetchMarketSummary();
     fetchTopMovers();
     fetchNewsFeed();
-  }, [fetchData, fetchMarketSummary, fetchTopMovers, fetchNewsFeed]);
+    fetchMarketCap();
+  }, [fetchData, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
+  useEffect(() => {
+    if (initialSyncRef.current) return;
+    initialSyncRef.current = true;
+    handleSync();
+  }, [handleSync]);
 
   useEffect(() => {
     const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
@@ -169,10 +198,11 @@ export default function MarketOverview() {
       fetchMarketSummary();
       fetchTopMovers();
       fetchNewsFeed();
+      fetchMarketCap();
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [fetchMarketSummary, handleSync, fetchTopMovers, fetchNewsFeed]);
+  }, [fetchMarketSummary, handleSync, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
   async function handleAddItem(selected: {
     hashName: string;
@@ -228,17 +258,21 @@ export default function MarketOverview() {
   const watchedCount = items.filter((i) => i.isWatched).length;
   const lastSync = syncLogs[0];
   
-  const marketCapValue = marketSummary?.marketCapUsd
-    ? `$${marketSummary.marketCapUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : "N/A";
+  const marketCapValue = pricempireMarketCap?.totalMarketCap
+    ? `$${pricempireMarketCap.totalMarketCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : marketSummary?.marketCapUsd
+      ? `$${marketSummary.marketCapUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+      : "N/A";
     
-  const marketCapSubLabel = marketSummary?.marketCapUsd
-    ? `Source: CSFloat${marketSummary.sampleSize ? ` • ${marketSummary.sampleSize} items` : ""}`
-    : marketSummary?.status === "missing_key"
-      ? "Set CSFLOAT_API_KEY"
-      : marketSummary?.status === "error"
-        ? "CSFloat unavailable"
-        : "No data returned";
+  const marketCapSubLabel = pricempireMarketCap?.totalMarketCap
+    ? `Source: Pricempire • ${pricempireMarketCap.totalListings} items`
+    : marketSummary?.marketCapUsd
+      ? `Source: CSFloat${marketSummary.sampleSize ? ` • ${marketSummary.sampleSize} items` : ""}`
+      : marketSummary?.status === "missing_key"
+        ? "Set CSFLOAT_API_KEY"
+        : marketSummary?.status === "error"
+          ? "CSFloat unavailable"
+          : "No data returned";
 
   return (
     <div className={styles.page}>

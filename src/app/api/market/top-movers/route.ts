@@ -4,7 +4,8 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { fetchAllPrices } from "@/lib/market/pricempire";
+import { resolveMarketProvider } from "@/lib/market/registry";
+import type { MarketSource } from "@/types";
 
 interface SparklinePoint {
     time: number;
@@ -24,7 +25,7 @@ interface TopMoversData {
     gainers: Mover[];
     losers: Mover[];
     updatedAt: string;
-    source: "pricempire" | "watchlist";
+    source: string;
 }
 
 let cachedData: TopMoversData | null = null;
@@ -35,16 +36,34 @@ async function computeTopMovers(): Promise<TopMoversData> {
     const now = new Date();
     const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // 1. Try to fetch ALL market prices from Pricempire
-    let allPrices: Awaited<ReturnType<typeof fetchAllPrices>> | null = null;
-    let dataSource: "pricempire" | "watchlist" = "pricempire";
-    try {
-        allPrices = await fetchAllPrices();
-    } catch (error) {
-        console.warn(
-            "[Top Movers] Pricempire unavailable, falling back to watchlist:",
-            error
-        );
+    // 1. Resolve the active market provider from settings
+    const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
+    const activeSource = (settings?.activeMarketSource as MarketSource) ?? "csfloat";
+    const provider = resolveMarketProvider(activeSource);
+
+    let allPrices: Map<string, { price: number; source: string }> | null = null;
+    let dataSource: string = activeSource;
+    if (provider) {
+        try {
+            const localItems = await prisma.item.findMany({
+                where: { isActive: true },
+                select: { marketHashName: true },
+            });
+            const itemNames = localItems.map((i) => i.marketHashName);
+            const bulkResult = await provider.fetchBulkPrices(itemNames);
+            allPrices = new Map(
+                [...bulkResult.entries()].map(([k, v]) => [k, { price: v.price, source: v.source }])
+            );
+        } catch (error) {
+            console.warn(
+                `[Top Movers] Provider "${activeSource}" unavailable, falling back to watchlist:`,
+                error
+            );
+            allPrices = null;
+            dataSource = "watchlist";
+        }
+    } else {
+        console.warn(`[Top Movers] No provider for "${activeSource}", using watchlist fallback`);
         dataSource = "watchlist";
     }
 
@@ -118,7 +137,7 @@ async function computeTopMovers(): Promise<TopMoversData> {
         };
     }
 
-    // 3. Pricempire path — get local items for 24h change calculation
+    // 3. Provider path — get local items for 24h change calculation
     const localItems = await prisma.item.findMany({
         where: { isActive: true },
         select: { id: true, name: true, marketHashName: true },

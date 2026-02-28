@@ -9,16 +9,17 @@ vi.mock("@/lib/db", () => ({
     prisma: {
         item: { findMany: vi.fn() },
         priceSnapshot: { findMany: vi.fn() },
+        appSettings: { findUnique: vi.fn() },
     },
 }));
 
-// Mock Pricempire (fetchAllPrices returns full market catalog)
-vi.mock("@/lib/market/pricempire", () => ({
-    fetchAllPrices: vi.fn(),
+// Mock registry (resolveMarketProvider returns provider or null)
+vi.mock("@/lib/market/registry", () => ({
+    resolveMarketProvider: vi.fn(),
 }));
 
 import { prisma } from "@/lib/db";
-import { fetchAllPrices } from "@/lib/market/pricempire";
+import { resolveMarketProvider } from "@/lib/market/registry";
 import {
     computeTopMovers,
     __resetCache,
@@ -26,14 +27,15 @@ import {
 
 const mockItemFindMany = vi.mocked(prisma.item.findMany);
 const mockSnapshotFindMany = vi.mocked(prisma.priceSnapshot.findMany);
-const mockFetchAllPrices = vi.mocked(fetchAllPrices);
+const mockAppSettingsFindUnique = vi.mocked(prisma.appSettings.findUnique);
+const mockResolveMarketProvider = vi.mocked(resolveMarketProvider);
 
 // Helper to create a Date relative to now
 function hoursAgo(hours: number): Date {
     return new Date(Date.now() - hours * 60 * 60 * 1000);
 }
 
-// Helper to create a price map (simulates Pricempire API response)
+// Helper to create a price map (simulates provider bulk response)
 function makePriceMap(
     items: Array<{ name: string; price?: number }>
 ): Map<string, { price: number; source: string; timestamp: Date }> {
@@ -41,21 +43,34 @@ function makePriceMap(
     for (const item of items) {
         map.set(item.name, {
             price: item.price ?? 100,
-            source: "pricempire",
+            source: "csfloat",
             timestamp: new Date(),
         });
     }
     return map;
 }
 
+// Helper to create a mock provider with fetchBulkPrices
+function makeMockProvider(priceMap: Map<string, { price: number; source: string; timestamp: Date }>) {
+    return {
+        fetchBulkPrices: vi.fn().mockResolvedValue(priceMap),
+    };
+}
+
 beforeEach(() => {
     vi.clearAllMocks();
     __resetCache();
+    // Default: settings returns csfloat as active source
+    mockAppSettingsFindUnique.mockResolvedValue({
+        id: "singleton",
+        activeMarketSource: "csfloat",
+        csgotraderSubProvider: "csfloat",
+    } as never);
 });
 
 describe("GET /api/market/top-movers", () => {
     it("returns empty gainers/losers when DB has no active items", async () => {
-        mockFetchAllPrices.mockResolvedValue(new Map());
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(new Map()) as never);
         mockItemFindMany.mockResolvedValue([]);
 
         const result = await computeTopMovers();
@@ -67,9 +82,9 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("excludes items with only 1 price snapshot", async () => {
-        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(makePriceMap([
             { name: "AK-47 | Redline (Field-Tested)" },
-        ]));
+        ])) as never);
         mockItemFindMany.mockResolvedValue([
             { id: "item1", name: "AK-47 | Redline", marketHashName: "AK-47 | Redline (Field-Tested)" },
         ] as never);
@@ -85,13 +100,13 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("correctly sorts gainers descending and losers ascending", async () => {
-        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(makePriceMap([
             { name: "Gainer Big" },
             { name: "Gainer Small" },
             { name: "Loser Big" },
             { name: "Loser Small" },
             { name: "Flat Item" },
-        ]));
+        ])) as never);
         mockItemFindMany.mockResolvedValue([
             { id: "g1", name: "Gainer Big", marketHashName: "Gainer Big" },
             { id: "g2", name: "Gainer Small", marketHashName: "Gainer Small" },
@@ -139,9 +154,9 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("excludes 0% change items from both gainers and losers", async () => {
-        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(makePriceMap([
             { name: "Flat" },
-        ]));
+        ])) as never);
         mockItemFindMany.mockResolvedValue([
             { id: "flat", name: "Flat", marketHashName: "Flat" },
         ] as never);
@@ -163,9 +178,9 @@ describe("GET /api/market/top-movers", () => {
             name: `Item ${i}`,
             marketHashName: `Item ${i}`,
         }));
-        mockFetchAllPrices.mockResolvedValue(makePriceMap(
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(makePriceMap(
             items.map((item) => ({ name: item.marketHashName }))
-        ));
+        )) as never);
         mockItemFindMany.mockResolvedValue(items as never);
 
         // First 7 are gainers (ascending: +10, +20, ..., +70)
@@ -194,9 +209,9 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("returns fewer than 5 if not enough items", async () => {
-        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(makePriceMap([
             { name: "Gainer" },
-        ]));
+        ])) as never);
         mockItemFindMany.mockResolvedValue([
             { id: "g1", name: "Gainer", marketHashName: "Gainer" },
         ] as never);
@@ -213,9 +228,9 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("validates sparkline data shape", async () => {
-        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(makePriceMap([
             { name: "Spark Item" },
-        ]));
+        ])) as never);
         mockItemFindMany.mockResolvedValue([
             { id: "s1", name: "Spark Item", marketHashName: "Spark Item" },
         ] as never);
@@ -257,9 +272,9 @@ describe("GET /api/market/top-movers", () => {
         // Import the GET handler
         const { GET } = await import("@/app/api/market/top-movers/route");
 
-        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(makePriceMap([
             { name: "Cache Item" },
-        ]));
+        ])) as never);
         mockItemFindMany.mockResolvedValue([
             { id: "c1", name: "Cache Item", marketHashName: "Cache Item" },
         ] as never);
@@ -281,14 +296,14 @@ describe("GET /api/market/top-movers", () => {
         expect(body2.success).toBe(true);
         expect(body1.data.updatedAt).toBe(body2.data.updatedAt);
 
-        // Prisma should only be called once (cached on second call)
-        expect(mockItemFindMany).toHaveBeenCalledTimes(1);
+        // Settings should only be queried once (cached on second call)
+        expect(mockAppSettingsFindUnique).toHaveBeenCalledTimes(1);
     });
 
-    it("normal path returns source 'pricempire'", async () => {
-        mockFetchAllPrices.mockResolvedValue(makePriceMap([
+    it("normal path returns source 'csfloat'", async () => {
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(makePriceMap([
             { name: "AK-47 | Redline (Field-Tested)", price: 120 },
-        ]));
+        ])) as never);
         mockItemFindMany.mockResolvedValue([
             { id: "item1", name: "AK-47 | Redline", marketHashName: "AK-47 | Redline (Field-Tested)" },
         ] as never);
@@ -300,12 +315,12 @@ describe("GET /api/market/top-movers", () => {
 
         const result = await computeTopMovers();
 
-        expect(result.source).toBe("pricempire");
+        expect(result.source).toBe("csfloat");
         expect(result.gainers).toHaveLength(1);
     });
 
-    it("fallback returns source 'watchlist' when fetchAllPrices throws", async () => {
-        mockFetchAllPrices.mockRejectedValue(new Error("Pricempire down"));
+    it("fallback returns source 'watchlist' when provider is null", async () => {
+        mockResolveMarketProvider.mockReturnValue(null);
         mockItemFindMany.mockResolvedValue([
             {
                 id: "w1",
@@ -330,7 +345,7 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("fallback computes valid gainers/losers from watchlist data", async () => {
-        mockFetchAllPrices.mockRejectedValue(new Error("Pricempire down"));
+        mockResolveMarketProvider.mockReturnValue(null);
         mockItemFindMany.mockResolvedValue([
             {
                 id: "wg1",
@@ -383,7 +398,7 @@ describe("GET /api/market/top-movers", () => {
     });
 
     it("fallback with empty watchlist returns empty arrays", async () => {
-        mockFetchAllPrices.mockRejectedValue(new Error("Pricempire down"));
+        mockResolveMarketProvider.mockReturnValue(null);
         mockItemFindMany.mockResolvedValue([] as never);
 
         const result = await computeTopMovers();
