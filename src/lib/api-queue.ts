@@ -186,3 +186,10 @@ export const steamQueue = new ApiRequestQueue({
     maxRetries: 3,
     maxDailyRequests: 500,
 });
+
+/** CSGOTrader: bulk JSON fetch, conservative 1 req/5s */
+export const csgotraderQueue = new ApiRequestQueue({
+    minDelayMs: 5000,
+    maxRetries: 3,
+    maxDailyRequests: 1000,
+});
