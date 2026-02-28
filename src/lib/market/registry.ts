@@ -39,3 +39,16 @@ export function getMarketProvider(source: MarketSource): MarketDataProvider {
 export function getAvailableProviders(): MarketSource[] {
     return [...providers.keys()];
 }
+
+/**
+ * Resolve a market provider by source, returning null if not registered.
+ * Unlike getMarketProvider, this does NOT throw — it logs a warning and returns null.
+ */
+export function resolveMarketProvider(source: MarketSource): MarketDataProvider | null {
+    const provider = providers.get(source);
+    if (!provider) {
+        console.warn(`[Registry] Provider "${source}" not registered. Available: ${[...providers.keys()].join(", ")}`);
+        return null;
+    }
+    return provider;
+}

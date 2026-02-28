@@ -27,7 +27,7 @@ export async function runSync(overrideSource?: MarketSource): Promise<SyncResult
     });
 
     const preferredSource = overrideSource ?? (settings?.activeMarketSource as MarketSource) ?? "steam";
-    const source = preferredSource === "pricempire" ? "steam" : preferredSource;
+    const source = preferredSource;
     const watchlistOnly = settings?.watchlistOnly ?? true;
 
     try {

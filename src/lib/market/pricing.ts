@@ -56,12 +56,6 @@ function getMinAgeMinutes(override?: number): number {
     return clampNumber(parsed, 0, 24 * 60);
 }
 
-function normalizeMarketSourceForPrices(source?: MarketSource): MarketSource {
-    if (!source) return "steam";
-    if (source === "pricempire") return "steam";
-    return source;
-}
-
 async function resolveMarketProvider(
     overrideSource?: MarketSource
 ): Promise<MarketDataProvider> {
@@ -70,9 +64,8 @@ async function resolveMarketProvider(
     const settings = await prisma.appSettings.findUnique({
         where: { id: "singleton" },
     });
-    const preferred = normalizeMarketSourceForPrices(
-        overrideSource ?? (settings?.activeMarketSource as MarketSource)
-    );
+    const preferred: MarketSource =
+        overrideSource ?? (settings?.activeMarketSource as MarketSource) ?? "steam";
 
     try {
         return getMarketProvider(preferred);
