@@ -13,8 +13,32 @@
 import type { MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
 import { csfloatQueue } from "@/lib/api-queue";
 import { prisma } from "@/lib/db";
+import { parseSimplePriceFormat } from "@/lib/market/csgotrader-parsers";
 
 const BASE_URL = "https://csfloat.com/api/v1";
+const BULK_CACHE_URL = "https://prices.csgotrader.app/latest/csfloat.json";
+const BULK_CACHE_TTL_MS = 30 * 60 * 1000;
+
+let bulkPriceCache: Map<string, number> | null = null;
+let bulkCacheTimestamp = 0;
+
+async function getBulkPriceCache(): Promise<Map<string, number>> {
+    const now = Date.now();
+    if (bulkPriceCache && now - bulkCacheTimestamp < BULK_CACHE_TTL_MS) {
+        return bulkPriceCache;
+    }
+
+    const res = await fetch(BULK_CACHE_URL);
+    if (!res.ok) {
+        console.warn(`[CSFloat Bulk] Failed to fetch bulk cache: ${res.status}`);
+        return bulkPriceCache ?? new Map();
+    }
+
+    const data = await res.json();
+    bulkPriceCache = parseSimplePriceFormat(data as Record<string, { price: number | null }>);
+    bulkCacheTimestamp = now;
+    return bulkPriceCache;
+}
 
 async function getApiKey(): Promise<string> {
     const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
@@ -51,44 +75,41 @@ export const csfloatProvider: MarketDataProvider = {
     name: "csfloat",
 
     async fetchItemPrice(marketHashName: string): Promise<PriceData> {
-        const listings = await csfloatQueue.enqueue(async () => {
-            const url = new URL(`${BASE_URL}/listings`);
-            url.searchParams.set("market_hash_name", marketHashName);
-            url.searchParams.set("sort_by", "lowest_price");
-            url.searchParams.set("limit", "5");
-
-            const headers = await makeHeaders();
-            const res = await fetch(url.toString(), { headers });
-            if (!res.ok) {
-                throw new Error(`CSFloat API error: ${res.status} ${res.statusText}`);
-            }
-            return res.json() as Promise<CSFloatListing[]>;
-        });
-
-        if (!listings || listings.length === 0) {
-            throw new Error(`No CSFloat listings found for "${marketHashName}"`);
+        const bulkCache = await getBulkPriceCache();
+        const bulkPrice = bulkCache.get(marketHashName);
+        if (bulkPrice !== undefined) {
+            return {
+                price: bulkPrice,
+                source: "csfloat",
+                timestamp: new Date(),
+            };
         }
 
-        // Use the lowest listing price as the current price
-        const lowest = listings[0];
-        const priceUsd = lowest.price / 100;
-
-        return {
-            price: priceUsd,
-            volume: lowest.item.scm?.volume ?? undefined,
-            source: "csfloat",
-            timestamp: new Date(),
-        };
+        return fetchItemPriceFromApi(marketHashName);
     },
 
     async fetchBulkPrices(items: string[]): Promise<Map<string, PriceData>> {
         const result = new Map<string, PriceData>();
+        const bulkCache = await getBulkPriceCache();
+        const missingItems: string[] = [];
 
-        // CSFloat doesn't have a dedicated bulk endpoint.
-        // We fetch listings for each item individually through the queue.
         for (const marketHashName of items) {
+            const bulkPrice = bulkCache.get(marketHashName);
+            if (bulkPrice !== undefined) {
+                result.set(marketHashName, {
+                    price: bulkPrice,
+                    source: "csfloat",
+                    timestamp: new Date(),
+                });
+                continue;
+            }
+            missingItems.push(marketHashName);
+        }
+
+        const fallbackItems = missingItems.slice(0, 20);
+        for (const marketHashName of fallbackItems) {
             try {
-                const priceData = await csfloatProvider.fetchItemPrice(marketHashName);
+                const priceData = await fetchItemPriceFromApi(marketHashName);
                 result.set(marketHashName, priceData);
             } catch (error) {
                 console.warn(
@@ -132,3 +153,34 @@ export const csfloatProvider: MarketDataProvider = {
         };
     },
 };
+
+async function fetchItemPriceFromApi(marketHashName: string): Promise<PriceData> {
+    const listings = await csfloatQueue.enqueue(async () => {
+        const url = new URL(`${BASE_URL}/listings`);
+        url.searchParams.set("market_hash_name", marketHashName);
+        url.searchParams.set("sort_by", "lowest_price");
+        url.searchParams.set("limit", "5");
+
+        const headers = await makeHeaders();
+        const res = await fetch(url.toString(), { headers });
+        if (!res.ok) {
+            throw new Error(`CSFloat API error: ${res.status} ${res.statusText}`);
+        }
+        return res.json() as Promise<CSFloatListing[]>;
+    });
+
+    if (!listings || listings.length === 0) {
+        throw new Error(`No CSFloat listings found for "${marketHashName}"`);
+    }
+
+    // Use the lowest listing price as the current price
+    const lowest = listings[0];
+    const priceUsd = lowest.price / 100;
+
+    return {
+        price: priceUsd,
+        volume: lowest.item.scm?.volume ?? undefined,
+        source: "csfloat",
+        timestamp: new Date(),
+    };
+}

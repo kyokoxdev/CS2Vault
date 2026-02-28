@@ -9,6 +9,7 @@ import { registerMarketProvider } from "@/lib/market/registry";
 import { pricempireProvider } from "@/lib/market/pricempire";
 import { csfloatProvider } from "@/lib/market/csfloat";
 import { steamProvider } from "@/lib/market/steam";
+import { csgotraderProvider } from "@/lib/market/csgotrader";
 import { prisma } from "@/lib/db";
 
 let initialized = false;
@@ -38,6 +39,9 @@ export async function initializeMarketProviders(): Promise<void> {
     // Steam doesn't require an API key for market price overview
     registerMarketProvider("steam", steamProvider);
     console.log("[Market] ✅ Steam provider registered (always available)");
+
+    registerMarketProvider("csgotrader", csgotraderProvider);
+    console.log("[Market] ✅ CSGOTrader provider registered (always available)");
 
     initialized = true;
 }

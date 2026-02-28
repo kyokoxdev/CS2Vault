@@ -6,7 +6,8 @@ import { z } from "zod/v4";
 
 // Zod schema for settings validation
 const settingsSchema = z.object({
-    activeMarketSource: z.enum(["pricempire", "csfloat", "steam"]).optional(),
+    activeMarketSource: z.enum(["pricempire", "csfloat", "csgotrader", "steam"]).optional(),
+    csgotraderSubProvider: z.enum(["csgotrader", "bitskins", "steam", "csmoney", "csgotm", "lootfarm", "skinport", "csgoempire", "swapgg", "buff163", "cstrade", "csfloat", "youpin", "lisskins"]).optional(),
     activeAIProvider: z.enum(["gemini-pro", "gemini-flash", "openai"]).optional(),
     syncIntervalMin: z.number().int().min(1).max(1440).optional(),
     openAiApiKey: z.string().max(256).optional(),
@@ -44,9 +45,10 @@ export async function GET() {
         if (!settings) {
             // Return defaults if not created yet
             return NextResponse.json({
-                activeMarketSource: "pricempire",
+                activeMarketSource: "csfloat",
                 activeAIProvider: "gemini-pro",
                 syncIntervalMin: 5,
+                csgotraderSubProvider: "csfloat",
                 openAiApiKey: "",
                 geminiApiKey: "",
                 csfloatApiKey: "",
@@ -56,6 +58,7 @@ export async function GET() {
         // Return settings (send empty strings instead of null for UI forms)
         return NextResponse.json({
             activeMarketSource: settings.activeMarketSource,
+            csgotraderSubProvider: settings.csgotraderSubProvider ?? "csfloat",
             activeAIProvider: settings.activeAIProvider,
             syncIntervalMin: settings.syncIntervalMin,
             openAiApiKey: maskApiKey(settings.openAiApiKey),
@@ -102,6 +105,7 @@ export async function PATCH(request: Request) {
             openAiApiKey,
             geminiApiKey,
             csfloatApiKey,
+            csgotraderSubProvider,
         } = parseResult.data;
         // Upsert to ensure singleton exists
         const updated = await prisma.appSettings.upsert({
@@ -113,15 +117,17 @@ export async function PATCH(request: Request) {
                 openAiApiKey: openAiApiKey || null,
                 geminiApiKey: geminiApiKey || null,
                 csfloatApiKey: csfloatApiKey || null,
+                csgotraderSubProvider,
             },
             create: {
                 id: "singleton",
-                activeMarketSource: activeMarketSource ?? "pricempire",
+                activeMarketSource: activeMarketSource ?? "csfloat",
                 activeAIProvider: activeAIProvider ?? "gemini-pro",
                 syncIntervalMin: syncIntervalMin ?? 5,
                 openAiApiKey: openAiApiKey || null,
                 geminiApiKey: geminiApiKey || null,
                 csfloatApiKey: csfloatApiKey || null,
+                csgotraderSubProvider: csgotraderSubProvider ?? "csfloat",
             },
         });
 
@@ -135,6 +141,7 @@ export async function PATCH(request: Request) {
             openAiApiKey: maskApiKey(updated.openAiApiKey),
             geminiApiKey: maskApiKey(updated.geminiApiKey),
             csfloatApiKey: maskApiKey(updated.csfloatApiKey),
+            csgotraderSubProvider: updated.csgotraderSubProvider,
         });
     } catch (error) {
         console.error("[Settings API PATCH Error]", error);
