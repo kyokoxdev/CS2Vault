@@ -41,6 +41,7 @@ const createMockSettings = (overrides: Partial<{
     openAiApiKey: string | null;
     geminiApiKey: string | null;
     csfloatApiKey: string | null;
+    csgotraderSubProvider: string | null;
 }>) => ({
     id: "singleton",
     activeMarketSource: "pricempire",
@@ -49,6 +50,7 @@ const createMockSettings = (overrides: Partial<{
     openAiApiKey: null,
     geminiApiKey: null,
     csfloatApiKey: null,
+    csgotraderSubProvider: "csfloat",
     watchlistOnly: false,
     googleAccessToken: null,
     googleRefreshToken: null,
@@ -243,6 +245,40 @@ describe("Settings API", () => {
             expect(data.activeMarketSource).toBe("csfloat");
             expect(data.activeAIProvider).toBe("gemini-flash");
             expect(data.syncIntervalMin).toBe(15);
+        });
+
+        it("accepts csgotrader as valid market source with sub-provider", async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
+                createMockSettings({
+                    activeMarketSource: "csgotrader",
+                    csgotraderSubProvider: "buff163",
+                }) as any
+            );
+            const request = new Request("http://localhost/api/settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    activeMarketSource: "csgotrader",
+                    csgotraderSubProvider: "buff163",
+                }),
+            });
+            const response = await PATCH(request);
+            const data = await response.json();
+            expect(response.status).toBe(200);
+            expect(data.activeMarketSource).toBe("csgotrader");
+        });
+
+        it("rejects invalid csgotraderSubProvider values", async () => {
+            const request = new Request("http://localhost/api/settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ csgotraderSubProvider: "invalid-sub-provider" }),
+            });
+            const response = await PATCH(request);
+            const data = await response.json();
+            expect(response.status).toBe(400);
+            expect(data.error).toBe("Invalid settings data");
         });
     });
 });
