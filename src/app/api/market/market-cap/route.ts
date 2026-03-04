@@ -16,16 +16,10 @@ export async function GET() {
             console.warn("[Market Cap] Cleanup error:", err)
         );
 
-        const topItemsRaw = (result as unknown as { topItems: unknown }).topItems;
-        const topItems =
-            typeof topItemsRaw === "string" ? JSON.parse(topItemsRaw) : result.topItems;
-
         return NextResponse.json({
             success: true,
             data: {
                 totalMarketCap: result.totalMarketCap,
-                totalListings: result.totalListings,
-                topItems,
                 timestamp: result.timestamp,
                 provider: result.provider,
             },

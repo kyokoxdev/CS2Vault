@@ -40,7 +40,6 @@ export default function MarketOverview() {
 
   const [pricempireMarketCap, setPricempireMarketCap] = useState<{
     totalMarketCap: number;
-    totalListings: number;
     provider: string;
   } | null>(null);
 
@@ -132,7 +131,6 @@ export default function MarketOverview() {
       if (data.success && data.data) {
         setPricempireMarketCap({
           totalMarketCap: data.data.totalMarketCap,
-          totalListings: data.data.totalListings,
           provider: data.data.provider,
         });
       }
@@ -265,7 +263,7 @@ export default function MarketOverview() {
       : "N/A";
     
   const marketCapSubLabel = pricempireMarketCap?.totalMarketCap
-    ? `Source: Pricempire • ${pricempireMarketCap.totalListings} items`
+    ? "Source: Pricempire Chart"
     : marketSummary?.marketCapUsd
       ? `Source: CSFloat${marketSummary.sampleSize ? ` • ${marketSummary.sampleSize} items` : ""}`
       : marketSummary?.status === "missing_key"
