@@ -297,7 +297,7 @@ describe("GET /api/market/top-movers", () => {
         expect(body1.data.updatedAt).toBe(body2.data.updatedAt);
 
         // Settings should only be queried once (cached on second call)
-        expect(mockAppSettingsFindUnique).toHaveBeenCalledTimes(1);
+        expect(mockAppSettingsFindUnique).toHaveBeenCalledTimes(0);
     });
 
     it("normal path returns source 'csfloat'", async () => {

@@ -36,9 +36,8 @@ async function computeTopMovers(): Promise<TopMoversData> {
     const now = new Date();
     const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // 1. Resolve the active market provider from settings
-    const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
-    const activeSource = (settings?.activeMarketSource as MarketSource) ?? "csfloat";
+    // 1. Always use CSFloat for top movers
+    const activeSource: MarketSource = "csfloat";
     const provider = resolveMarketProvider(activeSource);
 
     let allPrices: Map<string, { price: number; source: string }> | null = null;
