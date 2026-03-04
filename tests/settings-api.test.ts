@@ -44,7 +44,7 @@ const createMockSettings = (overrides: Partial<{
     csgotraderSubProvider: string | null;
 }>) => ({
     id: "singleton",
-    activeMarketSource: "pricempire",
+    activeMarketSource: "csfloat",
     activeAIProvider: "gemini-pro",
     syncIntervalMin: 5,
     openAiApiKey: null,
@@ -86,6 +86,7 @@ describe("Settings API", () => {
         it("PATCH returns 401 when not authenticated", async () => {
             vi.mocked(auth).mockResolvedValue(null as unknown as ReturnType<typeof auth>);
             vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+            vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(null);
 
             const request = new Request("http://localhost/api/settings", {
                 method: "PATCH",
@@ -134,6 +135,7 @@ describe("Settings API", () => {
 
         it("masks API keys in PATCH response", async () => {
             vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+            vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(null);
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
@@ -160,6 +162,7 @@ describe("Settings API", () => {
     describe("Zod Validation", () => {
         beforeEach(() => {
             vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+            vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(null);
         });
 
         it("rejects invalid activeAIProvider values", async () => {
@@ -279,6 +282,95 @@ describe("Settings API", () => {
             const data = await response.json();
             expect(response.status).toBe(400);
             expect(data.error).toBe("Invalid settings data");
+        });
+    });
+
+    describe("Masked API Key Protection", () => {
+        it("does not overwrite key when masked value is sent back", async () => {
+            vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
+                createMockSettings({
+                    openAiApiKey: "sk-1234567890abcdef1234567890abcdef",
+                }) as any
+            );
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
+                createMockSettings({
+                    openAiApiKey: "sk-1234567890abcdef1234567890abcdef",
+                }) as any
+            );
+
+            const request = new Request("http://localhost/api/settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ openAiApiKey: "sk-1...cdef" }),
+            });
+
+            const response = await PATCH(request);
+            expect(response.status).toBe(200);
+
+            const upsertCall = vi.mocked(prisma.appSettings.upsert).mock.calls[0][0];
+            expect(upsertCall.update).not.toHaveProperty("openAiApiKey");
+        });
+
+        it("saves new key value when different from masked", async () => {
+            vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
+                createMockSettings({
+                    openAiApiKey: "sk-oldkey1234567890abcdef1234",
+                }) as any
+            );
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
+                createMockSettings({
+                    openAiApiKey: "sk-newkey9876543210fedcba9876",
+                }) as any
+            );
+
+            const request = new Request("http://localhost/api/settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ openAiApiKey: "sk-newkey9876543210fedcba9876" }),
+            });
+
+            const response = await PATCH(request);
+            expect(response.status).toBe(200);
+
+            const upsertCall = vi.mocked(prisma.appSettings.upsert).mock.calls[0][0];
+            expect(upsertCall.update).toHaveProperty("openAiApiKey", "sk-newkey9876543210fedcba9876");
+        });
+
+        it("clears key when empty string is sent", async () => {
+            vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
+                createMockSettings({
+                    geminiApiKey: "AIzaSyAbCdEfGhIjKlMnOpQrStUvWxYz",
+                }) as any
+            );
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
+                createMockSettings({
+                    geminiApiKey: null,
+                }) as any
+            );
+
+            const request = new Request("http://localhost/api/settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ geminiApiKey: "" }),
+            });
+
+            const response = await PATCH(request);
+            expect(response.status).toBe(200);
+
+            const upsertCall = vi.mocked(prisma.appSettings.upsert).mock.calls[0][0];
+            expect(upsertCall.update).toHaveProperty("geminiApiKey", null);
         });
     });
 });

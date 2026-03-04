@@ -107,6 +107,22 @@ export async function PATCH(request: Request) {
             csfloatApiKey,
             csgotraderSubProvider,
         } = parseResult.data;
+
+		const existing = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
+
+		function resolveApiKey(
+			incoming: string | undefined,
+			existingValue: string | null | undefined
+		): string | null | undefined {
+			if (incoming === undefined) return undefined;
+			if (incoming === "") return null;
+			if (incoming === maskApiKey(existingValue)) return undefined;
+			return incoming;
+		}
+
+		const resolvedOpenAi = resolveApiKey(openAiApiKey, existing?.openAiApiKey);
+		const resolvedGemini = resolveApiKey(geminiApiKey, existing?.geminiApiKey);
+		const resolvedCsfloat = resolveApiKey(csfloatApiKey, existing?.csfloatApiKey);
         // Upsert to ensure singleton exists
         const updated = await prisma.appSettings.upsert({
             where: { id: "singleton" },
@@ -114,9 +130,9 @@ export async function PATCH(request: Request) {
                 activeMarketSource,
                 activeAIProvider,
                 syncIntervalMin,
-                openAiApiKey: openAiApiKey || null,
-                geminiApiKey: geminiApiKey || null,
-                csfloatApiKey: csfloatApiKey || null,
+				...(resolvedOpenAi !== undefined && { openAiApiKey: resolvedOpenAi }),
+				...(resolvedGemini !== undefined && { geminiApiKey: resolvedGemini }),
+				...(resolvedCsfloat !== undefined && { csfloatApiKey: resolvedCsfloat }),
                 csgotraderSubProvider,
             },
             create: {
@@ -124,9 +140,9 @@ export async function PATCH(request: Request) {
                 activeMarketSource: activeMarketSource ?? "csfloat",
                 activeAIProvider: activeAIProvider ?? "gemini-pro",
                 syncIntervalMin: syncIntervalMin ?? 5,
-                openAiApiKey: openAiApiKey || null,
-                geminiApiKey: geminiApiKey || null,
-                csfloatApiKey: csfloatApiKey || null,
+				openAiApiKey: resolvedOpenAi ?? null,
+				geminiApiKey: resolvedGemini ?? null,
+				csfloatApiKey: resolvedCsfloat ?? null,
                 csgotraderSubProvider: csgotraderSubProvider ?? "csfloat",
             },
         });
