@@ -65,7 +65,7 @@ async function resolveMarketProvider(
         where: { id: "singleton" },
     });
     const preferred: MarketSource =
-        overrideSource ?? (settings?.activeMarketSource as MarketSource) ?? "steam";
+        overrideSource ?? (settings?.activeMarketSource as MarketSource) ?? "csfloat";
 
     try {
         return getMarketProvider(preferred);
@@ -116,7 +116,7 @@ export async function fetchBulkPricesForHashNames(
     overrideSource?: MarketSource
 ): Promise<BulkPriceResult> {
     if (hashNames.length === 0) {
-        return { prices: new Map(), provider: overrideSource ?? "steam" };
+        return { prices: new Map(), provider: overrideSource ?? "csfloat" };
     }
 
     let provider = await resolveMarketProvider(overrideSource);
@@ -160,7 +160,7 @@ export async function writePriceSnapshotsForItems(
             totalCandidates: 0,
             totalRequested: 0,
             pricedCount: 0,
-            provider: options.overrideSource ?? "steam",
+            provider: options.overrideSource ?? "csfloat",
             skippedRecent: 0,
         };
     }

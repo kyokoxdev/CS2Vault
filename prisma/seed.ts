@@ -22,7 +22,7 @@ async function main() {
         update: {},
         create: {
             id: "singleton",
-            activeMarketSource: "pricempire",
+            activeMarketSource: "csfloat",
             activeAIProvider: "gemini-pro",
             syncIntervalMin: 5,
             watchlistOnly: true,

@@ -26,7 +26,7 @@ export async function runSync(overrideSource?: MarketSource): Promise<SyncResult
         where: { id: "singleton" },
     });
 
-    const preferredSource = overrideSource ?? (settings?.activeMarketSource as MarketSource) ?? "steam";
+    const preferredSource = overrideSource ?? (settings?.activeMarketSource as MarketSource) ?? "csfloat";
     const source = preferredSource;
     const watchlistOnly = settings?.watchlistOnly ?? true;
 
@@ -51,7 +51,7 @@ export async function runSync(overrideSource?: MarketSource): Promise<SyncResult
         }
 
         // Fetch prices from active provider
-        let provider;
+        let provider: ReturnType<typeof getMarketProvider>;
         try {
             provider = getMarketProvider(source);
         } catch {
