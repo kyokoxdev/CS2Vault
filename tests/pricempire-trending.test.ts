@@ -13,20 +13,6 @@ import { prisma } from "@/lib/db";
 
 const mockFetch = vi.fn();
 
-const sampleTrendingData = [
-    { marketHashName: "AK-47 | Redline (FT)", price: 15.5, change24h: 2.5, volume: 1000 },
-    { marketHashName: "AWP | Asiimov (FT)", price: 42.0, change24h: -1.2, volume: 500 },
-];
-
-function mockFetchResponse(data: unknown, ok = true, status = 200) {
-    mockFetch.mockResolvedValueOnce({
-        ok,
-        status,
-        statusText: ok ? "OK" : "Internal Server Error",
-        json: () => Promise.resolve(data),
-    });
-}
-
 async function importModule() {
     return await import("@/lib/market/pricempire-trending");
 }
@@ -45,91 +31,156 @@ afterEach(() => {
 });
 
 describe("fetchMarketCapData", () => {
-    it("returns MarketCapData for array response", async () => {
-        mockFetchResponse(sampleTrendingData);
+    it("returns chart-based market cap using the latest entry in cents", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () =>
+                Promise.resolve([
+                    { date: "2024-01-01", value: 1200 },
+                    { date: "2024-01-02", value: 4567 },
+                ]),
+        });
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
 
         expect(result).not.toBeNull();
-        expect(result?.provider).toBe("youpin");
-        expect(result?.totalListings).toBe(2);
-        expect(result?.topItems).toEqual([
-            { marketHashName: "AK-47 | Redline (FT)", price: 15.5, change24h: 2.5, volume: 1000 },
-            { marketHashName: "AWP | Asiimov (FT)", price: 42.0, change24h: -1.2, volume: 500 },
-        ]);
-        expect(result?.totalMarketCap).toBe(36500);
+        expect(result?.provider).toBe("csfloat");
+        expect(result?.source).toBe("chart");
+        expect(result?.totalMarketCap).toBeCloseTo(45.67, 2);
         expect(result?.timestamp).toBeInstanceOf(Date);
     });
 
-    it("handles { data: [...] } response format", async () => {
-        mockFetchResponse({ data: [{ marketHashName: "AK-47 | Redline (FT)", price: 10 }] });
-        const { fetchMarketCapData } = await importModule();
-
-        const result = await fetchMarketCapData();
-
-        expect(result?.totalListings).toBe(1);
-        expect(result?.totalMarketCap).toBe(10);
-        expect(result?.topItems).toEqual([
-            { marketHashName: "AK-47 | Redline (FT)", price: 10, change24h: undefined, volume: undefined },
-        ]);
-    });
-
-    it("filters items without marketHashName", async () => {
-        mockFetchResponse([
-            { price: 12, change24h: 1 },
-            { marketHashName: "Valid Item", price: 12, change24h: 1, volume: 2 },
-        ]);
-        const { fetchMarketCapData } = await importModule();
-
-        const result = await fetchMarketCapData();
-
-        expect(result?.totalListings).toBe(1);
-        expect(result?.topItems).toEqual([
-            { marketHashName: "Valid Item", price: 12, change24h: 1, volume: 2 },
-        ]);
-        expect(result?.totalMarketCap).toBe(24);
-    });
-
-    it("filters items with non-positive price", async () => {
-        mockFetchResponse([
-            { marketHashName: "Zero", price: 0 },
-            { marketHashName: "Negative", price: -5 },
-            { marketHashName: "Positive", price: 8, volume: 3 },
-        ]);
-        const { fetchMarketCapData } = await importModule();
-
-        const result = await fetchMarketCapData();
-
-        expect(result?.totalListings).toBe(1);
-        expect(result?.topItems).toEqual([
-            { marketHashName: "Positive", price: 8, change24h: undefined, volume: 3 },
-        ]);
-        expect(result?.totalMarketCap).toBe(24);
-    });
-
-    it("stores snapshot via prisma.marketCapSnapshot.create", async () => {
-        mockFetchResponse(sampleTrendingData);
+    it("stores snapshot with normalized fields", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () => Promise.resolve([{ date: "2024-01-01", value: 2500 }]),
+        });
         const { fetchMarketCapData } = await importModule();
 
         await fetchMarketCapData();
 
         expect(prisma.marketCapSnapshot.create).toHaveBeenCalledWith({
             data: {
-                totalMarketCap: 36500,
-                totalListings: 2,
-                provider: "youpin",
-                topItems: JSON.stringify([
-                    { marketHashName: "AK-47 | Redline (FT)", price: 15.5, change24h: 2.5, volume: 1000 },
-                    { marketHashName: "AWP | Asiimov (FT)", price: 42.0, change24h: -1.2, volume: 500 },
-                ]),
+                totalMarketCap: 25,
+                totalListings: 0,
+                provider: "csfloat",
+                topItems: null,
                 timestamp: expect.any(Date),
             },
         });
     });
 
-    it("returns null on failed fetch with no cache", async () => {
-        mockFetchResponse({}, false, 500);
+    it("falls back to summary API when chart fetch fails", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: false,
+            status: 500,
+            statusText: "Internal Server Error",
+            json: () => Promise.resolve({}),
+        });
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () => Promise.resolve({ data: { marketCapUsd: 1234 } }),
+        });
+        const { fetchMarketCapData } = await importModule();
+
+        const result = await fetchMarketCapData();
+
+        expect(result?.source).toBe("formula");
+        expect(result?.totalMarketCap).toBe(1234);
+        expect(prisma.marketCapSnapshot.create).toHaveBeenCalledWith({
+            data: {
+                totalMarketCap: 1234,
+                totalListings: 0,
+                provider: "csfloat",
+                topItems: null,
+                timestamp: expect.any(Date),
+            },
+        });
+    });
+
+    it("falls back when chart response is empty", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () => Promise.resolve([]),
+        });
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () => Promise.resolve({ data: { marketCapUsd: 987 } }),
+        });
+        const { fetchMarketCapData } = await importModule();
+
+        const result = await fetchMarketCapData();
+
+        expect(result?.source).toBe("formula");
+        expect(result?.totalMarketCap).toBe(987);
+    });
+
+    it("falls back when chart returns a non-array response", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () => Promise.resolve({ data: "nope" }),
+        });
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () => Promise.resolve({ data: { marketCapUsd: 654 } }),
+        });
+        const { fetchMarketCapData } = await importModule();
+
+        const result = await fetchMarketCapData();
+
+        expect(result?.source).toBe("formula");
+        expect(result?.totalMarketCap).toBe(654);
+    });
+
+    it("falls back when chart latest value is non-positive", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () => Promise.resolve([{ date: "2024-01-01", value: -5 }]),
+        });
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () => Promise.resolve({ data: { marketCapUsd: 321 } }),
+        });
+        const { fetchMarketCapData } = await importModule();
+
+        const result = await fetchMarketCapData();
+
+        expect(result?.source).toBe("formula");
+        expect(result?.totalMarketCap).toBe(321);
+    });
+
+    it("returns null when chart and summary both fail", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: false,
+            status: 500,
+            statusText: "Internal Server Error",
+            json: () => Promise.resolve({}),
+        });
+        mockFetch.mockResolvedValueOnce({
+            ok: false,
+            status: 500,
+            statusText: "Internal Server Error",
+            json: () => Promise.resolve({}),
+        });
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
@@ -138,13 +189,80 @@ describe("fetchMarketCapData", () => {
         expect(prisma.marketCapSnapshot.create).not.toHaveBeenCalled();
     });
 
-    it("returns null when fetch throws on first call", async () => {
-        mockFetch.mockRejectedValueOnce(new Error("boom"));
+    it("returns null when both requests throw", async () => {
+        mockFetch.mockRejectedValueOnce(new Error("chart down"));
+        mockFetch.mockRejectedValueOnce(new Error("summary down"));
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
 
         expect(result).toBeNull();
+    });
+
+    it("falls back when chart request throws", async () => {
+        mockFetch.mockRejectedValueOnce(new Error("chart down"));
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () => Promise.resolve({ data: { marketCapUsd: 888 } }),
+        });
+        const { fetchMarketCapData } = await importModule();
+
+        const result = await fetchMarketCapData();
+
+        expect(result?.source).toBe("formula");
+        expect(result?.totalMarketCap).toBe(888);
+    });
+
+    it("serves cached data within TTL without refetching", async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () => Promise.resolve([{ date: "2024-01-01", value: 7777 }]),
+        });
+        const { fetchMarketCapData } = await importModule();
+
+        const first = await fetchMarketCapData();
+        const second = await fetchMarketCapData();
+
+        expect(first).toEqual(second);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns stale cache when refetch fails after TTL", async () => {
+        const nowSpy = vi.spyOn(Date, "now");
+        nowSpy.mockReturnValueOnce(1_000_000);
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            json: () => Promise.resolve([{ date: "2024-01-01", value: 9999 }]),
+        });
+        const { fetchMarketCapData } = await importModule();
+
+        const first = await fetchMarketCapData();
+
+        nowSpy.mockReturnValueOnce(1_000_000 + 15 * 60 * 1000 + 1);
+        mockFetch.mockResolvedValueOnce({
+            ok: false,
+            status: 500,
+            statusText: "Internal Server Error",
+            json: () => Promise.resolve({}),
+        });
+        mockFetch.mockResolvedValueOnce({
+            ok: false,
+            status: 500,
+            statusText: "Internal Server Error",
+            json: () => Promise.resolve({}),
+        });
+
+        const second = await fetchMarketCapData();
+
+        expect(second).toEqual(first);
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+        nowSpy.mockRestore();
     });
 });
 
@@ -158,7 +276,8 @@ describe("cleanupOldSnapshots", () => {
 
         expect(result).toBe(3);
         const call = vi.mocked(prisma.marketCapSnapshot.deleteMany).mock.calls[0]?.[0];
-        const cutoff = call?.where?.timestamp?.lt as Date;
+        const where = call?.where as { timestamp?: { lt?: Date } } | undefined;
+        const cutoff = where?.timestamp?.lt as Date;
         const dayMs = 24 * 60 * 60 * 1000;
         const diff = now - cutoff.getTime();
         expect(diff).toBeGreaterThanOrEqual(30 * dayMs - 1000);
@@ -174,7 +293,8 @@ describe("cleanupOldSnapshots", () => {
 
         expect(result).toBe(1);
         const call = vi.mocked(prisma.marketCapSnapshot.deleteMany).mock.calls[0]?.[0];
-        const cutoff = call?.where?.timestamp?.lt as Date;
+        const where = call?.where as { timestamp?: { lt?: Date } } | undefined;
+        const cutoff = where?.timestamp?.lt as Date;
         const dayMs = 24 * 60 * 60 * 1000;
         const diff = now - cutoff.getTime();
         expect(diff).toBeGreaterThanOrEqual(10 * dayMs - 1000);

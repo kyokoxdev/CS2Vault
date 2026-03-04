@@ -1,20 +1,12 @@
 import { prisma } from "@/lib/db";
 
-const TRENDING_URL = "https://pricempire.com/api-data/v1/trending";
+const CHART_URL = "https://pricempire.com/api-data/v1/trending/chart?provider=csfloat";
 
-interface TrendingItem {
-    marketHashName: string;
-    price: number;
-    change24h?: number;
-    volume?: number;
-}
-
-interface MarketCapData {
+export interface MarketCapData {
     totalMarketCap: number;
-    totalListings: number;
-    topItems: TrendingItem[];
     timestamp: Date;
     provider: string;
+    source: "chart" | "formula";
 }
 
 let cachedData: MarketCapData | null = null;
@@ -27,67 +19,100 @@ export async function fetchMarketCapData(): Promise<MarketCapData | null> {
         return cachedData;
     }
 
-    try {
-        const url = new URL(TRENDING_URL);
-        url.searchParams.set("sort", "current");
-        url.searchParams.set("order", "DESC");
-        url.searchParams.set("chart", "true");
-        url.searchParams.set("provider", "youpin");
-        url.searchParams.set("page", "1");
-        url.searchParams.set("limit", "50");
+    const chartResult = await fetchFromChartApi();
+    if (chartResult) {
+        await storeSnapshot(chartResult);
+        cachedData = chartResult;
+        cacheTimestamp = now;
+        return chartResult;
+    }
 
-        const res = await fetch(url.toString());
+    const fallbackResult = await fetchSummaryFallback();
+    if (fallbackResult) {
+        await storeSnapshot(fallbackResult);
+        cachedData = fallbackResult;
+        cacheTimestamp = now;
+        return fallbackResult;
+    }
+
+    return cachedData;
+}
+
+async function fetchFromChartApi(): Promise<MarketCapData | null> {
+    try {
+        const res = await fetch(CHART_URL);
         if (!res.ok) {
-            console.warn(`[Pricempire Trending] Fetch failed: ${res.status} ${res.statusText}`);
-            return cachedData;
+            console.warn(`[Pricempire Chart] Fetch failed: ${res.status} ${res.statusText}`);
+            return null;
+        }
+
+        const json: unknown = await res.json();
+        if (!Array.isArray(json) || json.length === 0) {
+            console.warn("[Pricempire Chart] Empty or invalid response");
+            return null;
+        }
+
+        const latest = json[json.length - 1] as { date?: string; value?: number };
+        if (typeof latest.value !== "number" || latest.value <= 0) {
+            console.warn("[Pricempire Chart] Invalid latest entry:", latest);
+            return null;
+        }
+
+        const marketCapUsd = latest.value / 100;
+
+        return {
+            totalMarketCap: marketCapUsd,
+            timestamp: new Date(),
+            provider: "csfloat",
+            source: "chart",
+        };
+    } catch (error) {
+        console.warn("[Pricempire Chart] Error:", error instanceof Error ? error.message : error);
+        return null;
+    }
+}
+
+async function fetchSummaryFallback(): Promise<MarketCapData | null> {
+    try {
+        const port = process.env.PORT || "3000";
+        const res = await fetch(`http://localhost:${port}/api/market/summary`);
+        if (!res.ok) {
+            console.warn(`[Pricempire Fallback] Summary fetch failed: ${res.status}`);
+            return null;
         }
 
         const json = await res.json();
-
-        const items: unknown[] = Array.isArray(json) ? json : (json?.data ?? json?.items ?? []);
-
-        const topItems: TrendingItem[] = [];
-        let totalMarketCap = 0;
-
-        for (const raw of items) {
-            if (!raw || typeof raw !== "object") continue;
-            const item = raw as Record<string, unknown>;
-            
-            const marketHashName = (item.marketHashName ?? item.market_hash_name ?? item.name) as string | undefined;
-            const price = Number(item.price ?? item.current ?? 0);
-            const change24h = item.change24h !== undefined ? Number(item.change24h) : undefined;
-            const volume = item.volume !== undefined ? Number(item.volume) : undefined;
-
-            if (marketHashName && price > 0) {
-                topItems.push({ marketHashName, price, change24h, volume });
-                totalMarketCap += price * (volume ?? 1);
-            }
+        const marketCapUsd = json?.data?.marketCapUsd;
+        if (typeof marketCapUsd !== "number" || marketCapUsd <= 0) {
+            console.warn("[Pricempire Fallback] No valid marketCapUsd from summary");
+            return null;
         }
 
-        const data: MarketCapData = {
-            totalMarketCap,
-            totalListings: topItems.length,
-            topItems,
+        return {
+            totalMarketCap: marketCapUsd,
             timestamp: new Date(),
-            provider: "youpin",
+            provider: "csfloat",
+            source: "formula",
         };
+    } catch (error) {
+        console.warn("[Pricempire Fallback] Error:", error instanceof Error ? error.message : error);
+        return null;
+    }
+}
 
+async function storeSnapshot(data: MarketCapData): Promise<void> {
+    try {
         await prisma.marketCapSnapshot.create({
             data: {
                 totalMarketCap: data.totalMarketCap,
-                totalListings: data.totalListings,
+                totalListings: 0,
                 provider: data.provider,
-                topItems: JSON.stringify(data.topItems),
+                topItems: null,
                 timestamp: data.timestamp,
             },
         });
-
-        cachedData = data;
-        cacheTimestamp = now;
-        return data;
     } catch (error) {
-        console.warn("[Pricempire Trending] Error fetching market cap data:", error instanceof Error ? error.message : error);
-        return cachedData;
+        console.warn("[Pricempire] Failed to store snapshot:", error instanceof Error ? error.message : error);
     }
 }
 
