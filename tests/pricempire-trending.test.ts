@@ -9,9 +9,30 @@ vi.mock("@/lib/db", () => ({
     },
 }));
 
-import { prisma } from "@/lib/db";
+vi.mock("child_process", () => ({
+    execFile: vi.fn(),
+}));
 
-const mockFetch = vi.fn();
+import { prisma } from "@/lib/db";
+import { execFile } from "child_process";
+
+const mockExecFile = vi.mocked(execFile);
+
+type ExecFileCallback = (error: Error | null, stdout: string, stderr: string) => void;
+
+function simulateCurlSuccess(jsonData: unknown) {
+    mockExecFile.mockImplementationOnce((_cmd, _args, _opts, callback) => {
+        (callback as ExecFileCallback)(null, JSON.stringify(jsonData), "");
+        return {} as ReturnType<typeof execFile>;
+    });
+}
+
+function simulateCurlFailure(message: string) {
+    mockExecFile.mockImplementationOnce((_cmd, _args, _opts, callback) => {
+        (callback as ExecFileCallback)(new Error(message), "", "");
+        return {} as ReturnType<typeof execFile>;
+    });
+}
 
 async function importModule() {
     return await import("@/lib/market/pricempire-trending");
@@ -20,8 +41,7 @@ async function importModule() {
 beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    mockFetch.mockReset();
-    vi.stubGlobal("fetch", mockFetch);
+    mockExecFile.mockReset();
     vi.mocked(prisma.marketCapSnapshot.create).mockResolvedValue({} as never);
     vi.mocked(prisma.marketCapSnapshot.deleteMany).mockResolvedValue({ count: 0 } as never);
 });
@@ -32,16 +52,10 @@ afterEach(() => {
 
 describe("fetchMarketCapData", () => {
     it("returns chart-based market cap using the latest entry", async () => {
-        mockFetch.mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            statusText: "OK",
-            json: () =>
-                Promise.resolve([
-                    { date: "2024-01-01", value: 1200 },
-                    { date: "2024-01-02", value: 4567 },
-                ]),
-        });
+        simulateCurlSuccess([
+            { date: "2024-01-01", value: 1200 },
+            { date: "2024-01-02", value: 4567 },
+        ]);
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
@@ -54,12 +68,7 @@ describe("fetchMarketCapData", () => {
     });
 
     it("stores snapshot with normalized fields", async () => {
-        mockFetch.mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            statusText: "OK",
-            json: () => Promise.resolve([{ date: "2024-01-01", value: 2500 }]),
-        });
+        simulateCurlSuccess([{ date: "2024-01-01", value: 2500 }]);
         const { fetchMarketCapData } = await importModule();
 
         await fetchMarketCapData();
@@ -75,13 +84,8 @@ describe("fetchMarketCapData", () => {
         });
     });
 
-    it("returns null when chart fetch fails", async () => {
-        mockFetch.mockResolvedValueOnce({
-            ok: false,
-            status: 500,
-            statusText: "Internal Server Error",
-            json: () => Promise.resolve({}),
-        });
+    it("returns null when curl fails", async () => {
+        simulateCurlFailure("curl: (22) The requested URL returned error: 500");
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
@@ -91,12 +95,7 @@ describe("fetchMarketCapData", () => {
     });
 
     it("returns null when chart response is empty", async () => {
-        mockFetch.mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            statusText: "OK",
-            json: () => Promise.resolve([]),
-        });
+        simulateCurlSuccess([]);
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
@@ -105,12 +104,7 @@ describe("fetchMarketCapData", () => {
     });
 
     it("returns null when chart returns a non-array response", async () => {
-        mockFetch.mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            statusText: "OK",
-            json: () => Promise.resolve({ data: "nope" }),
-        });
+        simulateCurlSuccess({ data: "nope" });
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
@@ -119,11 +113,18 @@ describe("fetchMarketCapData", () => {
     });
 
     it("returns null when chart latest value is non-positive", async () => {
-        mockFetch.mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            statusText: "OK",
-            json: () => Promise.resolve([{ date: "2024-01-01", value: -5 }]),
+        simulateCurlSuccess([{ date: "2024-01-01", value: -5 }]);
+        const { fetchMarketCapData } = await importModule();
+
+        const result = await fetchMarketCapData();
+
+        expect(result).toBeNull();
+    });
+
+    it("returns null when curl returns invalid JSON", async () => {
+        mockExecFile.mockImplementationOnce((_cmd, _args, _opts, callback) => {
+            (callback as ExecFileCallback)(null, "not json at all", "");
+            return {} as ReturnType<typeof execFile>;
         });
         const { fetchMarketCapData } = await importModule();
 
@@ -132,19 +133,8 @@ describe("fetchMarketCapData", () => {
         expect(result).toBeNull();
     });
 
-    it("returns null when chart and summary both fail", async () => {
-        mockFetch.mockResolvedValueOnce({
-            ok: false,
-            status: 500,
-            statusText: "Internal Server Error",
-            json: () => Promise.resolve({}),
-        });
-        mockFetch.mockResolvedValueOnce({
-            ok: false,
-            status: 500,
-            statusText: "Internal Server Error",
-            json: () => Promise.resolve({}),
-        });
+    it("returns null when both chart and fallback fail", async () => {
+        simulateCurlFailure("curl: (7) Failed to connect");
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
@@ -153,67 +143,52 @@ describe("fetchMarketCapData", () => {
         expect(prisma.marketCapSnapshot.create).not.toHaveBeenCalled();
     });
 
-    it("returns null when both requests throw", async () => {
-        mockFetch.mockRejectedValueOnce(new Error("chart down"));
-        mockFetch.mockRejectedValueOnce(new Error("summary down"));
-        const { fetchMarketCapData } = await importModule();
-
-        const result = await fetchMarketCapData();
-
-        expect(result).toBeNull();
-    });
-
-    it("returns null when chart request throws", async () => {
-        mockFetch.mockRejectedValueOnce(new Error("chart down"));
-        const { fetchMarketCapData } = await importModule();
-
-        const result = await fetchMarketCapData();
-
-        expect(result).toBeNull();
-    });
-
     it("serves cached data within TTL without refetching", async () => {
-        mockFetch.mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            statusText: "OK",
-            json: () => Promise.resolve([{ date: "2024-01-01", value: 7777 }]),
-        });
+        simulateCurlSuccess([{ date: "2024-01-01", value: 7777 }]);
         const { fetchMarketCapData } = await importModule();
 
         const first = await fetchMarketCapData();
         const second = await fetchMarketCapData();
 
         expect(first).toEqual(second);
-        expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(mockExecFile).toHaveBeenCalledTimes(1);
     });
 
     it("returns stale cache when refetch fails after TTL", async () => {
         const nowSpy = vi.spyOn(Date, "now");
         nowSpy.mockReturnValueOnce(1_000_000);
-        mockFetch.mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            statusText: "OK",
-            json: () => Promise.resolve([{ date: "2024-01-01", value: 9999 }]),
-        });
+        simulateCurlSuccess([{ date: "2024-01-01", value: 9999 }]);
         const { fetchMarketCapData } = await importModule();
 
         const first = await fetchMarketCapData();
 
         nowSpy.mockReturnValueOnce(1_000_000 + 15 * 60 * 1000 + 1);
-        mockFetch.mockResolvedValueOnce({
-            ok: false,
-            status: 500,
-            statusText: "Internal Server Error",
-            json: () => Promise.resolve({}),
-        });
+        simulateCurlFailure("curl: (28) Operation timed out");
 
         const second = await fetchMarketCapData();
 
         expect(second).toEqual(first);
-        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(mockExecFile).toHaveBeenCalledTimes(2);
         nowSpy.mockRestore();
+    });
+
+    it("passes correct curl arguments", async () => {
+        simulateCurlSuccess([{ date: "2024-01-01", value: 1000 }]);
+        const { fetchMarketCapData } = await importModule();
+
+        await fetchMarketCapData();
+
+        expect(mockExecFile).toHaveBeenCalledWith(
+            "curl",
+            expect.arrayContaining([
+                "-s",
+                "-f",
+                "--max-time", "10",
+                "https://pricempire.com/api-data/v1/trending/chart?provider=csfloat",
+            ]),
+            expect.objectContaining({ timeout: 15_000 }),
+            expect.any(Function),
+        );
     });
 });
 

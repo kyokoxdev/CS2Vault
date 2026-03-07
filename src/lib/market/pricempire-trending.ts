@@ -1,6 +1,37 @@
+import { execFile } from "child_process";
 import { prisma } from "@/lib/db";
 
 const CHART_URL = "https://pricempire.com/api-data/v1/trending/chart?provider=csfloat";
+
+/**
+ * Fetch URL via curl subprocess to bypass Cloudflare TLS fingerprinting.
+ * Node.js fetch/https get 403'd due to JA3/JA4 fingerprint detection,
+ * but curl has a different TLS implementation that passes.
+ */
+function curlFetch(url: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        execFile(
+            "curl",
+            [
+                "-s",
+                "-f",
+                "--max-time", "10",
+                "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "-H", "Accept: application/json, text/plain, */*",
+                "-H", "Referer: https://pricempire.com/app/trending",
+                url,
+            ],
+            { timeout: 15_000, maxBuffer: 1024 * 1024 },
+            (error, stdout, stderr) => {
+                if (error) {
+                    reject(new Error(`curl failed: ${error.message}${stderr ? ` — ${stderr}` : ""}`));
+                    return;
+                }
+                resolve(stdout);
+            },
+        );
+    });
+}
 
 export interface MarketCapData {
     totalMarketCap: number;
@@ -32,19 +63,9 @@ export async function fetchMarketCapData(): Promise<MarketCapData | null> {
 
 async function fetchFromChartApi(): Promise<MarketCapData | null> {
     try {
-        const res = await fetch(CHART_URL, {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                "Accept": "application/json, text/plain, */*",
-                "Referer": "https://pricempire.com/app/trending",
-            },
-        });
-        if (!res.ok) {
-            console.warn(`[Pricempire Chart] Fetch failed: ${res.status} ${res.statusText}`);
-            return null;
-        }
+        const body = await curlFetch(CHART_URL);
 
-        const json: unknown = await res.json();
+        const json: unknown = JSON.parse(body);
         if (!Array.isArray(json) || json.length === 0) {
             console.warn("[Pricempire Chart] Empty or invalid response");
             return null;
