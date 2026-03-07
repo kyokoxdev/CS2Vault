@@ -60,6 +60,7 @@ export default function SparklineChart({
             layout: {
                 background: { type: ColorType.Solid, color: "transparent" },
                 textColor: "transparent",
+                attributionLogo: false,
             },
             rightPriceScale: { visible: false },
             timeScale: { visible: false },

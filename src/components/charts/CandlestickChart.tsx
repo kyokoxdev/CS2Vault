@@ -82,6 +82,7 @@ export default function CandlestickChart({
                 textColor: "#8C8C8C",
                 fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                 fontSize: 12,
+                attributionLogo: false,
             },
             grid: {
                 vertLines: { color: "#1A1A1A" },
