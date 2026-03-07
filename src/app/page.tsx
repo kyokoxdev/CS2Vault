@@ -10,6 +10,7 @@ import { TopMovers, type TopMover } from "@/components/market/TopMovers";
 import styles from "./MarketOverview.module.css";
 import { NewsFeed, type FeedItem } from "@/components/market/NewsFeed";
 import { Card } from "@/components/ui/Card";
+import { FallbackToast } from "@/components/ui/FallbackToast";
 
 interface SyncLog {
   id: number;
@@ -46,6 +47,10 @@ export default function MarketOverview() {
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(true);
+  const [fallbackInfo, setFallbackInfo] = useState<{
+    failureReason: string;
+    attemptedProvider: string;
+  } | null>(null);
   // Add item state
   const [showAddForm, setShowAddForm] = useState(false);
   const initialSyncRef = useRef(false);
@@ -144,11 +149,12 @@ export default function MarketOverview() {
     }
   }, []);
 
-  const handleSync = useCallback(async () => {
+  const handleSync = useCallback(async (fallback?: string) => {
     setSyncing(true);
     setSyncStatus("Syncing...");
     try {
-      const res = await fetch("/api/sync", { method: "POST" });
+      const url = fallback ? `/api/sync?fallback=${fallback}` : "/api/sync";
+      const res = await fetch(url, { method: "POST" });
       const data = await res.json();
       if (data.success) {
         setSyncStatus(
@@ -156,6 +162,13 @@ export default function MarketOverview() {
         );
         setTimeout(() => setSyncStatus(""), 3000);
         fetchData();
+
+        if (data.data?.fallbackAvailable && data.data?.failureReason) {
+          setFallbackInfo({
+            failureReason: data.data.failureReason,
+            attemptedProvider: data.data.attemptedProvider ?? "unknown",
+          });
+        }
       } else {
         setSyncStatus(`Failed: ${data.error}`);
         setTimeout(() => setSyncStatus(""), 5000);
@@ -368,7 +381,7 @@ export default function MarketOverview() {
           </button>
           <button
             className="btn btn-primary btn-sm"
-            onClick={handleSync}
+            onClick={() => handleSync()}
             disabled={syncing}
           >
             {syncing ? <>
@@ -399,6 +412,18 @@ export default function MarketOverview() {
 
       {/* News Feed */}
       <NewsFeed items={feedItems} isLoading={feedLoading} />
+
+      {fallbackInfo && (
+        <FallbackToast
+          failureReason={fallbackInfo.failureReason}
+          attemptedProvider={fallbackInfo.attemptedProvider}
+          onApprove={() => {
+            setFallbackInfo(null);
+            handleSync("steam");
+          }}
+          onDismiss={() => setFallbackInfo(null)}
+        />
+      )}
     </div>
   );
 }

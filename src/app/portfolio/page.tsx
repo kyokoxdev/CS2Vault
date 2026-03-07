@@ -6,6 +6,7 @@ import { PortfolioFilters } from "@/components/portfolio/PortfolioFilters";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { DataTable, type Column } from "@/components/ui/DataTable";
+import { FallbackToast } from "@/components/ui/FallbackToast";
 
 interface PortfolioItem {
   id: string;
@@ -98,6 +99,11 @@ export default function PortfolioPage() {
   const [priceFilter, setPriceFilter] = useState("all");
   const [searchFilter, setSearchFilter] = useState("");
   const [refreshingPrices, setRefreshingPrices] = useState(false);
+  const [fallbackInfo, setFallbackInfo] = useState<{
+    failureReason: string;
+    attemptedProvider: string;
+    source: "sync" | "prices";
+  } | null>(null);
 
   const initialSyncRef = useRef(false);
 
@@ -124,17 +130,12 @@ export default function PortfolioPage() {
     fetchPortfolio();
   }, [fetchPortfolio]);
 
-  useEffect(() => {
-    if (initialSyncRef.current) return;
-    initialSyncRef.current = true;
-    handleSync();
-  }, []);
-
-  async function handleSync() {
+  const handleSync = useCallback(async (fallback?: string) => {
     setSyncing(true);
     setSyncStatus("Fetching inventory from Steam...");
     try {
-      const res = await fetch("/api/inventory", { method: "POST" });
+      const url = fallback ? `/api/inventory?fallback=${fallback}` : "/api/inventory";
+      const res = await fetch(url, { method: "POST" });
       const data = await res.json();
       if (data.success) {
         const coverage = data.data?.priceCoverage;
@@ -145,6 +146,14 @@ export default function PortfolioPage() {
           : "";
         setSyncStatus(`✅ Synced ${data.data.synced} items from Steam${coverageLabel}`);
         await fetchPortfolio();
+
+        if (data.data?.fallbackAvailable && data.data?.failureReason) {
+          setFallbackInfo({
+            failureReason: data.data.failureReason,
+            attemptedProvider: data.data.attemptedProvider ?? "unknown",
+            source: "sync",
+          });
+        }
       } else {
         setSyncStatus(`❌ ${data.error}`);
       }
@@ -152,19 +161,34 @@ export default function PortfolioPage() {
       setSyncStatus(`❌ Error: ${err}`);
     }
     setSyncing(false);
-  }
+  }, [fetchPortfolio]);
 
-  const handleRefreshPrices = useCallback(async () => {
+  useEffect(() => {
+    if (initialSyncRef.current) return;
+    initialSyncRef.current = true;
+    void handleSync();
+  }, [handleSync]);
+
+  const handleRefreshPrices = useCallback(async (fallback?: string) => {
     setRefreshingPrices(true);
     setSyncStatus("Refreshing prices...");
     try {
-      const res = await fetch("/api/portfolio/prices", { method: "POST" });
+      const url = fallback ? `/api/portfolio/prices?fallback=${fallback}` : "/api/portfolio/prices";
+      const res = await fetch(url, { method: "POST" });
       const data = await res.json();
       if (data.success) {
         const limited = data.data?.priceLimitedTo;
         const limitLabel = limited ? ` (limited to ${limited})` : "";
         setSyncStatus(`✅ Refreshed prices for ${data.data.pricedCount ?? 0} items${limitLabel}`);
         await fetchPortfolio();
+
+        if (data.data?.fallbackAvailable && data.data?.failureReason) {
+          setFallbackInfo({
+            failureReason: data.data.failureReason,
+            attemptedProvider: data.data.attemptedProvider ?? "unknown",
+            source: "prices",
+          });
+        }
       } else {
         setSyncStatus(`❌ ${data.error}`);
       }
@@ -187,7 +211,7 @@ export default function PortfolioPage() {
     return () => clearInterval(timer);
   }, [handleRefreshPrices]);
 
-  async function handleUpdatePrice(itemId: string) {
+  const handleUpdatePrice = useCallback(async (itemId: string) => {
     const price = parseFloat(editPrice);
     if (isNaN(price) || price < 0) return;
 
@@ -206,7 +230,7 @@ export default function PortfolioPage() {
     } catch (err) {
       console.error("Update failed:", err);
     }
-  }
+  }, [editPrice, fetchPortfolio]);
 
   const handleFilterChange = (field: string, value: string) => {
     switch (field) {
@@ -334,10 +358,10 @@ export default function PortfolioPage() {
                     setEditPrice("");
                   }
                 }}
-                autoFocus
                 className={styles.editInput}
               />
               <button
+                type="button"
                 onClick={() => handleUpdatePrice(item.id)}
                 className={styles.editButton}
               >
@@ -345,7 +369,8 @@ export default function PortfolioPage() {
               </button>
             </>
           ) : (
-            <span
+            <button
+              type="button"
               onClick={() => {
                 setEditingId(item.id);
                 setEditPrice(item.acquiredPrice?.toString() ?? "");
@@ -358,7 +383,7 @@ export default function PortfolioPage() {
               ) : (
                 <span className={`${styles.textMuted} ${styles.textItalic}`}>Set price</span>
               )}
-            </span>
+            </button>
           )}
         </div>
       ),
@@ -379,7 +404,7 @@ export default function PortfolioPage() {
           <span className={styles.textMuted}>—</span>
         ),
     },
-  ], [editingId, editPrice]);
+  ], [editingId, editPrice, handleUpdatePrice]);
 
   if (loading) {
     return (
@@ -414,14 +439,16 @@ export default function PortfolioPage() {
         </div>
         <div className={styles.headerActions}>
           <button
-            onClick={handleRefreshPrices}
+            type="button"
+            onClick={() => handleRefreshPrices()}
             disabled={refreshingPrices}
             className={styles.refreshButton}
           >
             {refreshingPrices ? "⏳ Refreshing..." : "💲 Refresh Prices"}
           </button>
           <button
-            onClick={handleSync}
+            type="button"
+            onClick={() => handleSync()}
             disabled={syncing}
             className={styles.syncButton}
           >
@@ -455,7 +482,8 @@ export default function PortfolioPage() {
             Sync your Steam CS2 inventory to start tracking your portfolio value and profit/loss.
           </p>
           <button
-            onClick={handleSync}
+            type="button"
+            onClick={() => handleSync()}
             disabled={syncing}
             className={styles.syncButton}
           >
@@ -495,6 +523,22 @@ export default function PortfolioPage() {
              />
           </div>
         </>
+      )}
+
+      {fallbackInfo && (
+        <FallbackToast
+          failureReason={fallbackInfo.failureReason}
+          attemptedProvider={fallbackInfo.attemptedProvider}
+          onApprove={() => {
+            setFallbackInfo(null);
+            if (fallbackInfo.source === "sync") {
+              handleSync("steam");
+            } else {
+              handleRefreshPrices("steam");
+            }
+          }}
+          onDismiss={() => setFallbackInfo(null)}
+        />
       )}
     </div>
   );
