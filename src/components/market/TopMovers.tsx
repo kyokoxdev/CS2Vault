@@ -39,7 +39,7 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
     const isPositive = item.change24h > 0;
     const badgeVariant = isPositive ? "success" : "danger";
     const changeText = `${isPositive ? "+" : ""}${item.change24h.toFixed(2)}%`;
-    const chartColor = type === 'gainer' ? "var(--bull)" : "var(--bear)";
+    const chartColor = type === 'gainer' ? "#00C076" : "#FF4D4F";
 
     return (
       <div 
