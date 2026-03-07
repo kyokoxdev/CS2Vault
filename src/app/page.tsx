@@ -45,13 +45,16 @@ export default function MarketOverview() {
 
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
+  const [itemsLoading, setItemsLoading] = useState(true);
   // Add item state
   const [showAddForm, setShowAddForm] = useState(false);
   const initialSyncRef = useRef(false);
+  const dataFetchedRef = useRef(false);
   const [addStatus, setAddStatus] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
+      setItemsLoading(true);
       const [itemsRes, syncRes] = await Promise.all([
         fetch("/api/items?limit=100"),
         fetch("/api/sync"),
@@ -67,6 +70,8 @@ export default function MarketOverview() {
       }
     } catch (err) {
       console.error("Fetch error:", err);
+    } finally {
+      setItemsLoading(false);
     }
   }, []);
 
@@ -149,12 +154,15 @@ export default function MarketOverview() {
         setSyncStatus(
           `Synced ${data.data.itemCount} items in ${data.data.duration}ms`
         );
+        setTimeout(() => setSyncStatus(""), 3000);
         fetchData();
       } else {
         setSyncStatus(`Failed: ${data.error}`);
+        setTimeout(() => setSyncStatus(""), 5000);
       }
     } catch (err) {
       setSyncStatus(`Error: ${err}`);
+      setTimeout(() => setSyncStatus(""), 5000);
     }
     setSyncing(false);
   }, [fetchData]);
@@ -172,7 +180,10 @@ export default function MarketOverview() {
   }, [authStatus, fetchPortfolioValue]);
 
   useEffect(() => {
-    fetchData();
+    if (!dataFetchedRef.current) {
+      dataFetchedRef.current = true;
+      fetchData();
+    }
     fetchMarketSummary();
     fetchTopMovers();
     fetchNewsFeed();
@@ -327,10 +338,7 @@ export default function MarketOverview() {
       </div>
 
       {/* Top Movers */}
-      <TopMovers gainers={topMovers.gainers} losers={topMovers.losers} isLoading={topMoversLoading} />
-
-      {/* News Feed */}
-      <NewsFeed items={feedItems} isLoading={feedLoading} />
+      <TopMovers gainers={topMovers.gainers} losers={topMovers.losers} source={topMovers.source} isLoading={topMoversLoading} />
 
       {/* Toolbar */}
       <div className={styles.toolbar}>
@@ -380,11 +388,17 @@ export default function MarketOverview() {
       )}
 
       {/* Items Table */}
-      <WatchlistTable 
-        items={items} 
-        onToggleWatch={handleToggleWatch}
+      {itemsLoading ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>Loading watchlist...</div>
+      ) : (
+        <WatchlistTable 
+          items={items} 
+          onToggleWatch={handleToggleWatch}
+        />
+      )}
 
-      />
+      {/* News Feed */}
+      <NewsFeed items={feedItems} isLoading={feedLoading} />
     </div>
   );
 }
