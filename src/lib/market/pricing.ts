@@ -14,6 +14,8 @@ import type { MarketDataProvider, MarketSource, PriceData } from "@/types";
 export interface BulkPriceResult {
     prices: Map<string, PriceData>;
     provider: MarketSource;
+    fallbackAvailable: boolean;
+    failureReason?: string;
 }
 
 export interface PriceSnapshotWriteResult {
@@ -21,8 +23,11 @@ export interface PriceSnapshotWriteResult {
     totalRequested: number;
     pricedCount: number;
     provider: MarketSource;
+    attemptedProvider: MarketSource;
     skippedRecent: number;
     limitedTo?: number;
+    fallbackAvailable: boolean;
+    failureReason?: string;
 }
 
 export interface PriceWriteOptions {
@@ -30,6 +35,7 @@ export interface PriceWriteOptions {
     minAgeMinutes?: number;
     maxItems?: number;
     allowSteamLimit?: boolean;
+    allowFallback?: boolean;
 }
 
 const DEFAULT_STEAM_BATCH_SIZE = 25;
@@ -56,9 +62,9 @@ function getMinAgeMinutes(override?: number): number {
     return clampNumber(parsed, 0, 24 * 60);
 }
 
-async function resolveMarketProvider(
+async function getPreferredMarketSource(
     overrideSource?: MarketSource
-): Promise<MarketDataProvider> {
+): Promise<MarketSource> {
     await initializeMarketProviders();
 
     const settings = await prisma.appSettings.findUnique({
@@ -67,13 +73,53 @@ async function resolveMarketProvider(
     const preferred: MarketSource =
         overrideSource ?? (settings?.activeMarketSource as MarketSource) ?? "csfloat";
 
+    return preferred;
+}
+
+async function resolveMarketProvider(
+    overrideSource?: MarketSource
+): Promise<MarketDataProvider> {
+    const preferred = await getPreferredMarketSource(overrideSource);
+
+    return getMarketProvider(preferred);
+}
+
+function getProviderLabel(provider: MarketSource): string {
+    switch (provider) {
+        case "csfloat":
+            return "CSFloat";
+        case "csgotrader":
+            return "CSGOTrader";
+        case "pricempire":
+            return "PriceEmpire";
+        case "steam":
+            return "Steam";
+        default:
+            return provider;
+    }
+}
+
+async function resolveMarketProviderInfo(
+    overrideSource?: MarketSource
+): Promise<{
+    provider?: MarketDataProvider;
+    attemptedProvider: MarketSource;
+    fallbackAvailable: boolean;
+    failureReason?: string;
+}> {
+    const preferred = await getPreferredMarketSource(overrideSource);
     try {
-        return getMarketProvider(preferred);
+        return {
+            provider: getMarketProvider(preferred),
+            attemptedProvider: preferred,
+            fallbackAvailable: false,
+        };
     } catch {
-        console.warn(
-            `[Prices] Provider "${preferred}" not available, falling back to "steam"`
-        );
-        return getMarketProvider("steam");
+        return {
+            attemptedProvider: preferred,
+            fallbackAvailable: true,
+            failureReason: `${getProviderLabel(preferred)} provider not registered`,
+        };
     }
 }
 
@@ -116,37 +162,50 @@ export async function fetchBulkPricesForHashNames(
     overrideSource?: MarketSource
 ): Promise<BulkPriceResult> {
     if (hashNames.length === 0) {
-        return { prices: new Map(), provider: overrideSource ?? "csfloat" };
+        return {
+            prices: new Map(),
+            provider: overrideSource ?? "csfloat",
+            fallbackAvailable: false,
+        };
     }
 
-    let provider = await resolveMarketProvider(overrideSource);
+    const providerInfo = await resolveMarketProviderInfo(overrideSource);
+    if (!providerInfo.provider) {
+        return {
+            prices: new Map(),
+            provider: providerInfo.attemptedProvider,
+            fallbackAvailable: providerInfo.fallbackAvailable,
+            failureReason: providerInfo.failureReason,
+        };
+    }
+
+    const provider = providerInfo.provider;
     let prices: Map<string, PriceData>;
 
     try {
         prices = await provider.fetchBulkPrices(hashNames);
     } catch (error) {
-        if (provider.name !== "steam") {
-            console.warn(
-                `[Prices] Provider "${provider.name}" failed, falling back to "steam"`
-            );
-            provider = getMarketProvider("steam");
-            prices = await provider.fetchBulkPrices(hashNames);
-        } else {
-            throw error;
-        }
+        return {
+            prices: new Map(),
+            provider: provider.name as MarketSource,
+            fallbackAvailable: provider.name !== "steam",
+            failureReason: `${getProviderLabel(provider.name as MarketSource)} provider failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        };
     }
 
-    if (prices.size === 0 && provider.name !== "steam") {
-        console.warn(
-            `[Prices] Provider "${provider.name}" returned no prices, falling back to "steam"`
-        );
-        provider = getMarketProvider("steam");
-        prices = await provider.fetchBulkPrices(hashNames);
+    if (prices.size === 0) {
+        return {
+            prices: new Map(),
+            provider: provider.name as MarketSource,
+            fallbackAvailable: provider.name !== "steam",
+            failureReason: `${getProviderLabel(provider.name as MarketSource)} returned 0 prices for ${hashNames.length} items`,
+        };
     }
 
     return {
         prices,
         provider: provider.name as MarketSource,
+        fallbackAvailable: false,
     };
 }
 
@@ -156,16 +215,21 @@ export async function writePriceSnapshotsForItems(
 ): Promise<PriceSnapshotWriteResult> {
     const entries = [...itemIdByHash.entries()];
     if (entries.length === 0) {
+        const attemptedProvider = options.overrideSource ?? "csfloat";
         return {
             totalCandidates: 0,
             totalRequested: 0,
             pricedCount: 0,
-            provider: options.overrideSource ?? "csfloat",
+            provider: attemptedProvider,
+            attemptedProvider,
             skippedRecent: 0,
+            fallbackAvailable: false,
         };
     }
 
-    let provider = await resolveMarketProvider(options.overrideSource);
+    const providerInfo = await resolveMarketProviderInfo(options.overrideSource);
+    const attemptedProvider = providerInfo.attemptedProvider;
+    let provider = providerInfo.provider;
     const minAgeMinutes = getMinAgeMinutes(options.minAgeMinutes);
     const cutoff = minAgeMinutes > 0
         ? new Date(Date.now() - minAgeMinutes * 60 * 1000)
@@ -191,9 +255,18 @@ export async function writePriceSnapshotsForItems(
         skippedRecent = entries.length - filteredEntries.length;
     }
 
+    let providerNameForLimits = provider
+        ? (provider.name as MarketSource)
+        : attemptedProvider;
+
+    if (!provider && options.allowFallback) {
+        provider = getMarketProvider("steam");
+        providerNameForLimits = "steam";
+    }
+
     let { entries: entriesToFetch, limitedTo } = applyProviderLimits(
         filteredEntries,
-        provider.name as MarketSource,
+        providerNameForLimits,
         options,
         latestMap
     );
@@ -204,20 +277,33 @@ export async function writePriceSnapshotsForItems(
             totalCandidates: entries.length,
             totalRequested: 0,
             pricedCount: 0,
-            provider: provider.name as MarketSource,
+            provider: providerNameForLimits,
+            attemptedProvider,
             skippedRecent,
             limitedTo,
+            fallbackAvailable: provider ? false : providerInfo.fallbackAvailable,
+            failureReason: provider ? undefined : providerInfo.failureReason,
         };
     }
 
+    if (!provider) {
+        return {
+            totalCandidates: entries.length,
+            totalRequested: hashNames.length,
+            pricedCount: 0,
+            provider: attemptedProvider,
+            attemptedProvider,
+            skippedRecent,
+            limitedTo,
+            fallbackAvailable: providerInfo.fallbackAvailable,
+            failureReason: providerInfo.failureReason,
+        };
+    }
     let prices: Map<string, PriceData>;
     try {
         prices = await provider.fetchBulkPrices(hashNames);
     } catch (error) {
-        if (provider.name !== "steam") {
-            console.warn(
-                `[Prices] Provider "${provider.name}" failed, falling back to "steam"`
-            );
+        if (options.allowFallback && provider.name !== "steam") {
             provider = getMarketProvider("steam");
             ({ entries: entriesToFetch, limitedTo } = applyProviderLimits(
                 filteredEntries,
@@ -232,39 +318,64 @@ export async function writePriceSnapshotsForItems(
                     totalRequested: 0,
                     pricedCount: 0,
                     provider: provider.name as MarketSource,
+                    attemptedProvider,
                     skippedRecent,
                     limitedTo,
+                    fallbackAvailable: false,
                 };
             }
             prices = await provider.fetchBulkPrices(hashNames);
         } else {
-            throw error;
+            return {
+                totalCandidates: entries.length,
+                totalRequested: hashNames.length,
+                pricedCount: 0,
+                provider: provider.name as MarketSource,
+                attemptedProvider,
+                skippedRecent,
+                limitedTo,
+                fallbackAvailable: provider.name !== "steam",
+                failureReason: `${getProviderLabel(provider.name as MarketSource)} provider failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+            };
         }
     }
 
-    if (prices.size === 0 && provider.name !== "steam") {
-        console.warn(
-            `[Prices] Provider "${provider.name}" returned no prices, falling back to "steam"`
-        );
-        provider = getMarketProvider("steam");
-        ({ entries: entriesToFetch, limitedTo } = applyProviderLimits(
-            filteredEntries,
-            "steam",
-            options,
-            latestMap
-        ));
-        hashNames = entriesToFetch.map(([hashName]) => hashName);
-        if (hashNames.length === 0) {
+    if (prices.size === 0) {
+        if (options.allowFallback && provider.name !== "steam") {
+            provider = getMarketProvider("steam");
+            ({ entries: entriesToFetch, limitedTo } = applyProviderLimits(
+                filteredEntries,
+                "steam",
+                options,
+                latestMap
+            ));
+            hashNames = entriesToFetch.map(([hashName]) => hashName);
+            if (hashNames.length === 0) {
+                return {
+                    totalCandidates: entries.length,
+                    totalRequested: 0,
+                    pricedCount: 0,
+                    provider: provider.name as MarketSource,
+                    attemptedProvider,
+                    skippedRecent,
+                    limitedTo,
+                    fallbackAvailable: false,
+                };
+            }
+            prices = await provider.fetchBulkPrices(hashNames);
+        } else {
             return {
                 totalCandidates: entries.length,
-                totalRequested: 0,
+                totalRequested: hashNames.length,
                 pricedCount: 0,
                 provider: provider.name as MarketSource,
+                attemptedProvider,
                 skippedRecent,
                 limitedTo,
+                fallbackAvailable: provider.name !== "steam",
+                failureReason: `${getProviderLabel(provider.name as MarketSource)} returned 0 prices for ${hashNames.length} items`,
             };
         }
-        prices = await provider.fetchBulkPrices(hashNames);
     }
     let pricedCount = 0;
 
@@ -291,7 +402,9 @@ export async function writePriceSnapshotsForItems(
         totalRequested: hashNames.length,
         pricedCount,
         provider: provider.name as MarketSource,
+        attemptedProvider,
         skippedRecent,
         limitedTo,
+        fallbackAvailable: false,
     };
 }

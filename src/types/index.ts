@@ -122,6 +122,9 @@ export interface SyncResult {
     itemCount: number;
     duration: number;
     error?: string;
+    fallbackAvailable?: boolean;
+    failureReason?: string;
+    attemptedProvider?: string;
 }
 
 // ─── API Response Types ─────────────────────────────────
