@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import DashboardShell from "@/components/layout/DashboardShell";
 import SessionProvider from "@/components/providers/SessionProvider";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -38,6 +39,7 @@ export default function RootLayout({
         <SessionProvider>
           <DashboardShell>{children}</DashboardShell>
         </SessionProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
