@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth/auth";
+import { auth, getBaseUrl } from "@/lib/auth/auth";
 import { buildGoogleAuthUrl, disconnectGoogle } from "@/lib/auth/google-oauth";
 
 /**
@@ -21,8 +21,7 @@ export async function GET() {
         );
     }
 
-    const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-    const redirectUri = `${baseUrl}/api/auth/google/callback`;
+    const redirectUri = `${getBaseUrl()}/api/auth/google/callback`;
 
     try {
         const authUrl = buildGoogleAuthUrl(redirectUri);

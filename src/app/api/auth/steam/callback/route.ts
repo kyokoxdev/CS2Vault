@@ -14,7 +14,7 @@ import {
     fetchSteamProfile,
 } from "@/lib/auth/steam-openid";
 import { prisma } from "@/lib/db";
-import { signIn } from "@/lib/auth/auth";
+import { signIn, getBaseUrl } from "@/lib/auth/auth";
 
 export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
@@ -22,9 +22,8 @@ export async function GET(request: NextRequest) {
     // Step 1: Verify the OpenID assertion with Steam
     const isValid = await verifySteamAssertion(params);
     if (!isValid) {
-        const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
         return NextResponse.redirect(
-            `${baseUrl}/login?error=steam_verification_failed`
+            `${getBaseUrl()}/login?error=steam_verification_failed`
         );
     }
 
@@ -32,18 +31,16 @@ export async function GET(request: NextRequest) {
     const claimedId = params.get("openid.claimed_id") ?? "";
     const steamId = extractSteamId(claimedId);
     if (!steamId) {
-        const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
         return NextResponse.redirect(
-            `${baseUrl}/login?error=invalid_steam_id`
+            `${getBaseUrl()}/login?error=invalid_steam_id`
         );
     }
 
     // Step 3: Single-user guard
     const allowedId = process.env.ALLOWED_STEAM_ID;
     if (allowedId && allowedId !== steamId) {
-        const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
         return NextResponse.redirect(
-            `${baseUrl}/login?error=access_denied`
+            `${getBaseUrl()}/login?error=access_denied`
         );
     }
 
@@ -68,6 +65,5 @@ export async function GET(request: NextRequest) {
     });
     // signIn will throw a redirect — this line is unreachable
     // but acts as a fallback just in case
-    const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-    return NextResponse.redirect(`${baseUrl}/`);
+    return NextResponse.redirect(`${getBaseUrl()}/`);
 }

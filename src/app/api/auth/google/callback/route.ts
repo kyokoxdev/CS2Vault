@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth/auth";
+import { auth, getBaseUrl } from "@/lib/auth/auth";
 import {
     exchangeGoogleCode,
     storeGoogleTokens,
@@ -15,14 +15,14 @@ import {
 
 export async function GET(request: NextRequest) {
     const session = await auth();
+    const baseUrl = getBaseUrl();
+
     if (!session?.user) {
-        const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
         return NextResponse.redirect(`${baseUrl}/login`);
     }
 
     const code = request.nextUrl.searchParams.get("code");
     const error = request.nextUrl.searchParams.get("error");
-    const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 
     if (error) {
         return NextResponse.redirect(

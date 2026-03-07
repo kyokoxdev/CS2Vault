@@ -7,10 +7,10 @@
 
 import { NextResponse } from "next/server";
 import { buildSteamAuthUrl } from "@/lib/auth/steam-openid";
+import { getBaseUrl } from "@/lib/auth/auth";
 
 export async function GET() {
-    const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-    const returnUrl = `${baseUrl}/api/auth/steam/callback`;
+    const returnUrl = `${getBaseUrl()}/api/auth/steam/callback`;
 
     const steamUrl = buildSteamAuthUrl(returnUrl);
     return NextResponse.redirect(steamUrl);
