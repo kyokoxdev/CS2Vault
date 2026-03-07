@@ -19,9 +19,6 @@ import {
 } from "lightweight-charts";
 
 const TIMEFRAMES = [
-    { label: "1m", value: "1m" },
-    { label: "5m", value: "5m" },
-    { label: "15m", value: "15m" },
     { label: "1H", value: "1h" },
     { label: "4H", value: "4h" },
     { label: "1D", value: "1d" },
@@ -81,35 +78,35 @@ export default function CandlestickChart({
             width: chartContainerRef.current.clientWidth,
             height,
             layout: {
-                background: { type: ColorType.Solid, color: "#15151f" },
-                textColor: "#8888a0",
-                fontFamily: "'Inter', sans-serif",
+                background: { type: ColorType.Solid, color: "#141414" },
+                textColor: "#8C8C8C",
+                fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                 fontSize: 12,
             },
             grid: {
-                vertLines: { color: "#1e1e2e" },
-                horzLines: { color: "#1e1e2e" },
+                vertLines: { color: "#1A1A1A" },
+                horzLines: { color: "#1A1A1A" },
             },
             crosshair: {
-                vertLine: { color: "#6c5ce750", width: 1, labelBackgroundColor: "#6c5ce7" },
-                horzLine: { color: "#6c5ce750", width: 1, labelBackgroundColor: "#6c5ce7" },
+                vertLine: { color: "rgba(140, 140, 140, 0.3)", width: 1, labelBackgroundColor: "#262626" },
+                horzLine: { color: "rgba(140, 140, 140, 0.3)", width: 1, labelBackgroundColor: "#262626" },
             },
             rightPriceScale: {
-                borderColor: "#2a2a3d",
+                borderColor: "#262626",
             },
             timeScale: {
-                borderColor: "#2a2a3d",
+                borderColor: "#262626",
                 timeVisible: true,
             },
         });
 
         const series = chart.addSeries(CandlestickSeries, {
-            upColor: "#00d68f",
-            downColor: "#ff6b6b",
-            borderUpColor: "#00d68f",
-            borderDownColor: "#ff6b6b",
-            wickUpColor: "#00d68f",
-            wickDownColor: "#ff6b6b",
+            upColor: "#00C076",
+            downColor: "#FF4D4F",
+            borderUpColor: "#00C076",
+            borderDownColor: "#FF4D4F",
+            wickUpColor: "#00C076",
+            wickDownColor: "#FF4D4F",
         });
 
         chartRef.current = chart;
@@ -139,13 +136,13 @@ export default function CandlestickChart({
         <div className="chart-container">
             <div className="chart-toolbar">
                 {itemName && (
-                    <span style={{ fontWeight: 600, marginRight: 8 }}>{itemName}</span>
+                    <span style={{ fontWeight: 600, marginRight: 8, color: "var(--text-primary-90)" }}>{itemName}</span>
                 )}
                 {latestPrice !== null && (
                     <span
                         style={{
-                            fontFamily: "var(--font-mono)",
-                            color: "var(--green)",
+                            fontFamily: "var(--font-numeric)",
+                            color: "var(--bull)",
                             marginRight: "auto",
                         }}
                     >
@@ -155,6 +152,7 @@ export default function CandlestickChart({
                 {TIMEFRAMES.map((tf) => (
                     <button
                         key={tf.value}
+                        type="button"
                         className={`timeframe-btn ${timeframe === tf.value ? "active" : ""}`}
                         onClick={() => setTimeframe(tf.value)}
                     >
