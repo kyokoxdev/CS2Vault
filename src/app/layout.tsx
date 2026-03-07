@@ -16,6 +16,11 @@ const jetbrains = JetBrains_Mono({
   display: "swap",
 });
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
   title: "CS2Vault — Market Intelligence Dashboard",
   description:
