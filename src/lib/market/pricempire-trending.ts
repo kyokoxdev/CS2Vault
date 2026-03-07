@@ -27,14 +27,6 @@ export async function fetchMarketCapData(): Promise<MarketCapData | null> {
         return chartResult;
     }
 
-    const fallbackResult = await fetchSummaryFallback();
-    if (fallbackResult) {
-        await storeSnapshot(fallbackResult);
-        cachedData = fallbackResult;
-        cacheTimestamp = now;
-        return fallbackResult;
-    }
-
     return cachedData;
 }
 
@@ -58,7 +50,7 @@ async function fetchFromChartApi(): Promise<MarketCapData | null> {
             return null;
         }
 
-        const marketCapUsd = latest.value / 100;
+        const marketCapUsd = latest.value;
 
         return {
             totalMarketCap: marketCapUsd,
