@@ -15,7 +15,7 @@ Market intelligence dashboard for Counter-Strike 2 items. Track prices, manage y
 ## Tech Stack
 
 - **Framework**: [Next.js 16](https://nextjs.org) (App Router, React Compiler)
-- **Database**: SQLite via [Prisma](https://prisma.io) + [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)
+- **Database**: SQLite via [Prisma](https://prisma.io) + [Turso](https://turso.tech/) (libSQL)
 - **Auth**: [NextAuth.js](https://next-auth.js.org) (Steam OpenID)
 - **Charts**: [TradingView Lightweight Charts](https://tradingview.github.io/lightweight-charts/)
 - **AI**: Google Gemini, OpenAI GPT
@@ -41,9 +41,12 @@ npm install
 # Copy environment template and fill in your keys
 cp .env.example .env.local
 
-# Generate Prisma client and create database
+# Generate Prisma client and create local database
 npx prisma generate
 npx prisma db push
+
+# Seed default settings
+npx tsx prisma/seed.ts
 
 # Start development server
 npm run dev
@@ -57,7 +60,10 @@ Copy `.env.example` to `.env.local` and fill in your values:
 
 | Variable | Required | Description |
 |---|---|---|
-| `DATABASE_URL` | Yes | SQLite path (default: `file:./dev.db`) |
+| `DATABASE_URL` | Yes | SQLite path for local dev (default: `file:./dev.db`) |
+| `TURSO_DATABASE_URL` | Vercel | Turso database URL (`libsql://...`) |
+| `TURSO_AUTH_TOKEN` | Vercel | Turso auth token |
+| `CRON_SECRET` | Vercel | Secret for Vercel Cron job auth |
 | `STEAM_API_KEY` | Yes | [Steam Web API key](https://steamcommunity.com/dev/apikey) |
 | `ALLOWED_STEAM_ID` | Yes | Your Steam64 ID for auth |
 | `CSFLOAT_API_KEY` | Yes | [CSFloat API key](https://csfloat.com/) |
@@ -73,22 +79,55 @@ Copy `.env.example` to `.env.local` and fill in your values:
 ### Scripts
 
 ```bash
-npm run dev        # Start dev server
-npm run build      # Production build
-npm run start      # Start production server
-npm run lint       # Run ESLint
-npm run test       # Run Vitest tests
+npm run dev            # Start dev server
+npm run build          # Production build
+npm run start          # Start production server
+npm run lint           # Run ESLint
+npm run test           # Run Vitest tests
+npm run db:push:turso  # Push schema + seed to Turso
 ```
 
 ## Deployment
 
-### Vercel
+### Vercel + Turso
 
-> **Note**: This app uses SQLite (`better-sqlite3`) which requires a persistent filesystem. Vercel's serverless functions don't support local file storage. For Vercel deployment, you'll need to either:
-> 1. Migrate to [Turso](https://turso.tech/) (SQLite-compatible cloud database) or PostgreSQL via Prisma
-> 2. Use the [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) or external database
+This app uses [Turso](https://turso.tech/) as the cloud database for Vercel deployment.
 
-For a VPS/self-hosted deployment (Railway, Fly.io, etc.), the app works as-is.
+#### 1. Set up Turso
+
+```bash
+# Install Turso CLI
+curl -sSfL https://get.tur.so/install.sh | bash
+
+# Create a database
+turso db create cs2vault
+
+# Get your credentials
+turso db show cs2vault --url
+turso db tokens create cs2vault
+```
+
+#### 2. Push schema to Turso
+
+```bash
+# Set credentials in .env.local, then:
+npm run db:push:turso
+```
+
+#### 3. Deploy to Vercel
+
+1. Import the GitHub repo at [vercel.com/new](https://vercel.com/new)
+2. Add all environment variables from `.env.example` in the Vercel dashboard
+3. Set the build command override: `npx prisma generate && next build`
+4. Deploy
+
+#### 4. Cron (automatic price sync)
+
+The `vercel.json` configures a cron job that hits `GET /api/sync` every 5 minutes. It uses the `CRON_SECRET` env var for authentication. Make sure to set `CRON_SECRET` in Vercel.
+
+### Local Development
+
+For local development, the app uses a local SQLite file (`dev.db`) automatically — no Turso needed.
 
 ### Build Configuration
 

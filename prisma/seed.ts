@@ -5,13 +5,17 @@
  * Run with: npx prisma db seed
  */
 
-import "dotenv/config";
+import dotenv from "dotenv";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
 
-const adapter = new PrismaBetterSqlite3({
-    url: process.env.DATABASE_URL ?? "file:./prisma/dev.db",
-});
+dotenv.config({ path: ".env.local" });
+dotenv.config();
+
+const tursoUrl = process.env.TURSO_DATABASE_URL;
+const adapter = tursoUrl
+    ? new PrismaLibSql({ url: tursoUrl, authToken: process.env.TURSO_AUTH_TOKEN })
+    : new PrismaLibSql({ url: process.env.DATABASE_URL ?? "file:./prisma/dev.db" });
 
 const prisma = new PrismaClient({ adapter });
 
