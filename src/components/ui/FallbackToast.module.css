@@ -125,3 +125,13 @@
 .dismissBtn:hover {
   color: var(--text-primary-90, rgba(255, 255, 255, 0.9));
 }
+
+@media (max-width: 480px) {
+  .toast {
+    left: 12px;
+    right: 12px;
+    min-width: 0;
+    max-width: none;
+    bottom: 12px;
+  }
+}

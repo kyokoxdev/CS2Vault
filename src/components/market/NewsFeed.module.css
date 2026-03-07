@@ -139,6 +139,12 @@
   font-size: 13px;
 }
 
+@media (max-width: 480px) {
+  .itemTitle {
+    white-space: normal;
+  }
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }

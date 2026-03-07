@@ -51,3 +51,9 @@
 .changeNeutral {
   color: var(--text-secondary-60, #8C8C8C);
 }
+
+@media (max-width: 480px) {
+  .value {
+    font-size: 20px;
+  }
+}
