@@ -2,12 +2,12 @@
  * POST /api/portfolio/prices — Refresh price snapshots for portfolio items
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth/auth";
 import { writePriceSnapshotsForItems } from "@/lib/market/pricing";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
     try {
         const session = await auth();
         let userId: string | undefined;
@@ -34,9 +34,14 @@ export async function POST() {
             itemIdByHash.set(inv.item.marketHashName, inv.item.id);
         }
 
+        const fallbackParam = request.nextUrl.searchParams.get("fallback");
+        const allowFallback = fallbackParam === "steam";
+
         const pricingResult = await writePriceSnapshotsForItems(itemIdByHash, {
             minAgeMinutes: undefined,
             allowSteamLimit: true,
+            allowFallback,
+            ...(allowFallback ? { overrideSource: "steam" } : {}),
         });
 
         return NextResponse.json({
@@ -51,6 +56,9 @@ export async function POST() {
                 },
                 priceSkippedRecent: pricingResult.skippedRecent,
                 priceLimitedTo: pricingResult.limitedTo ?? null,
+                fallbackAvailable: pricingResult.fallbackAvailable,
+                failureReason: pricingResult.failureReason ?? null,
+                attemptedProvider: pricingResult.attemptedProvider,
             },
         });
     } catch (error) {

@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
  * POST — Sync inventory from Steam.
  * Fetches inventory, upserts linked Item records, and upserts InventoryItem records.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
     try {
         const steamId = await getSteamId();
         if (!steamId) {
@@ -187,18 +187,14 @@ export async function POST() {
         }
 
         // Fetch latest prices for synced inventory items (no watchlist dependency)
-        let pricingResult = await writePriceSnapshotsForItems(itemIdByHash, {
+        const fallbackParam = request.nextUrl.searchParams.get("fallback");
+        const allowFallback = fallbackParam === "steam";
+
+        const pricingResult = await writePriceSnapshotsForItems(itemIdByHash, {
             minAgeMinutes: 0,
+            allowFallback,
+            ...(allowFallback ? { overrideSource: "steam" } : {}),
         });
-        if (pricingResult.pricedCount === 0 && pricingResult.totalRequested > 0) {
-            console.warn(
-                `[Inventory Sync] No prices returned from ${pricingResult.provider}. Retrying with steam.`
-            );
-            pricingResult = await writePriceSnapshotsForItems(itemIdByHash, {
-                overrideSource: "steam",
-                minAgeMinutes: 0,
-            });
-        }
 
         const limitLabel = pricingResult.limitedTo ? ` (limited to ${pricingResult.limitedTo})` : "";
         console.log(
@@ -213,6 +209,9 @@ export async function POST() {
                 skipped,
                 pricedCount: pricingResult.pricedCount,
                 priceSource: pricingResult.provider,
+                fallbackAvailable: pricingResult.fallbackAvailable,
+                failureReason: pricingResult.failureReason ?? null,
+                attemptedProvider: pricingResult.attemptedProvider,
                 priceCoverage: {
                     total: pricingResult.totalRequested,
                     priced: pricingResult.pricedCount,

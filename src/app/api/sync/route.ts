@@ -3,13 +3,16 @@
  * GET /api/sync — Get recent sync logs
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { triggerManualSync } from "@/lib/market/scheduler";
 import { getRecentSyncLogs } from "@/lib/market/sync";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
     try {
-        const result = await triggerManualSync();
+        const fallbackParam = request.nextUrl.searchParams.get("fallback");
+        const overrideSource = fallbackParam === "steam" ? "steam" as const : undefined;
+
+        const result = await triggerManualSync(overrideSource);
 
         return NextResponse.json({
             success: true,
