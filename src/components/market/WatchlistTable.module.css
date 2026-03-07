@@ -59,6 +59,13 @@
   border-radius: var(--radius-md);
   overflow: hidden;
 }
+
+@media (max-width: 768px) {
+  .tableWrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
 .mutedText {
   color: var(--text-secondary-60);
 }
