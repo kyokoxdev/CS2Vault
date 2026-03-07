@@ -9,6 +9,7 @@
 import { prisma } from "@/lib/db";
 import { runSync } from "@/lib/market/sync";
 import { initializeMarketProviders } from "@/lib/market/init";
+import type { MarketSource } from "@/types";
 
 let schedulerTimer: ReturnType<typeof setTimeout> | null = null;
 let isRunning = false;
@@ -78,9 +79,9 @@ async function runScheduledSync(): Promise<void> {
 /**
  * Trigger a manual sync (outside the scheduler).
  */
-export async function triggerManualSync(): Promise<ReturnType<typeof runSync>> {
+export async function triggerManualSync(overrideSource?: MarketSource): Promise<ReturnType<typeof runSync>> {
     await initializeMarketProviders();
-    return runSync();
+    return runSync(overrideSource);
 }
 
 /**

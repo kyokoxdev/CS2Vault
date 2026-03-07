@@ -54,31 +54,67 @@ export async function runSync(overrideSource?: MarketSource): Promise<SyncResult
         // Fetch prices from active provider
         await initializeMarketProviders();
         let provider: ReturnType<typeof getMarketProvider>;
+        let providerFailed = false;
+        let failureReason: string | undefined;
         try {
             provider = getMarketProvider(source);
         } catch {
-            // Active provider not registered (API key missing) — fall back to steam
-            console.warn(`[Sync] Provider "${source}" not available, falling back to "steam"`);
-            provider = getMarketProvider("steam");
+            providerFailed = true;
+            failureReason = `Provider "${source}" not registered`;
+            console.warn(`[Sync] ${failureReason} — skipping sync cycle`);
+
+            const result: SyncResult = {
+                type: "market_prices",
+                status: "failed",
+                itemCount: 0,
+                duration: Date.now() - startTime,
+                error: failureReason,
+                fallbackAvailable: true,
+                failureReason,
+                attemptedProvider: source,
+            };
+            await logSync(result);
+            return result;
         }
         const hashNames = items.map((i) => i.marketHashName);
         let prices: Map<string, { price: number; volume?: number; source: string; timestamp: Date }>;
         try {
             prices = await provider.fetchBulkPrices(hashNames);
         } catch (error) {
-            if (provider.name !== "steam") {
-                console.warn(`[Sync] Provider "${provider.name}" failed, falling back to "steam"`);
-                provider = getMarketProvider("steam");
-                prices = await provider.fetchBulkPrices(hashNames);
-            } else {
-                throw error;
-            }
+            providerFailed = true;
+            failureReason = `Provider "${provider.name}" failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+            console.warn(`[Sync] ${failureReason} — skipping sync cycle`);
+
+            const result: SyncResult = {
+                type: "market_prices",
+                status: "failed",
+                itemCount: 0,
+                duration: Date.now() - startTime,
+                error: failureReason,
+                fallbackAvailable: provider.name !== "steam",
+                failureReason,
+                attemptedProvider: source,
+            };
+            await logSync(result);
+            return result;
         }
 
-        if (prices.size === 0 && provider.name !== "steam") {
-            console.warn(`[Sync] Provider "${provider.name}" returned no prices, falling back to "steam"`);
-            provider = getMarketProvider("steam");
-            prices = await provider.fetchBulkPrices(hashNames);
+        if (prices.size === 0) {
+            failureReason = `Provider "${provider.name}" returned 0 prices for ${hashNames.length} items`;
+            console.warn(`[Sync] ${failureReason} — skipping sync cycle`);
+
+            const result: SyncResult = {
+                type: "market_prices",
+                status: "failed",
+                itemCount: 0,
+                duration: Date.now() - startTime,
+                error: failureReason,
+                fallbackAvailable: provider.name !== "steam",
+                failureReason,
+                attemptedProvider: source,
+            };
+            await logSync(result);
+            return result;
         }
 
         // Store price snapshots
@@ -107,6 +143,7 @@ export async function runSync(overrideSource?: MarketSource): Promise<SyncResult
             status: storedCount === items.length ? "success" : "partial",
             itemCount: storedCount,
             duration: Date.now() - startTime,
+            attemptedProvider: source,
         };
 
         await logSync(result);
