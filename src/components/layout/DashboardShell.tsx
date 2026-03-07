@@ -8,6 +8,7 @@
  * Shows Steam login/logout and user info in the sidebar footer.
  */
 
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -17,7 +18,9 @@ import {
     FaBoxOpen,
     FaRobot,
     FaCog,
-    FaSteam
+    FaSteam,
+    FaBars,
+    FaTimes
 } from 'react-icons/fa';
 import styles from './DashboardShell.module.css';
 
@@ -45,6 +48,9 @@ export default function DashboardShell({
 }) {
     const pathname = usePathname();
     const { data: session, status } = useSession();
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
     // Don't wrap the /test page in the shell
     if (pathname === "/test") return <>{children}</>;
@@ -55,8 +61,17 @@ export default function DashboardShell({
 
     return (
         <div className={styles.appShell}>
+            {sidebarOpen && (
+                <button
+                    type="button"
+                    className={styles.sidebarOverlay}
+                    onClick={closeSidebar}
+                    aria-label="Close sidebar"
+                />
+            )}
+
             {/* Sidebar */}
-            <aside className={styles.sidebar}>
+            <aside className={`${styles.sidebar}${sidebarOpen ? ` ${styles.open}` : ""}`}>
                 <div className={styles.sidebarBrand}>
                     <h1>CS2Vault</h1>
                     <span className={styles.version}>v0.1</span>
@@ -69,6 +84,7 @@ export default function DashboardShell({
                             key={item.href}
                             href={item.href}
                             className={`${styles.navLink} ${pathname === item.href ? styles.navLinkActive : ""}`}
+                            onClick={closeSidebar}
                         >
                             <span className={styles.icon}>{item.icon}</span>
                             {item.label}
@@ -81,6 +97,7 @@ export default function DashboardShell({
                             key={item.href}
                             href={item.href}
                             className={`${styles.navLink} ${pathname === item.href ? styles.navLinkActive : ""}`}
+                            onClick={closeSidebar}
                         >
                             <span className={styles.icon}>{item.icon}</span>
                             {item.label}
@@ -109,6 +126,7 @@ export default function DashboardShell({
                                     {session.user?.name}
                                 </div>
                                 <button
+                                    type="button"
                                     onClick={() => signOut()}
                                     className={styles.signOutBtn}
                                 >
@@ -136,6 +154,14 @@ export default function DashboardShell({
             {/* Main */}
             <main className={styles.mainContent}>
                 <header className={styles.mainHeader}>
+                    <button
+                        type="button"
+                        className={styles.menuBtn}
+                        onClick={() => setSidebarOpen((v) => !v)}
+                        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
+                    >
+                        {sidebarOpen ? <FaTimes /> : <FaBars />}
+                    </button>
                     <h2>{pageTitle}</h2>
                 </header>
                 <div className={styles.mainBody}>

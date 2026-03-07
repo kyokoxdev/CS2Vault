@@ -163,6 +163,9 @@
 .mainHeader {
   padding: 16px 24px;
   border-bottom: 1px solid var(--border-primary);
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .mainHeader h2 {
@@ -170,6 +173,27 @@
   font-weight: 600;
   color: var(--text-primary-90);
   margin: 0;
+}
+
+.menuBtn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  background: var(--surface-2);
+  color: var(--text-primary-90);
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.menuBtn:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-active);
 }
 
 .mainBody {
@@ -208,19 +232,21 @@
 
 @media (max-width: 768px) {
   .sidebar {
-    display: none; /* Hide sidebar by default on tablet/mobile */
+    display: none;
   }
 
-  /* When sidebar is collapsed, main content takes full width */
   .mainContent {
     margin-left: 0;
     width: 100%;
   }
 
-  /* Optional: If there's a class to show it, we can keep the absolute positioning logic */
+  .menuBtn {
+    display: flex;
+  }
+
   .sidebar.open {
     display: flex;
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     bottom: 0;
@@ -238,6 +264,11 @@
     background: rgba(0,0,0,0.5);
     z-index: 90;
     backdrop-filter: blur(4px);
+    border: none;
+    padding: 0;
+    cursor: default;
+    -webkit-appearance: none;
+    appearance: none;
   }
 }
 
