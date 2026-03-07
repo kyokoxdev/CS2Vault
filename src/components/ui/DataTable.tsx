@@ -48,6 +48,7 @@ export function DataTable<T>({
   isLoading = false,
 }: DataTableProps<T>) {
   return (
+    <div className={styles.tableScroll}>
     <table className={styles.dataTable}>
       <thead>
         <tr>
@@ -99,5 +100,6 @@ export function DataTable<T>({
         )}
       </tbody>
     </table>
+    </div>
   );
 }
