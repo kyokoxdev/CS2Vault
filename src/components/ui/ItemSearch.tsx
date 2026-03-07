@@ -124,6 +124,13 @@ export default function ItemSearch({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Clear debounce timer on unmount
+    useEffect(() => {
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+        };
+    }, []);
+
     // Scroll active item into view
     useEffect(() => {
         if (activeIndex >= 0 && dropdownRef.current) {

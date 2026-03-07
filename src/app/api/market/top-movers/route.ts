@@ -166,7 +166,7 @@ async function computeTopMovers(): Promise<TopMoversData> {
         }
     }
 
-    // 5. Build movers from ALL Pricempire items
+    // 5. Build movers from ALL provider items
     const movers: Mover[] = [];
 
     for (const [marketHashName, priceData] of allPrices!) {

@@ -23,6 +23,10 @@ vi.mock("@/lib/candles/aggregator", () => ({
     aggregateAllIntervals: vi.fn(),
 }));
 
+vi.mock("@/lib/market/init", () => ({
+    initializeMarketProviders: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { prisma } from "@/lib/db";
 import { getMarketProvider } from "@/lib/market/registry";
 import { runSync } from "@/lib/market/sync";
