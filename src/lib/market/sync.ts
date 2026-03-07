@@ -6,6 +6,7 @@
  */
 
 import { prisma } from "@/lib/db";
+import { initializeMarketProviders } from "@/lib/market/init";
 import { getMarketProvider } from "@/lib/market/registry";
 import { aggregateAllIntervals } from "@/lib/candles/aggregator";
 import type { MarketSource, SyncResult } from "@/types";
@@ -51,6 +52,7 @@ export async function runSync(overrideSource?: MarketSource): Promise<SyncResult
         }
 
         // Fetch prices from active provider
+        await initializeMarketProviders();
         let provider: ReturnType<typeof getMarketProvider>;
         try {
             provider = getMarketProvider(source);

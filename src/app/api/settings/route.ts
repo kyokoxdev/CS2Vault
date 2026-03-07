@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth/auth";
 import { z } from "zod/v4";
+import { resetProviders } from "@/lib/market/init";
 
 // Zod schema for settings validation
 const settingsSchema = z.object({
@@ -146,6 +147,10 @@ export async function PATCH(request: Request) {
                 csgotraderSubProvider: csgotraderSubProvider ?? "csfloat",
             },
         });
+
+        if (activeMarketSource) {
+            await resetProviders();
+        }
 
         // Trigger cache revalidations globally since these settings impact AI and Market engines everywhere
         revalidatePath("/", "layout");

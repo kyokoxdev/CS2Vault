@@ -52,3 +52,10 @@ export function resolveMarketProvider(source: MarketSource): MarketDataProvider 
     }
     return provider;
 }
+
+/**
+ * Clear all registered providers. Used when settings change.
+ */
+export function clearProviders(): void {
+    providers.clear();
+}

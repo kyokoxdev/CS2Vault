@@ -23,7 +23,7 @@ export async function startScheduler(): Promise<void> {
     }
 
     // Ensure providers are initialized
-    initializeMarketProviders();
+    await initializeMarketProviders();
 
     isRunning = true;
     console.log("[Scheduler] ✅ Started");
@@ -79,7 +79,7 @@ async function runScheduledSync(): Promise<void> {
  * Trigger a manual sync (outside the scheduler).
  */
 export async function triggerManualSync(): Promise<ReturnType<typeof runSync>> {
-    initializeMarketProviders();
+    await initializeMarketProviders();
     return runSync();
 }
 

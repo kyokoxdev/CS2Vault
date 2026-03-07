@@ -5,7 +5,7 @@
  * Import this module once during app initialization.
  */
 
-import { registerMarketProvider } from "@/lib/market/registry";
+import { registerMarketProvider, clearProviders } from "@/lib/market/registry";
 import { pricempireProvider } from "@/lib/market/pricempire";
 import { csfloatProvider } from "@/lib/market/csfloat";
 import { steamProvider } from "@/lib/market/steam";
@@ -21,7 +21,7 @@ export async function initializeMarketProviders(): Promise<void> {
 
     // Register providers that have API keys configured
     const pricempireKey = process.env.PRICEMPIRE_API_KEY; // PRICEMPIRE is ENV only for now
-    if (pricempireKey) {
+    if (pricempireKey && settings?.activeMarketSource === "pricempire") {
         registerMarketProvider("pricempire", pricempireProvider);
         console.log("[Market] ✅ Pricempire provider registered");
     } else {
@@ -44,4 +44,14 @@ export async function initializeMarketProviders(): Promise<void> {
     console.log("[Market] ✅ CSGOTrader provider registered (always available)");
 
     initialized = true;
+}
+
+/**
+ * Reset provider registry so next initializeMarketProviders() call
+ * re-reads settings and re-registers providers.
+ */
+export async function resetProviders(): Promise<void> {
+    clearProviders();
+    initialized = false;
+    await initializeMarketProviders();
 }
