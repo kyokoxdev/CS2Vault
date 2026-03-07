@@ -32,7 +32,13 @@ export async function fetchMarketCapData(): Promise<MarketCapData | null> {
 
 async function fetchFromChartApi(): Promise<MarketCapData | null> {
     try {
-        const res = await fetch(CHART_URL);
+        const res = await fetch(CHART_URL, {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Accept": "application/json, text/plain, */*",
+                "Referer": "https://pricempire.com/app/trending",
+            },
+        });
         if (!res.ok) {
             console.warn(`[Pricempire Chart] Fetch failed: ${res.status} ${res.statusText}`);
             return null;
@@ -50,7 +56,8 @@ async function fetchFromChartApi(): Promise<MarketCapData | null> {
             return null;
         }
 
-        const marketCapUsd = latest.value;
+        // Chart API returns values in cents — convert to USD
+        const marketCapUsd = latest.value / 100;
 
         return {
             totalMarketCap: marketCapUsd,

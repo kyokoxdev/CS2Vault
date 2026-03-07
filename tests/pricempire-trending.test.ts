@@ -49,7 +49,7 @@ describe("fetchMarketCapData", () => {
         expect(result).not.toBeNull();
         expect(result?.provider).toBe("csfloat");
         expect(result?.source).toBe("chart");
-        expect(result?.totalMarketCap).toBe(4567);
+        expect(result?.totalMarketCap).toBe(45.67);
         expect(result?.timestamp).toBeInstanceOf(Date);
     });
 
@@ -66,7 +66,7 @@ describe("fetchMarketCapData", () => {
 
         expect(prisma.marketCapSnapshot.create).toHaveBeenCalledWith({
             data: {
-                totalMarketCap: 2500,
+                totalMarketCap: 25,
                 totalListings: 0,
                 provider: "csfloat",
                 topItems: null,
