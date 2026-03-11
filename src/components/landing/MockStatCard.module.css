@@ -1,0 +1,50 @@
+@keyframes subtlePulse {
+    0%, 100% {
+        box-shadow: 0 0 0 rgba(0, 192, 118, 0);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(0, 192, 118, 0.06);
+    }
+}
+
+.card {
+    background: var(--surface-2);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1rem;
+    animation: subtlePulse 4s ease-in-out infinite;
+}
+
+.label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary-60);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary-90);
+    font-family: var(--font-mono);
+    margin-bottom: 4px;
+}
+
+.trend {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.trendUp {
+    color: var(--bull);
+}
+
+.trendDown {
+    color: var(--bear);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card { animation: none; }
+}
