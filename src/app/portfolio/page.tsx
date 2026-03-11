@@ -68,23 +68,23 @@ const CATEGORY_ICONS: Record<string, string> = {
   tool: "🔧",
 };
 
-const RARITY_VARIANTS: Record<string, "success" | "danger" | "warning" | "neutral" | "info"> = {
-  "Contraband": "warning",
-  "Covert": "danger",
-  "Classified": "danger",
-  "Restricted": "info",
-  "Mil-Spec": "info",
-  "Industrial Grade": "info",
-  "Consumer Grade": "neutral",
-  "Base Grade": "neutral",
-  "Distinguished": "info",
-  "Exceptional": "info",
-  "Superior": "danger",
-  "Master": "danger",
-  "High Grade": "info",
-  "Remarkable": "info",
-  "Exotic": "danger",
-  "Extraordinary": "danger",
+const RARITY_VARIANTS: Record<string, string> = {
+  "Contraband": "contraband",
+  "Covert": "covert",
+  "Classified": "classified",
+  "Restricted": "restricted",
+  "Mil-Spec": "milspec",
+  "Industrial Grade": "industrial",
+  "Consumer Grade": "consumer",
+  "Base Grade": "consumer",
+  "Distinguished": "milspec",
+  "Exceptional": "restricted",
+  "Superior": "classified",
+  "Master": "covert",
+  "High Grade": "milspec",
+  "Remarkable": "restricted",
+  "Exotic": "classified",
+  "Extraordinary": "covert",
 };
 
 export default function PortfolioPage() {
@@ -285,7 +285,6 @@ export default function PortfolioPage() {
       header: "Category",
       render: (_, item) => (
         <span className={styles.categoryCell}>
-          {CATEGORY_ICONS[item.category] ?? "📦"}{" "}
           <span className={styles.categoryName}>
             {item.category.replace("_", " ")}
           </span>
@@ -515,12 +514,12 @@ export default function PortfolioPage() {
           </div>
 
           <div className={styles.inventoryTable}>
-             <DataTable
-               columns={columns}
-               data={portfolio?.items || []}
-               isLoading={loading}
-               emptyMessage="No items match your filters"
-             />
+            <DataTable
+              columns={columns}
+              data={portfolio?.items || []}
+              isLoading={loading}
+              emptyMessage="No items match your filters"
+            />
           </div>
         </>
       )}

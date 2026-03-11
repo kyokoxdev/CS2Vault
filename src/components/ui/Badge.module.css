@@ -42,3 +42,38 @@
   color: var(--accent-primary, #6c5ce7);
   background-color: rgba(108, 92, 231, 0.12);
 }
+
+.consumer {
+  color: #b0c3d9;
+  background-color: rgba(176, 195, 217, 0.12);
+}
+
+.industrial {
+  color: #5e98d9;
+  background-color: rgba(94, 152, 217, 0.12);
+}
+
+.milspec {
+  color: #4b69ff;
+  background-color: rgba(75, 105, 255, 0.12);
+}
+
+.restricted {
+  color: #8847ff;
+  background-color: rgba(136, 71, 255, 0.12);
+}
+
+.classified {
+  color: #d32ce6;
+  background-color: rgba(211, 44, 230, 0.12);
+}
+
+.covert {
+  color: #eb4b4b;
+  background-color: rgba(235, 75, 75, 0.12);
+}
+
+.contraband {
+  color: #e4ae39;
+  background-color: rgba(228, 174, 57, 0.12);
+}

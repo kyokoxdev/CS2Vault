@@ -138,9 +138,17 @@
 }
 
 @keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 .itemCell {
@@ -227,7 +235,12 @@
   font-family: var(--font-numeric);
   font-size: 13px;
   border-bottom: 1px dashed var(--text-secondary-60);
+  border-top: none;
+  border-left: none;
+  border-right: none;
   padding-bottom: 1px;
+  background: transparent;
+  color: var(--text-primary-90);
 }
 
 .pnlCell {
@@ -276,27 +289,28 @@
     align-items: flex-start;
     gap: 16px;
   }
-  
+
   .headerActions {
     width: 100%;
     justify-content: space-between;
     flex-wrap: wrap;
   }
-  
+
   .summaryRow {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .inventoryTable {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     width: 100%;
   }
-  
+
   /* Force table to be wide enough to scroll */
   .inventoryTable :global(table) {
     min-width: 800px;
-    display: table; /* Ensure table layout */
+    display: table;
+    /* Ensure table layout */
   }
 
   .filterBar {
@@ -310,12 +324,13 @@
     align-items: stretch;
     gap: 12px;
   }
-  
+
   .summaryRow {
     grid-template-columns: 1fr;
   }
-  
-  .refreshButton, .syncButton {
+
+  .refreshButton,
+  .syncButton {
     justify-content: center;
     width: 100%;
   }
