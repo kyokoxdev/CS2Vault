@@ -1,0 +1,19 @@
+.steamButton {
+    display: inline-block;
+    transition: opacity var(--transition-fast, 150ms ease);
+    border-radius: var(--radius-md, 6px);
+}
+
+.steamButton:hover {
+    opacity: 0.85;
+}
+
+.steamButton:active {
+    opacity: 0.7;
+}
+
+.steamImage {
+    display: block;
+    height: auto;
+    max-width: 100%;
+}
