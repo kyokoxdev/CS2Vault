@@ -16,34 +16,46 @@ const PUBLIC_PREFIXES = [
     "/api/auth",        // All auth routes (login, callback, nextauth)
     "/api/search",      // Item search (needs to work before login)
     "/login",           // Login page
+    "/startup",
     "/test",            // Smoke test page
 ];
 
 export function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
-    // Allow public prefixes (auth routes, search, etc.)
-    if (PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
-        return NextResponse.next();
-    }
+    const sessionCookie =
+        request.cookies.get("authjs.session-token") ??
+        request.cookies.get("__Secure-authjs.session-token");
+    const hasSession = !!sessionCookie?.value;
 
+    // Allow public prefixes (auth routes, search, etc.)
     // For /api/* routes, check for the NextAuth session cookie
     if (pathname.startsWith("/api/")) {
+        if (PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+            return NextResponse.next();
+        }
+
         // In development, skip auth enforcement (no Steam login needed)
         if (process.env.NODE_ENV === "development") {
             return NextResponse.next();
         }
 
-        const sessionCookie =
-            request.cookies.get("authjs.session-token") ??
-            request.cookies.get("__Secure-authjs.session-token");
-
-        if (!sessionCookie?.value) {
+        if (!hasSession) {
             return NextResponse.json(
                 { success: false, error: "Authentication required" },
                 { status: 401 }
             );
         }
+
+        return NextResponse.next();
+    }
+
+    if (hasSession && pathname === "/startup") {
+        return NextResponse.redirect(new URL("/", request.nextUrl));
+    }
+
+    if (!hasSession && pathname !== "/startup") {
+        return NextResponse.redirect(new URL("/startup", request.nextUrl));
     }
 
     return NextResponse.next();
@@ -53,5 +65,6 @@ export const config = {
     matcher: [
         // Run on API routes only (skip static files, _next, etc.)
         "/api/:path*",
+        "/((?!_next/static|_next/image|favicon\\.ico|images).*)",
     ],
 };
