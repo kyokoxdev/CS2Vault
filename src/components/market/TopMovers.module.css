@@ -10,7 +10,8 @@
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   padding: 16px;
-  min-width: 0; /* Prevents flex items from overflowing */
+  min-width: 0;
+  /* Prevents flex items from overflowing */
 }
 
 .sectionTitle {
@@ -76,6 +77,10 @@
   padding: 40px;
   color: var(--text-secondary-60);
   font-size: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  margin-bottom: 24px;
 }
 
 .fallbackNotice {
@@ -86,8 +91,15 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
 }
 
 @media (max-width: 768px) {
