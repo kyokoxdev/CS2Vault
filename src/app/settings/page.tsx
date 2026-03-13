@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import styles from "./Settings.module.css";
 import { FaSave, FaRobot, FaChartLine, FaClock } from "react-icons/fa";
 import { AI_MODELS } from "@/lib/ai/model-labels";
+import { Select } from "@/components/ui/Select";
 
 interface AppSettings {
     activeMarketSource: string;
@@ -80,18 +81,12 @@ export default function SettingsPage() {
 
                     <div className={styles.formGroup}>
                         <label>Active Engine</label>
-                        <select
+                        <Select
                             value={settings.activeAIProvider}
-                            onChange={(e) => handleChange("activeAIProvider", e.target.value)}
+                            onChange={(val) => handleChange("activeAIProvider", val)}
                             className={styles.select}
-                            aria-label="AI model selection"
-                        >
-                            {AI_MODELS.map((model) => (
-                                <option key={model.value} value={model.value}>
-                                    {model.label}
-                                </option>
-                            ))}
-                        </select>
+                            options={AI_MODELS.map(model => ({ label: model.label, value: model.value }))}
+                        />
                         <p className={styles.helpText}>Select the underlying language model powering the `/chat` analyst.</p>
                     </div>
 
@@ -127,42 +122,44 @@ export default function SettingsPage() {
 
                     <div className={styles.formGroup}>
                         <label>Primary Pricing Feed</label>
-                        <select
+                        <Select
                             value={settings.activeMarketSource}
-                            onChange={(e) => handleChange("activeMarketSource", e.target.value)}
+                            onChange={(val) => handleChange("activeMarketSource", val)}
                             className={styles.select}
-                        >
-                            <option value="pricempire">Pricempire</option>
-                            <option value="csfloat">CSFloat API (Recommended)</option>
-                            <option value="csgotrader">CSGOTrader Multi-Market</option>
-                            <option value="steam">Steam Community Market</option>
-                        </select>
+                            options={[
+                                { label: "Pricempire", value: "pricempire" },
+                                { label: "CSFloat API (Recommended)", value: "csfloat" },
+                                { label: "CSGOTrader Multi-Market", value: "csgotrader" },
+                                { label: "Steam Community Market", value: "steam" }
+                            ]}
+                        />
                         <p className={styles.helpText}>Choose your primary pricing feed. CSFloat uses bulk cache + API fallback. CSGOTrader aggregates 14 markets.</p>
                     </div>
 
                     {settings.activeMarketSource === "csgotrader" && (
                         <div className={styles.formGroup} style={{ marginLeft: "1.5rem" }}>
                             <label>Sub-Provider</label>
-                            <select
+                            <Select
                                 value={settings.csgotraderSubProvider}
-                                onChange={(e) => handleChange("csgotraderSubProvider", e.target.value)}
+                                onChange={(val) => handleChange("csgotraderSubProvider", val)}
                                 className={styles.select}
-                            >
-                                <option value="csfloat">CSFloat (Recommended)</option>
-                                <option value="buff163">Buff163</option>
-                                <option value="steam">Steam</option>
-                                <option value="bitskins">BitSkins</option>
-                                <option value="skinport">Skinport</option>
-                                <option value="csmoney">CS.Money</option>
-                                <option value="csgoempire">CSGOEmpire</option>
-                                <option value="csgotm">CS:GO Trade Market</option>
-                                <option value="lootfarm">LootFarm</option>
-                                <option value="swapgg">Swap.gg</option>
-                                <option value="cstrade">CS.Trade</option>
-                                <option value="csgotrader">CSGOTrader</option>
-                                <option value="youpin">YouPin</option>
-                                <option value="lisskins">Lisskins</option>
-                            </select>
+                                options={[
+                                    { label: "CSFloat (Recommended)", value: "csfloat" },
+                                    { label: "Buff163", value: "buff163" },
+                                    { label: "Steam", value: "steam" },
+                                    { label: "BitSkins", value: "bitskins" },
+                                    { label: "Skinport", value: "skinport" },
+                                    { label: "CS.Money", value: "csmoney" },
+                                    { label: "CSGOEmpire", value: "csgoempire" },
+                                    { label: "CS:GO Trade Market", value: "csgotm" },
+                                    { label: "LootFarm", value: "lootfarm" },
+                                    { label: "Swap.gg", value: "swapgg" },
+                                    { label: "CS.Trade", value: "cstrade" },
+                                    { label: "CSGOTrader", value: "csgotrader" },
+                                    { label: "YouPin", value: "youpin" },
+                                    { label: "Lisskins", value: "lisskins" }
+                                ]}
+                            />
                             <p className={styles.helpText}>Select which market&apos;s pricing data to use via CSGOTrader aggregation.</p>
                         </div>
                     )}

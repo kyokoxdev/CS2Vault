@@ -344,31 +344,8 @@
 
 /* Model selector in input area (near send button) */
 .modelSelect {
-    background: var(--surface-0);
-    border: 1px solid var(--border-primary);
-    color: var(--text-primary-90);
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 12px;
-    outline: none;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    min-width: 120px;
+    min-width: 140px;
     height: 48px;
-}
-
-.modelSelect:hover {
-    border-color: var(--border-active);
-}
-
-.modelSelect:focus {
-    border-color: var(--border-active);
-    box-shadow: 0 0 0 2px rgba(67, 67, 67, 0.3);
-}
-
-.modelSelect:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
 }
 
 /* History loading state */

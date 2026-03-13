@@ -6,6 +6,7 @@ import { FaRobot, FaTimes, FaPlus, FaArrowRight } from "react-icons/fa";
 import styles from "./AIChat.module.css";
 import type { ChatMessageData, AIProviderName } from "@/types";
 import { AI_MODELS } from "@/lib/ai/model-labels";
+import { Select } from "@/components/ui/Select";
 
 // Size limits
 const MAX_MESSAGE_LENGTH = 4000; // characters
@@ -248,19 +249,14 @@ export default function AIChat() {
                         disabled={isLoading}
                         aria-label="Chat message input"
                     />
-                    <select
+                    <Select
                         className={styles.modelSelect}
                         value={provider}
-                        onChange={(e) => setProvider(e.target.value as AIProviderName)}
+                        onChange={(val) => setProvider(val as AIProviderName)}
                         disabled={isLoading}
-                        aria-label="Select AI model"
-                    >
-                        {AI_MODELS.map((model) => (
-                            <option key={model.value} value={model.value}>
-                                {model.shortLabel}
-                            </option>
-                        ))}
-                    </select>
+                        options={AI_MODELS.map(model => ({ label: model.shortLabel, value: model.value }))}
+                        menuPlacement="top"
+                    />
                     <button
                         type="submit"
                         className={styles.sendBtn}

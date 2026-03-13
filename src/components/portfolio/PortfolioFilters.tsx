@@ -2,6 +2,7 @@
 
 import styles from "./PortfolioFilters.module.css";
 import { useState, useEffect } from "react";
+import { Select } from "@/components/ui/Select";
 
 interface PortfolioFiltersProps {
   category: string;
@@ -38,39 +39,34 @@ export function PortfolioFilters({
   return (
     <div className={styles.container}>
       <div className={styles.label}>Filters</div>
-      <select
+      <Select
         value={category}
-        onChange={(e) => onChange("category", e.target.value)}
+        onChange={(val) => onChange("category", val)}
+        options={[
+          { label: "All categories", value: "" },
+          ...categories.map(cat => ({ label: cat.replace("_", " "), value: cat }))
+        ]}
         className={styles.select}
-      >
-        <option value="">All categories</option>
-        {categories.map((cat) => (
-          <option key={cat} value={cat}>
-            {cat.replace("_", " ")}
-          </option>
-        ))}
-      </select>
-      <select
+      />
+      <Select
         value={rarity}
-        onChange={(e) => onChange("rarity", e.target.value)}
+        onChange={(val) => onChange("rarity", val)}
+        options={[
+          { label: "All rarities", value: "" },
+          ...rarities.map(r => ({ label: r, value: r }))
+        ]}
         className={styles.select}
-      >
-        <option value="">All rarities</option>
-        {rarities.map((r) => (
-          <option key={r} value={r}>
-            {r}
-          </option>
-        ))}
-      </select>
-      <select
+      />
+      <Select
         value={price}
-        onChange={(e) => onChange("price", e.target.value)}
+        onChange={(val) => onChange("price", val)}
+        options={[
+          { label: "All prices", value: "all" },
+          { label: "Priced", value: "priced" },
+          { label: "Unpriced", value: "unpriced" }
+        ]}
         className={styles.select}
-      >
-        <option value="all">All prices</option>
-        <option value="priced">Priced</option>
-        <option value="unpriced">Unpriced</option>
-      </select>
+      />
       <input
         value={pendingSearch}
         onChange={(e) => setPendingSearch(e.target.value)}
