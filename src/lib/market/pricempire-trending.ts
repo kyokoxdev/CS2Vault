@@ -3,16 +3,31 @@ import { prisma } from "@/lib/db";
 
 const CHART_URL = "https://pricempire.com/api-data/v1/trending/chart?provider=csfloat";
 
-const BROWSER_HEADERS: Record<string, string> = {
-    "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    Accept: "application/json, text/plain, */*",
-    Referer: "https://pricempire.com/app/trending",
-};
+// Returns a FRESH object each call — Vercel's fetch runtime can mutate the
+// headers object in-place (injecting x-vercel-id, x-invocation-id, etc.),
+// which would leak into the curl fallback and trigger Cloudflare's bot detection.
+function getBrowserHeaders(): Record<string, string> {
+    return {
+        "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        Accept: "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        Referer: "https://pricempire.com/app/trending",
+        Origin: "https://pricempire.com",
+        "sec-ch-ua":
+            '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+    };
+}
 
 async function nativeFetch(url: string): Promise<string> {
     const res = await fetch(url, {
-        headers: BROWSER_HEADERS,
+        headers: getBrowserHeaders(),
         signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
@@ -25,13 +40,19 @@ async function nativeFetch(url: string): Promise<string> {
 function curlFetch(url: string): Promise<string> {
     return new Promise((resolve, reject) => {
         try {
+            const headers = getBrowserHeaders();
+            // Drop Accept-Encoding — curl --compressed handles it natively
+            // and avoids sending a value curl can't decode
+            delete headers["Accept-Encoding"];
+
             execFile(
                 "curl",
                 [
                     "-s",
                     "-f",
+                    "--compressed",
                     "--max-time", "10",
-                    ...Object.entries(BROWSER_HEADERS).flatMap(([k, v]) => ["-H", `${k}: ${v}`]),
+                    ...Object.entries(headers).flatMap(([k, v]) => ["-H", `${k}: ${v}`]),
                     url,
                 ],
                 { timeout: 15_000, maxBuffer: 1024 * 1024 },
