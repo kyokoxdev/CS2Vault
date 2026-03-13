@@ -13,7 +13,7 @@ const createMockData = (
         totalMarketCap: number;
         timestamp: Date;
         provider: string;
-        source: "chart" | "formula";
+        source: "chart" | "formula" | "snapshot";
     }> = {}
 ) => ({
     totalMarketCap: 1500000,
@@ -41,6 +41,7 @@ describe("GET /api/market/market-cap", () => {
         expect(data.data.totalMarketCap).toBe(mockData.totalMarketCap);
         expect(data.data.timestamp).toBe(mockData.timestamp.toISOString());
         expect(data.data.provider).toBe(mockData.provider);
+        expect(data.data.source).toBe(mockData.source);
     });
 
     it("returns 500 when fetchMarketCapData returns null", async () => {

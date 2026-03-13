@@ -42,6 +42,7 @@ export default function MarketOverview() {
   const [pricempireMarketCap, setPricempireMarketCap] = useState<{
     totalMarketCap: number;
     provider: string;
+    source?: string;
   } | null>(null);
 
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
@@ -142,6 +143,7 @@ export default function MarketOverview() {
         setPricempireMarketCap({
           totalMarketCap: data.data.totalMarketCap,
           provider: data.data.provider,
+          source: data.data.source,
         });
       }
     } catch (err) {
@@ -287,7 +289,9 @@ export default function MarketOverview() {
       : "N/A";
     
   const marketCapSubLabel = pricempireMarketCap?.totalMarketCap
-    ? "Source: Pricempire Chart"
+    ? pricempireMarketCap.source === "snapshot"
+      ? "Source: Pricempire (cached)"
+      : "Source: Pricempire Chart"
     : marketSummary?.marketCapUsd
       ? `Source: CSFloat${marketSummary.sampleSize ? ` • ${marketSummary.sampleSize} items` : ""}`
       : marketSummary?.status === "missing_key"

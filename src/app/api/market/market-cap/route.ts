@@ -22,6 +22,7 @@ export async function GET() {
                 totalMarketCap: result.totalMarketCap,
                 timestamp: result.timestamp,
                 provider: result.provider,
+                source: result.source,
             },
         });
     } catch (error) {

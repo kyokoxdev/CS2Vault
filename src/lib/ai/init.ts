@@ -12,6 +12,6 @@ export function initAIProviders() {
     registerAIProvider("gemini-flash", new GeminiFlashProvider());
     registerAIProvider("openai", new OpenAIProvider());
 
-    console.log("[AI] Providers initialized and registered in fallback chain");
+    console.log("[AI] Providers initialized");
     initialized = true;
 }

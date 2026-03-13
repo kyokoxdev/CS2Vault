@@ -53,21 +53,6 @@ interface PortfolioData {
   };
 }
 
-const CATEGORY_ICONS: Record<string, string> = {
-  weapon: "🔫",
-  container: "📦",
-  key: "🔑",
-  knife: "🔪",
-  glove: "🧤",
-  sticker: "🏷️",
-  agent: "🕵️",
-  graffiti: "🎨",
-  music_kit: "🎵",
-  patch: "🩹",
-  collectible: "🏆",
-  tool: "🔧",
-};
-
 const RARITY_VARIANTS: Record<string, string> = {
   "Contraband": "contraband",
   "Covert": "covert",
