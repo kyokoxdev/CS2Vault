@@ -1,162 +1,116 @@
-import { execFile } from "child_process";
 import { prisma } from "@/lib/db";
 
-const CHART_URL = "https://pricempire.com/api-data/v1/trending/chart?provider=csfloat";
-
-// Returns a FRESH object each call — Vercel's fetch runtime can mutate the
-// headers object in-place (injecting x-vercel-id, x-invocation-id, etc.),
-// which would leak into the curl fallback and trigger Cloudflare's bot detection.
-function getBrowserHeaders(): Record<string, string> {
-    return {
-        "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-        Accept: "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        Referer: "https://pricempire.com/app/trending",
-        Origin: "https://pricempire.com",
-        "sec-ch-ua":
-            '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-origin",
-    };
-}
-
-async function nativeFetch(url: string): Promise<string> {
-    const res = await fetch(url, {
-        headers: getBrowserHeaders(),
-        signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) {
-        throw new Error(`fetch ${res.status} ${res.statusText}`);
-    }
-    return res.text();
-}
-
-// curl bypasses Cloudflare JA3/JA4 TLS fingerprinting that blocks Node.js fetch
-function curlFetch(url: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        try {
-            const headers = getBrowserHeaders();
-            // Drop Accept-Encoding — curl --compressed handles it natively
-            // and avoids sending a value curl can't decode
-            delete headers["Accept-Encoding"];
-
-            execFile(
-                "curl",
-                [
-                    "-s",
-                    "-f",
-                    "--compressed",
-                    "--max-time", "10",
-                    ...Object.entries(headers).flatMap(([k, v]) => ["-H", `${k}: ${v}`]),
-                    url,
-                ],
-                { timeout: 15_000, maxBuffer: 1024 * 1024 },
-                (error, stdout, stderr) => {
-                    if (error) {
-                        reject(new Error(`curl failed: ${error.message}${stderr ? ` — ${stderr}` : ""}`));
-                        return;
-                    }
-                    resolve(stdout);
-                },
-            );
-        } catch (err) {
-            // execFile itself can throw if the binary is not found
-            reject(new Error(`curl unavailable: ${err instanceof Error ? err.message : err}`));
-        }
-    });
-}
+const PRICEMPIRE_API_URL = "https://api.pricempire.com/v4/paid/items/metas";
 
 export interface MarketCapData {
     totalMarketCap: number;
     timestamp: Date;
     provider: string;
-    source: "chart" | "formula" | "snapshot";
+    source: "api" | "snapshot";
 }
 
-let cachedData: MarketCapData | null = null;
+export type MarketCapStatus = "ok" | "missing_key" | "error";
+
+export interface MarketCapResult {
+    data: MarketCapData | null;
+    status: MarketCapStatus;
+}
+
+let cachedResult: MarketCapResult | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 15 * 60 * 1000;
 
-export async function fetchMarketCapData(): Promise<MarketCapData | null> {
+export async function fetchMarketCapData(): Promise<MarketCapResult> {
     const now = Date.now();
-    if (cachedData && now - cacheTimestamp < CACHE_TTL_MS) {
-        return cachedData;
+    if (cachedResult && now - cacheTimestamp < CACHE_TTL_MS) {
+        return cachedResult;
     }
 
-    // Try live chart API (native fetch → curl fallback)
-    const chartResult = await fetchFromChartApi();
-    if (chartResult) {
-        await storeSnapshot(chartResult);
-        cachedData = chartResult;
+    const apiKey = process.env.PRICEMPIRE_API_KEY;
+    if (!apiKey) {
+        const result: MarketCapResult = { data: null, status: "missing_key" };
+        cachedResult = result;
         cacheTimestamp = now;
-        return chartResult;
+        return result;
+    }
+
+    const apiResult = await fetchFromApi(apiKey);
+    if (apiResult) {
+        await storeSnapshot(apiResult);
+        const result: MarketCapResult = { data: apiResult, status: "ok" };
+        cachedResult = result;
+        cacheTimestamp = now;
+        return result;
     }
 
     const snapshot = await getLastSnapshot();
     if (snapshot) {
         console.info("[Market Cap] Using DB snapshot fallback from", snapshot.timestamp.toISOString());
-        cachedData = snapshot;
-        // Shorter TTL for stale snapshots so we retry live fetch sooner
+        const result: MarketCapResult = { data: snapshot, status: "ok" };
+        cachedResult = result;
+        // Shorter TTL for stale snapshots so we retry the live API sooner
         cacheTimestamp = now - CACHE_TTL_MS + 5 * 60 * 1000;
-        return snapshot;
+        return result;
     }
 
-    return cachedData;
+    return cachedResult ?? { data: null, status: "error" };
 }
 
-function parseChartResponse(body: string): MarketCapData | null {
-    const json: unknown = JSON.parse(body);
-    if (!Array.isArray(json) || json.length === 0) {
-        console.warn("[Pricempire Chart] Empty or invalid response");
+async function fetchFromApi(apiKey: string): Promise<MarketCapData | null> {
+    try {
+        const url = `${PRICEMPIRE_API_URL}?app_id=730`;
+        const res = await fetch(url, {
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                Accept: "application/json",
+            },
+            signal: AbortSignal.timeout(30_000),
+        });
+
+        if (!res.ok) {
+            console.warn(`[Pricempire API] ${res.status} ${res.statusText}`);
+            return null;
+        }
+
+        const items: unknown = await res.json();
+        const result = parseMetasResponse(items);
+        if (result) {
+            console.info("[Pricempire API] Fetched market cap via V4 API");
+        }
+        return result;
+    } catch (error) {
+        console.warn("[Pricempire API] Failed:", error instanceof Error ? error.message : error);
+        return null;
+    }
+}
+
+function parseMetasResponse(body: unknown): MarketCapData | null {
+    if (!Array.isArray(body) || body.length === 0) {
+        console.warn("[Pricempire API] Empty or invalid response");
         return null;
     }
 
-    const latest = json[json.length - 1] as { date?: string; value?: number };
-    if (typeof latest.value !== "number" || latest.value <= 0) {
-        console.warn("[Pricempire Chart] Invalid latest entry:", latest);
+    let totalCents = 0;
+    for (const item of body) {
+        const raw = item?.marketcap;
+        const cap = typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : 0;
+        if (Number.isFinite(cap) && cap > 0) {
+            totalCents += cap;
+        }
+    }
+
+    if (totalCents <= 0) {
+        console.warn("[Pricempire API] No valid marketcap data in response");
         return null;
     }
 
-    // Chart API returns values in cents — convert to USD
-    const marketCapUsd = latest.value / 100;
-
+    // Pricempire marketcap values are in cents — convert to USD
     return {
-        totalMarketCap: marketCapUsd,
+        totalMarketCap: totalCents / 100,
         timestamp: new Date(),
-        provider: "csfloat",
-        source: "chart",
+        provider: "pricempire",
+        source: "api",
     };
-}
-
-async function fetchFromChartApi(): Promise<MarketCapData | null> {
-    try {
-        const body = await nativeFetch(CHART_URL);
-        const result = parseChartResponse(body);
-        if (result) {
-            console.info("[Pricempire Chart] Fetched via native fetch");
-            return result;
-        }
-    } catch (error) {
-        console.warn("[Pricempire Chart] fetch failed:", error instanceof Error ? error.message : error);
-    }
-
-    try {
-        const body = await curlFetch(CHART_URL);
-        const result = parseChartResponse(body);
-        if (result) {
-            console.info("[Pricempire Chart] Fetched via curl");
-            return result;
-        }
-    } catch (error) {
-        console.warn("[Pricempire Chart] curl failed:", error instanceof Error ? error.message : error);
-    }
-
-    return null;
 }
 
 async function getLastSnapshot(): Promise<MarketCapData | null> {

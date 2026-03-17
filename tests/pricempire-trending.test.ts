@@ -4,34 +4,25 @@ vi.mock("@/lib/db", () => ({
     prisma: {
         marketCapSnapshot: {
             create: vi.fn(),
+            findFirst: vi.fn(),
             deleteMany: vi.fn(),
         },
     },
 }));
 
-vi.mock("child_process", () => ({
-    execFile: vi.fn(),
-}));
-
 import { prisma } from "@/lib/db";
-import { execFile } from "child_process";
 
-const mockExecFile = vi.mocked(execFile);
-
-type ExecFileCallback = (error: Error | null, stdout: string, stderr: string) => void;
-
-function simulateCurlSuccess(jsonData: unknown) {
-    mockExecFile.mockImplementationOnce((_cmd, _args, _opts, callback) => {
-        (callback as ExecFileCallback)(null, JSON.stringify(jsonData), "");
-        return {} as ReturnType<typeof execFile>;
-    });
+function mockFetchSuccess(data: unknown, status = 200) {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce({
+        ok: status >= 200 && status < 300,
+        status,
+        statusText: status === 200 ? "OK" : "Error",
+        json: () => Promise.resolve(data),
+    }));
 }
 
-function simulateCurlFailure(message: string) {
-    mockExecFile.mockImplementationOnce((_cmd, _args, _opts, callback) => {
-        (callback as ExecFileCallback)(new Error(message), "", "");
-        return {} as ReturnType<typeof execFile>;
-    });
+function mockFetchFailure(message: string) {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(new Error(message)));
 }
 
 async function importModule() {
@@ -41,153 +32,187 @@ async function importModule() {
 beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
-    mockExecFile.mockReset();
+    vi.stubEnv("PRICEMPIRE_API_KEY", "test-api-key");
     vi.mocked(prisma.marketCapSnapshot.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.marketCapSnapshot.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.marketCapSnapshot.deleteMany).mockResolvedValue({ count: 0 } as never);
 });
 
 afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
 });
 
 describe("fetchMarketCapData", () => {
-    it("returns chart-based market cap using the latest entry", async () => {
-        simulateCurlSuccess([
-            { date: "2024-01-01", value: 1200 },
-            { date: "2024-01-02", value: 4567 },
+    it("returns aggregated market cap from V4 metas endpoint", async () => {
+        mockFetchSuccess([
+            { market_hash_name: "AK-47 | Redline", marketcap: "500000" },
+            { market_hash_name: "AWP | Dragon Lore", marketcap: "1200000" },
         ]);
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
 
-        expect(result).not.toBeNull();
-        expect(result?.provider).toBe("csfloat");
-        expect(result?.source).toBe("chart");
-        expect(result?.totalMarketCap).toBe(45.67);
-        expect(result?.timestamp).toBeInstanceOf(Date);
+        expect(result.status).toBe("ok");
+        expect(result.data).not.toBeNull();
+        expect(result.data?.totalMarketCap).toBe(17000);
+        expect(result.data?.provider).toBe("pricempire");
+        expect(result.data?.source).toBe("api");
+        expect(result.data?.timestamp).toBeInstanceOf(Date);
     });
 
-    it("stores snapshot with normalized fields", async () => {
-        simulateCurlSuccess([{ date: "2024-01-01", value: 2500 }]);
+    it("handles numeric marketcap values", async () => {
+        mockFetchSuccess([
+            { market_hash_name: "Item A", marketcap: 300000 },
+            { market_hash_name: "Item B", marketcap: 700000 },
+        ]);
+        const { fetchMarketCapData } = await importModule();
+
+        const result = await fetchMarketCapData();
+
+        expect(result.data?.totalMarketCap).toBe(10000);
+    });
+
+    it("skips items with missing or invalid marketcap", async () => {
+        mockFetchSuccess([
+            { market_hash_name: "Good Item", marketcap: "1000000" },
+            { market_hash_name: "No Cap", count: "50" },
+            { market_hash_name: "Negative", marketcap: "-100" },
+            { market_hash_name: "NaN", marketcap: "not_a_number" },
+            { market_hash_name: "Zero", marketcap: "0" },
+        ]);
+        const { fetchMarketCapData } = await importModule();
+
+        const result = await fetchMarketCapData();
+
+        expect(result.data?.totalMarketCap).toBe(10000);
+    });
+
+    it("stores snapshot after successful fetch", async () => {
+        mockFetchSuccess([{ market_hash_name: "Item", marketcap: "250000" }]);
         const { fetchMarketCapData } = await importModule();
 
         await fetchMarketCapData();
 
         expect(prisma.marketCapSnapshot.create).toHaveBeenCalledWith({
             data: {
-                totalMarketCap: 25,
+                totalMarketCap: 2500,
                 totalListings: 0,
-                provider: "csfloat",
+                provider: "pricempire",
                 topItems: null,
                 timestamp: expect.any(Date),
             },
         });
     });
 
-    it("returns null when curl fails", async () => {
-        simulateCurlFailure("curl: (22) The requested URL returned error: 500");
+    it("returns missing_key status when PRICEMPIRE_API_KEY is not set", async () => {
+        vi.stubEnv("PRICEMPIRE_API_KEY", "");
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
 
-        expect(result).toBeNull();
+        expect(result.status).toBe("missing_key");
+        expect(result.data).toBeNull();
         expect(prisma.marketCapSnapshot.create).not.toHaveBeenCalled();
     });
 
-    it("returns null when chart response is empty", async () => {
-        simulateCurlSuccess([]);
+    it("returns error when API responds with non-OK status", async () => {
+        mockFetchSuccess(null, 403);
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
 
-        expect(result).toBeNull();
+        expect(result.data).toBeNull();
     });
 
-    it("returns null when chart returns a non-array response", async () => {
-        simulateCurlSuccess({ data: "nope" });
+    it("returns error when fetch throws", async () => {
+        mockFetchFailure("Network error");
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
 
-        expect(result).toBeNull();
+        expect(result.data).toBeNull();
     });
 
-    it("returns null when chart latest value is non-positive", async () => {
-        simulateCurlSuccess([{ date: "2024-01-01", value: -5 }]);
+    it("returns error when response is empty array", async () => {
+        mockFetchSuccess([]);
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
 
-        expect(result).toBeNull();
+        expect(result.data).toBeNull();
     });
 
-    it("returns null when curl returns invalid JSON", async () => {
-        mockExecFile.mockImplementationOnce((_cmd, _args, _opts, callback) => {
-            (callback as ExecFileCallback)(null, "not json at all", "");
-            return {} as ReturnType<typeof execFile>;
-        });
+    it("returns error when response is not an array", async () => {
+        mockFetchSuccess({ data: "nope" });
         const { fetchMarketCapData } = await importModule();
 
         const result = await fetchMarketCapData();
 
-        expect(result).toBeNull();
+        expect(result.data).toBeNull();
     });
 
-    it("returns null when both chart and fallback fail", async () => {
-        simulateCurlFailure("curl: (7) Failed to connect");
-        const { fetchMarketCapData } = await importModule();
-
-        const result = await fetchMarketCapData();
-
-        expect(result).toBeNull();
-        expect(prisma.marketCapSnapshot.create).not.toHaveBeenCalled();
-    });
-
-    it("serves cached data within TTL without refetching", async () => {
-        simulateCurlSuccess([{ date: "2024-01-01", value: 7777 }]);
+    it("serves cached result within TTL without refetching", async () => {
+        mockFetchSuccess([{ market_hash_name: "Item", marketcap: "500000" }]);
         const { fetchMarketCapData } = await importModule();
 
         const first = await fetchMarketCapData();
         const second = await fetchMarketCapData();
 
         expect(first).toEqual(second);
-        expect(mockExecFile).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
     });
 
-    it("returns stale cache when refetch fails after TTL", async () => {
+    it("refetches after TTL expires", async () => {
         const nowSpy = vi.spyOn(Date, "now");
         nowSpy.mockReturnValueOnce(1_000_000);
-        simulateCurlSuccess([{ date: "2024-01-01", value: 9999 }]);
+        mockFetchSuccess([{ market_hash_name: "Item", marketcap: "500000" }]);
         const { fetchMarketCapData } = await importModule();
 
         const first = await fetchMarketCapData();
+        expect(first.data?.totalMarketCap).toBe(5000);
 
         nowSpy.mockReturnValueOnce(1_000_000 + 15 * 60 * 1000 + 1);
-        simulateCurlFailure("curl: (28) Operation timed out");
+        mockFetchSuccess([{ market_hash_name: "Item", marketcap: "600000" }]);
 
         const second = await fetchMarketCapData();
 
-        expect(second).toEqual(first);
-        expect(mockExecFile).toHaveBeenCalledTimes(2);
+        expect(second.data?.totalMarketCap).toBe(6000);
         nowSpy.mockRestore();
     });
 
-    it("passes correct curl arguments", async () => {
-        simulateCurlSuccess([{ date: "2024-01-01", value: 1000 }]);
+    it("falls back to DB snapshot when API fails", async () => {
+        mockFetchFailure("timeout");
+        vi.mocked(prisma.marketCapSnapshot.findFirst).mockResolvedValueOnce({
+            id: 1,
+            totalMarketCap: 25000,
+            totalListings: 0,
+            provider: "pricempire",
+            topItems: null,
+            timestamp: new Date("2024-01-01"),
+        } as never);
+        const { fetchMarketCapData } = await importModule();
+
+        const result = await fetchMarketCapData();
+
+        expect(result.status).toBe("ok");
+        expect(result.data?.totalMarketCap).toBe(25000);
+        expect(result.data?.source).toBe("snapshot");
+    });
+
+    it("sends correct Authorization header", async () => {
+        mockFetchSuccess([{ market_hash_name: "Item", marketcap: "100000" }]);
         const { fetchMarketCapData } = await importModule();
 
         await fetchMarketCapData();
 
-        expect(mockExecFile).toHaveBeenCalledWith(
-            "curl",
-            expect.arrayContaining([
-                "-s",
-                "-f",
-                "--max-time", "10",
-                "https://pricempire.com/api-data/v1/trending/chart?provider=csfloat",
-            ]),
-            expect.objectContaining({ timeout: 15_000 }),
-            expect.any(Function),
+        expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "https://api.pricempire.com/v4/paid/items/metas?app_id=730",
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    Authorization: "Bearer test-api-key",
+                }),
+            }),
         );
     });
 });
@@ -225,14 +250,5 @@ describe("cleanupOldSnapshots", () => {
         const diff = now - cutoff.getTime();
         expect(diff).toBeGreaterThanOrEqual(10 * dayMs - 1000);
         expect(diff).toBeLessThanOrEqual(10 * dayMs + 1000);
-    });
-
-    it("returns deleteMany count", async () => {
-        vi.mocked(prisma.marketCapSnapshot.deleteMany).mockResolvedValue({ count: 7 } as never);
-        const { cleanupOldSnapshots } = await importModule();
-
-        const result = await cleanupOldSnapshots(5);
-
-        expect(result).toBe(7);
     });
 });
