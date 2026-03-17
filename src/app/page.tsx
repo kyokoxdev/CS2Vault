@@ -40,9 +40,10 @@ export default function MarketOverview() {
   const [portfolioLoading, setPortfolioLoading] = useState(true);
 
   const [pricempireMarketCap, setPricempireMarketCap] = useState<{
-    totalMarketCap: number;
+    totalMarketCap: number | null;
     provider: string;
     source?: string;
+    status: string;
   } | null>(null);
 
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
@@ -139,11 +140,12 @@ export default function MarketOverview() {
     try {
       const res = await fetch("/api/market/market-cap");
       const data = await res.json();
-      if (data.success && data.data) {
+      if (data.success) {
         setPricempireMarketCap({
-          totalMarketCap: data.data.totalMarketCap,
-          provider: data.data.provider,
-          source: data.data.source,
+          totalMarketCap: data.data?.totalMarketCap ?? null,
+          provider: data.data?.provider ?? "pricempire",
+          source: data.data?.source,
+          status: data.status ?? "ok",
         });
       }
     } catch (err) {
@@ -291,14 +293,16 @@ export default function MarketOverview() {
   const marketCapSubLabel = pricempireMarketCap?.totalMarketCap
     ? pricempireMarketCap.source === "snapshot"
       ? "Source: Pricempire (cached)"
-      : "Source: Pricempire Chart"
+      : "Source: Pricempire"
     : marketSummary?.marketCapUsd
-      ? `Source: CSFloat${marketSummary.sampleSize ? ` • ${marketSummary.sampleSize} items` : ""}`
-      : marketSummary?.status === "missing_key"
-        ? "Set CSFLOAT_API_KEY"
-        : marketSummary?.status === "error"
-          ? "CSFloat unavailable"
-          : "No data returned";
+      ? `Source: CSFloat${marketSummary.sampleSize ? ` \u2022 ${marketSummary.sampleSize} items` : ""}`
+      : pricempireMarketCap?.status === "missing_key"
+        ? "Pricempire API key required"
+        : marketSummary?.status === "missing_key"
+          ? "Set CSFLOAT_API_KEY"
+          : marketSummary?.status === "error"
+            ? "CSFloat unavailable"
+            : "No data returned";
 
   return (
     <div className={styles.page}>
