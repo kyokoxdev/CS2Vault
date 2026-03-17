@@ -5,9 +5,17 @@ export async function GET() {
     try {
         const result = await fetchMarketCapData();
 
-        if (!result) {
+        if (result.status === "missing_key") {
+            return NextResponse.json({
+                success: true,
+                status: "missing_key",
+                data: null,
+            });
+        }
+
+        if (!result.data) {
             return NextResponse.json(
-                { success: false, error: "Failed to fetch market cap data" },
+                { success: false, status: "error", error: "Failed to fetch market cap data" },
                 { status: 500 }
             );
         }
@@ -18,17 +26,18 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
+            status: "ok",
             data: {
-                totalMarketCap: result.totalMarketCap,
-                timestamp: result.timestamp,
-                provider: result.provider,
-                source: result.source,
+                totalMarketCap: result.data.totalMarketCap,
+                timestamp: result.data.timestamp,
+                provider: result.data.provider,
+                source: result.data.source,
             },
         });
     } catch (error) {
         console.error("[API /market/market-cap]", error);
         return NextResponse.json(
-            { success: false, error: "Failed to fetch market cap data" },
+            { success: false, status: "error", error: "Failed to fetch market cap data" },
             { status: 500 }
         );
     }
