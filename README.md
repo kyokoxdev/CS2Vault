@@ -1,18 +1,61 @@
+<div align="center">
+
 # CS2Vault
 
-Market intelligence dashboard for Counter-Strike 2 items. Track prices, manage your inventory, and get AI-powered market insights.
+**Market Intelligence Dashboard for Counter-Strike 2**
+
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://prisma.io)
+[![Turso](https://img.shields.io/badge/Turso-libSQL-00D9FF?style=flat-square)](https://turso.tech/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+
+Track prices, manage your inventory, and get AI-powered market insights.
+
+[Features](#features) · [Getting Started](#getting-started) · [Deployment](#deployment) · [License](#license)
+
+</div>
+
+---
 
 ## Features
 
-- **Market Overview** — Real-time price tracking with CSFloat, Pricempire, and Steam as data sources
-- **Portfolio Management** — Track your CS2 inventory value with historical price data
-- **Top Movers** — See which items are gaining or losing value
-- **AI Chat** — Market analysis powered by Google Gemini and OpenAI
-- **News Feed** — Aggregated CS2 market news via RSS
-- **Item Detail** — Candlestick price charts with TradingView Lightweight Charts
-- **Responsive UI** — Works on desktop, tablet, and mobile
+| Feature | Description |
+|---------|-------------|
+| **Market Overview** | Real-time price tracking with CSFloat, Pricempire, and Steam as data sources |
+| **Portfolio Management** | Track your CS2 inventory value with historical price data |
+| **Top Movers** | See which items are gaining or losing value |
+| **AI Chat** | Market analysis powered by Google Gemini and OpenAI |
+| **News Feed** | Aggregated CS2 market news via RSS |
+| **Item Detail** | Candlestick price charts with TradingView Lightweight Charts |
+| **Responsive UI** | Works on desktop, tablet, and mobile |
 
 ## Tech Stack
+
+<table>
+<tr>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=nextjs" width="48" height="48" alt="Next.js" />
+<br>Next.js 16
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=ts" width="48" height="48" alt="TypeScript" />
+<br>TypeScript
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=prisma" width="48" height="48" alt="Prisma" />
+<br>Prisma
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=sqlite" width="48" height="48" alt="SQLite" />
+<br>SQLite/Turso
+</td>
+<td align="center" width="96">
+<img src="https://skillicons.dev/icons?i=css" width="48" height="48" alt="CSS" />
+<br>CSS Modules
+</td>
+</tr>
+</table>
 
 - **Framework**: [Next.js 16](https://nextjs.org) (App Router, React Compiler)
 - **Database**: SQLite via [Prisma](https://prisma.io) + [Turso](https://turso.tech/) (libSQL)
@@ -28,7 +71,7 @@ Market intelligence dashboard for Counter-Strike 2 items. Track prices, manage y
 - Node.js 20+
 - npm / pnpm / yarn
 
-### Setup
+### Quick Start
 
 ```bash
 # Clone the repo
@@ -56,10 +99,11 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### Environment Variables
 
-Copy `.env.example` to `.env.local` and fill in your values:
+<details>
+<summary>Click to expand environment variables table</summary>
 
 | Variable | Required | Description |
-|---|---|---|
+|----------|----------|-------------|
 | `DATABASE_URL` | Yes | SQLite path for local dev (default: `file:./dev.db`) |
 | `TURSO_DATABASE_URL` | Vercel | Turso database URL (`libsql://...`) |
 | `TURSO_AUTH_TOKEN` | Vercel | Turso auth token |
@@ -76,16 +120,18 @@ Copy `.env.example` to `.env.local` and fill in your values:
 | `NEXTAUTH_URL` | Yes | App URL (default: `http://localhost:3000`) |
 | `TOKEN_ENCRYPTION_KEY` | Yes | Encryption key for stored tokens |
 
+</details>
+
 ### Scripts
 
-```bash
-npm run dev            # Start dev server
-npm run build          # Production build
-npm run start          # Start production server
-npm run lint           # Run ESLint
-npm run test           # Run Vitest tests
-npm run db:push:turso  # Push schema + seed to Turso
-```
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run start` | Start production server |
+| `npm run lint` | Run ESLint |
+| `npm run test` | Run Vitest tests |
+| `npm run db:push:turso` | Push schema + seed to Turso |
 
 ## Deployment
 
@@ -93,7 +139,8 @@ npm run db:push:turso  # Push schema + seed to Turso
 
 This app uses [Turso](https://turso.tech/) as the cloud database for Vercel deployment.
 
-#### 1. Set up Turso
+<details>
+<summary><strong>1. Set up Turso</strong></summary>
 
 ```bash
 # Install Turso CLI
@@ -107,23 +154,34 @@ turso db show cs2vault --url
 turso db tokens create cs2vault
 ```
 
-#### 2. Push schema to Turso
+</details>
+
+<details>
+<summary><strong>2. Push schema to Turso</strong></summary>
 
 ```bash
 # Set credentials in .env.local, then:
 npm run db:push:turso
 ```
 
-#### 3. Deploy to Vercel
+</details>
+
+<details>
+<summary><strong>3. Deploy to Vercel</strong></summary>
 
 1. Import the GitHub repo at [vercel.com/new](https://vercel.com/new)
 2. Add all environment variables from `.env.example` in the Vercel dashboard
 3. Set the build command override: `npx prisma generate && next build`
 4. Deploy
 
-#### 4. Cron (automatic price sync)
+</details>
+
+<details>
+<summary><strong>4. Cron (automatic price sync)</strong></summary>
 
 The `vercel.json` configures a cron job that hits `GET /api/sync` every 5 minutes. It uses the `CRON_SECRET` env var for authentication. Make sure to set `CRON_SECRET` in Vercel.
+
+</details>
 
 ### Local Development
 
@@ -137,6 +195,12 @@ If you encounter OOM errors during build:
 NODE_OPTIONS=--max-old-space-size=4096 npm run build
 ```
 
+---
+
+<div align="center">
+
 ## License
 
-MIT
+MIT © [kyokoxdev](https://github.com/kyokoxdev)
+
+</div>
