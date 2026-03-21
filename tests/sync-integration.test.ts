@@ -49,6 +49,8 @@ function createMockProvider(name: string, prices: Map<string, { price: number; v
 describe("Sync Integration", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockSnapshotCreate.mockResolvedValue({} as any);
+        mockSyncLogCreate.mockResolvedValue({} as any);
     });
 
     it("syncs prices from configured provider", async () => {
@@ -91,21 +93,15 @@ describe("Sync Integration", () => {
             { id: "item-1", marketHashName: "AK-47 | Redline (Field-Tested)" },
         ] as ReturnType<typeof mockFindMany> extends Promise<infer T> ? T : never);
 
-        const steamPrices = new Map([
-            ["AK-47 | Redline (Field-Tested)", { price: 1200, source: "steam", timestamp: new Date() }],
-        ]);
-        const steamProvider = createMockProvider("steam", steamPrices);
-
-        // First call throws (csfloat not registered), second returns steam
         mockGetProvider
-            .mockImplementationOnce(() => { throw new Error("not registered"); })
-            .mockReturnValueOnce(steamProvider as ReturnType<typeof mockGetProvider>);
+            .mockImplementationOnce(() => { throw new Error("not registered"); });
 
         const result = await runSync();
 
-        expect(result.status).toBe("success");
-        expect(result.itemCount).toBe(1);
-        expect(mockGetProvider).toHaveBeenCalledTimes(2);
+        expect(result.status).toBe("failed");
+        expect(result.itemCount).toBe(0);
+        expect(result.error).toBe('Provider "csfloat" not registered');
+        expect(mockGetProvider).toHaveBeenCalledTimes(1);
     });
 
     it("falls back to steam when provider returns empty prices", async () => {
@@ -120,19 +116,14 @@ describe("Sync Integration", () => {
         ] as ReturnType<typeof mockFindMany> extends Promise<infer T> ? T : never);
 
         const emptyProvider = createMockProvider("csgotrader", new Map());
-        const steamPrices = new Map([
-            ["AK-47 | Redline (Field-Tested)", { price: 1200, source: "steam", timestamp: new Date() }],
-        ]);
-        const steamProvider = createMockProvider("steam", steamPrices);
-
         mockGetProvider
-            .mockReturnValueOnce(emptyProvider as ReturnType<typeof mockGetProvider>)
-            .mockReturnValueOnce(steamProvider as ReturnType<typeof mockGetProvider>);
+            .mockReturnValueOnce(emptyProvider as ReturnType<typeof mockGetProvider>);
 
         const result = await runSync();
 
-        expect(result.status).toBe("success");
-        expect(result.itemCount).toBe(1);
+        expect(result.status).toBe("failed");
+        expect(result.itemCount).toBe(0);
+        expect(result.error).toBe('Provider "csgotrader" returned 0 prices for 1 items');
     });
 
     it("handles zero items gracefully", async () => {
@@ -154,7 +145,7 @@ describe("Sync Integration", () => {
     it("records sync failure on error", async () => {
         mockFindUnique.mockResolvedValue({
             id: "singleton",
-            activeMarketSource: "steam",
+            activeMarketSource: "csgotrader",
             watchlistOnly: false,
         } as ReturnType<typeof mockFindUnique> extends Promise<infer T> ? T : never);
 
@@ -163,7 +154,7 @@ describe("Sync Integration", () => {
         ] as ReturnType<typeof mockFindMany> extends Promise<infer T> ? T : never);
 
         const failProvider = {
-            name: "steam",
+            name: "csgotrader",
             fetchBulkPrices: vi.fn().mockRejectedValue(new Error("API down")),
             fetchItemPrice: vi.fn(),
             getRateLimitConfig: vi.fn(),
@@ -173,7 +164,7 @@ describe("Sync Integration", () => {
         const result = await runSync();
 
         expect(result.status).toBe("failed");
-        expect(result.error).toBe("API down");
+        expect(result.error).toBe('Provider "csgotrader" failed: API down');
         expect(mockSyncLogCreate).toHaveBeenCalledWith(
             expect.objectContaining({ data: expect.objectContaining({ status: "failed" }) })
         );

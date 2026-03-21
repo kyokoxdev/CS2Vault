@@ -23,8 +23,8 @@ describe('PortfolioFilters', () => {
     render(<PortfolioFilters {...defaultProps} />);
 
     expect(screen.getByText('Filters')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('All categories')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('All rarities')).toBeInTheDocument();
+    expect(screen.getByText('All categories')).toBeInTheDocument();
+    expect(screen.getByText('All rarities')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search items')).toBeInTheDocument();
     expect(screen.getByText('42 items')).toBeInTheDocument();
   });
@@ -32,13 +32,11 @@ describe('PortfolioFilters', () => {
   it('renders category options correctly', () => {
     render(<PortfolioFilters {...defaultProps} />);
     
-    // Check if options exist in the select
-    const categorySelect = screen.getByDisplayValue('All categories');
-    expect(categorySelect).toBeInTheDocument();
+    const categoryButton = screen.getByText('All categories');
+    expect(categoryButton).toBeInTheDocument();
     
-    // Note: To check options inside select, we might need to query the options directly
-    // but testing-library recommends testing user interactions.
-    // However, we can check if the text exists in the document (options are rendered)
+    fireEvent.click(categoryButton);
+    
     expect(screen.getByText('weapon')).toBeInTheDocument();
     expect(screen.getByText('knife')).toBeInTheDocument();
   });
@@ -46,8 +44,11 @@ describe('PortfolioFilters', () => {
   it('calls onChange when category is changed', () => {
     render(<PortfolioFilters {...defaultProps} />);
     
-    const categorySelect = screen.getByDisplayValue('All categories');
-    fireEvent.change(categorySelect, { target: { value: 'knife' } });
+    const categoryButton = screen.getByText('All categories');
+    fireEvent.click(categoryButton);
+    
+    const knifeOption = screen.getByText('knife');
+    fireEvent.click(knifeOption);
     
     expect(defaultProps.onChange).toHaveBeenCalledWith('category', 'knife');
   });
@@ -55,8 +56,11 @@ describe('PortfolioFilters', () => {
   it('calls onChange when rarity is changed', () => {
     render(<PortfolioFilters {...defaultProps} />);
     
-    const raritySelect = screen.getByDisplayValue('All rarities');
-    fireEvent.change(raritySelect, { target: { value: 'Covert' } });
+    const rarityButton = screen.getByText('All rarities');
+    fireEvent.click(rarityButton);
+    
+    const covertOption = screen.getByText('Covert');
+    fireEvent.click(covertOption);
     
     expect(defaultProps.onChange).toHaveBeenCalledWith('rarity', 'Covert');
   });

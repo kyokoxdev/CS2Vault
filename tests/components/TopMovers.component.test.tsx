@@ -82,7 +82,7 @@ describe('TopMovers Component', () => {
 
   it('navigates to item page on click', () => {
     render(<TopMovers gainers={mockGainers} losers={mockLosers} />);
-    const card = screen.getByText('AK-47 | Redline').closest('div');
+    const card = screen.getByText('AK-47 | Redline').closest('button');
     if (card) {
       fireEvent.click(card);
       expect(mockPush).toHaveBeenCalledWith('/item/g1');

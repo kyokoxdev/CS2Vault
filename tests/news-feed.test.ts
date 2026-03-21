@@ -179,7 +179,7 @@ describe("GET /api/market/news-feed", () => {
         makeSteamNewsResponse([
           {
             gid: "html-1",
-            title: "HTML Test",
+            title: "CS2 Update with HTML",
             url: "https://example.com",
             author: "Test",
             contents: "<b>bold text</b> and <i>italic</i>",
@@ -207,7 +207,7 @@ describe("GET /api/market/news-feed", () => {
         makeSteamNewsResponse([
           {
             gid: "entity-1",
-            title: "Entity Test",
+            title: "CS2 Update: Rock & Roll",
             url: "https://example.com",
             author: "Test",
             contents: "Rock &amp; Roll",
@@ -398,10 +398,10 @@ describe("90-day date filtering", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
       makeSteamNewsResponse([{
         gid: "recent-1",
-        title: "Recent News",
+        title: "Valve CS2 Update",
         url: "https://example.com/recent",
         author: "Valve",
-        contents: "Recent content",
+        contents: "Recent valve update content",
         date: RECENT_DATE,
       }])
     ));
@@ -410,7 +410,7 @@ describe("90-day date filtering", () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.data.items).toHaveLength(1);
-    expect(body.data.items[0].title).toBe("Recent News");
+    expect(body.data.items[0].title).toBe("Valve CS2 Update");
   });
 
   it("filters old RSS items via post-merge cutoff", async () => {
@@ -464,8 +464,8 @@ describe("90-day date filtering", () => {
     const RECENT_DATE = NOW_TS - 7200; // 2 hours ago
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
       makeSteamNewsResponse([
-        { gid: "mix-old", title: "Old Mix", url: "https://example.com/old", author: "Valve", contents: "Old", date: OLD_DATE },
-        { gid: "mix-recent", title: "Recent Mix", url: "https://example.com/recent", author: "Valve", contents: "Recent", date: RECENT_DATE },
+        { gid: "mix-old", title: "Old Valve Mix", url: "https://example.com/old", author: "Valve", contents: "Old valve update", date: OLD_DATE },
+        { gid: "mix-recent", title: "Recent Valve Mix", url: "https://example.com/recent", author: "Valve", contents: "Recent valve update", date: RECENT_DATE },
       ])
     ));
     mockFindMany.mockResolvedValue([] as never);
@@ -473,6 +473,6 @@ describe("90-day date filtering", () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.data.items).toHaveLength(1);
-    expect(body.data.items[0].title).toBe("Recent Mix");
+    expect(body.data.items[0].title).toBe("Recent Valve Mix");
   });
 });
