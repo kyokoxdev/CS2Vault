@@ -1,35 +1,32 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import styles from "./Landing.module.css";
 import SteamLoginButton from "@/components/landing/SteamLoginButton";
 import MockPriceTicker from "@/components/landing/MockPriceTicker";
 import MockSparkline from "@/components/landing/MockSparkline";
 import MockStatCard from "@/components/landing/MockStatCard";
 import ScrollReveal from "@/components/landing/ScrollReveal";
+import DataReveal from "@/components/landing/DataReveal";
+import ItemShowcase from "@/components/landing/ItemShowcase";
+import HeroCinematic from "@/components/landing/HeroCinematic";
 import { FaChartPie, FaWallet, FaRobot, FaSteam, FaBoxOpen } from "react-icons/fa";
+import { fadeInUp } from "@/lib/gsap";
 
 export default function StartupPage() {
+    const stepsRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const steps = stepsRef.current?.querySelectorAll(`.${styles.step}`);
+        steps?.forEach((step, i) => {
+            fadeInUp(step, i * 0.2);
+        });
+    }, []);
+
     return (
         <main className={styles.landingPage} data-testid="landing-page">
-            {/* Hero Section — above the fold, no ScrollReveal */}
-            <section className={styles.heroSection} data-testid="hero-section">
-                <div className={styles.heroBackground}>
-                    <div className={styles.meshGradient} />
-                    <div className={styles.gridOverlay} />
-                </div>
-                <div className={styles.heroContent}>
-                    <h1 className={styles.heroTitle}>Your CS2 Market Intelligence Hub</h1>
-                    <p className={styles.heroSubtitle}>
-                        Track prices, manage your portfolio, and get AI-powered insights for Counter-Strike 2 items.
-                    </p>
-                    <div className={styles.heroActions}>
-                        <SteamLoginButton />
-                    </div>
-                </div>
-                <div className={styles.scrollIndicator} aria-hidden="true">
-                    <span className={styles.scrollChevron}>↓</span>
-                </div>
-            </section>
+            {/* Hero Section — cinematic with GSAP animations */}
+            <HeroCinematic />
 
             {/* Features Section */}
             <ScrollReveal className={styles.scrollRevealBase}>
@@ -51,6 +48,20 @@ export default function StartupPage() {
                                         Monitor prices across CSFloat, Steam, and more. See trends at a glance.
                                     </p>
                                     <div className={styles.featureCardMock}>
+                                        <div className={styles.mockStatRow}>
+                                            <div className={styles.featureMetric}>
+                                                <DataReveal value={12500} prefix="$" suffix="+" className={styles.featureMetricValue} />
+                                                <span className={styles.featureMetricLabel}>Items Tracked</span>
+                                            </div>
+                                            <div className={styles.featureMetric}>
+                                                <DataReveal value={60} suffix="s" delay={0.2} className={styles.featureMetricValue} />
+                                                <span className={styles.featureMetricLabel}>Update Interval</span>
+                                            </div>
+                                            <div className={styles.featureMetric}>
+                                                <DataReveal value={5} delay={0.4} className={styles.featureMetricValue} />
+                                                <span className={styles.featureMetricLabel}>Data Sources</span>
+                                            </div>
+                                        </div>
                                         <MockSparkline />
                                     </div>
                                 </div>
@@ -109,52 +120,55 @@ export default function StartupPage() {
                 </section>
             </ScrollReveal>
 
-            {/* How It Works Section */}
+            {/* Item Showcase Section */}
             <ScrollReveal className={styles.scrollRevealBase}>
-                <section className={styles.howItWorksSection} data-testid="how-it-works-section">
-                    <div className={styles.howItWorksContent}>
-                        <h2 className={styles.howItWorksTitle}>Get Started in 3 Simple Steps</h2>
-                        <div className={styles.stepsContainer}>
-                            <ScrollReveal className={styles.scrollRevealBase} delay={0}>
-                                <div className={styles.step}>
-                                    <div className={styles.stepNumberCircle}>1</div>
-                                    <div className={styles.stepIcon}>
-                                        <FaSteam />
-                                    </div>
-                                    <h3 className={styles.stepTitle}>Sign In with Steam</h3>
-                                    <p className={styles.stepDescription}>
-                                        Connect your Steam account securely. We never access your credentials.
-                                    </p>
+                <ItemShowcase />
+            </ScrollReveal>
+
+            {/* How It Works Section */}
+            <section className={styles.howItWorksSection} data-testid="how-it-works-section">
+                <div className={styles.howItWorksContent}>
+                    <h2 className={styles.howItWorksTitle}>Get Started in 3 Simple Steps</h2>
+                    <div className={styles.stepsContainer} ref={stepsRef}>
+                        <div className={styles.step}>
+                            <div className={styles.stepNumber}>01</div>
+                            <div className={styles.stepCard}>
+                                <div className={styles.stepIcon}>
+                                    <FaSteam />
                                 </div>
-                            </ScrollReveal>
-                            <ScrollReveal className={styles.scrollRevealBase} delay={150}>
-                                <div className={styles.step}>
-                                    <div className={styles.stepNumberCircle}>2</div>
-                                    <div className={styles.stepIcon}>
-                                        <FaBoxOpen />
-                                    </div>
-                                    <h3 className={styles.stepTitle}>Import Your Inventory</h3>
-                                    <p className={styles.stepDescription}>
-                                        Your CS2 items are automatically imported and tracked in real-time.
-                                    </p>
+                                <h3 className={styles.stepTitle}>Sign In with Steam</h3>
+                                <p className={styles.stepDescription}>
+                                    Connect your Steam account securely. We never access your credentials.
+                                </p>
+                            </div>
+                        </div>
+                        <div className={styles.step}>
+                            <div className={styles.stepNumber}>02</div>
+                            <div className={styles.stepCard}>
+                                <div className={styles.stepIcon}>
+                                    <FaBoxOpen />
                                 </div>
-                            </ScrollReveal>
-                            <ScrollReveal className={styles.scrollRevealBase} delay={300}>
-                                <div className={styles.step}>
-                                    <div className={styles.stepNumberCircle}>3</div>
-                                    <div className={styles.stepIcon}>
-                                        <FaChartPie />
-                                    </div>
-                                    <h3 className={styles.stepTitle}>Track &amp; Analyze</h3>
-                                    <p className={styles.stepDescription}>
-                                        Monitor prices, manage your portfolio, and get AI-powered insights.
-                                    </p>
+                                <h3 className={styles.stepTitle}>Import Your Inventory</h3>
+                                <p className={styles.stepDescription}>
+                                    Your CS2 items are automatically imported and tracked in real-time.
+                                </p>
+                            </div>
+                        </div>
+                        <div className={styles.step}>
+                            <div className={styles.stepNumber}>03</div>
+                            <div className={styles.stepCard}>
+                                <div className={styles.stepIcon}>
+                                    <FaChartPie />
                                 </div>
-                            </ScrollReveal>
+                                <h3 className={styles.stepTitle}>Track &amp; Analyze</h3>
+                                <p className={styles.stepDescription}>
+                                    Monitor prices, manage your portfolio, and get AI-powered insights.
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </section>
-            </ScrollReveal>
+                </div>
+            </section>
 
             {/* CTA Section */}
             <ScrollReveal className={styles.scrollRevealBase}>

@@ -24,7 +24,7 @@ describe("Landing Page", () => {
     it("renders all sections with correct data-testid", () => {
         render(<StartupPage />);
         expect(screen.getByTestId("landing-page")).toBeDefined();
-        expect(screen.getByTestId("hero-section")).toBeDefined();
+        expect(screen.getByTestId("hero-cinematic")).toBeDefined();
         expect(screen.getByTestId("features-section")).toBeDefined();
         expect(screen.getByTestId("how-it-works-section")).toBeDefined();
         expect(screen.getByTestId("cta-section")).toBeDefined();
@@ -33,7 +33,8 @@ describe("Landing Page", () => {
 
     it("renders hero heading", () => {
         render(<StartupPage />);
-        expect(screen.getByText("Your CS2 Market Intelligence Hub")).toBeDefined();
+        expect(screen.getByText(/Your CS2 Market/)).toBeDefined();
+        expect(screen.getByText("Intelligence Hub")).toBeDefined();
     });
 
     it("renders Steam login button with correct href", () => {
