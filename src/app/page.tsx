@@ -376,6 +376,7 @@ export default function MarketOverview() {
             </span>
           )}
           <button
+            type="button"
             className="btn btn-ghost btn-sm"
             onClick={() => setShowAddForm(!showAddForm)}
           >
@@ -388,6 +389,7 @@ export default function MarketOverview() {
             </>}
           </button>
           <button
+            type="button"
             className="btn btn-primary btn-sm"
             onClick={() => handleSync()}
             disabled={syncing}

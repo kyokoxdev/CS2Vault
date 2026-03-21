@@ -1,7 +1,28 @@
 .card {
   border: 1px solid var(--border-primary, #262626);
   border-radius: var(--radius-md, 8px);
-  transition: background-color var(--transition-fast, 150ms ease);
+  transition: 
+    background-color var(--transition-fast, 150ms ease),
+    transform var(--transition-fast, 150ms ease),
+    box-shadow var(--transition-normal, 250ms ease),
+    border-color var(--transition-fast, 150ms ease);
+  text-align: left;
+  width: 100%;
+  cursor: default;
+}
+
+button.card {
+  cursor: pointer;
+}
+
+.card.interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border-color: var(--border-active, #434343);
+}
+
+.card.interactive:active {
+  transform: translateY(0) scale(0.99);
 }
 
 .default {

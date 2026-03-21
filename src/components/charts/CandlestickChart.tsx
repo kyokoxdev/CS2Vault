@@ -162,6 +162,17 @@ export default function CandlestickChart({
                 ))}
             </div>
             <div ref={chartContainerRef} />
+            <div className="chart-attribution">
+                <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">
+                    <svg width="24" height="13" viewBox="0 0 36 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M14 0H22V4H18V18H14V0Z" fill="currentColor"/>
+                        <path d="M24 0H26L32 18H28L24 0Z" fill="currentColor"/>
+                        <path d="M36 0H32L28 18H32L36 0Z" fill="currentColor"/>
+                        <path fillRule="evenodd" clipRule="evenodd" d="M0 0H12V4H8V8H12V12H8V18H4V12H0V8H4V4H0V0Z" fill="currentColor"/>
+                    </svg>
+                    <span>TradingView</span>
+                </a>
+            </div>
         </div>
     );
 }

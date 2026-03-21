@@ -56,12 +56,20 @@
   font-weight: 500;
   text-decoration: none;
   border-left: 3px solid transparent;
-  transition: background 0.15s, color 0.15s;
+  transition: 
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
 }
 
 .navLink:hover {
   background: var(--surface-hover);
   color: var(--text-primary-90);
+}
+
+.navLink:active {
+  transform: scale(0.98);
 }
 
 .navLinkActive {
@@ -188,12 +196,19 @@
   font-size: 16px;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s;
+  transition: 
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
 }
 
 .menuBtn:hover {
   background: var(--surface-hover);
   border-color: var(--border-active);
+}
+
+.menuBtn:active {
+  transform: scale(0.95);
 }
 
 .mainBody {
@@ -233,6 +248,20 @@
 @media (max-width: 768px) {
   .sidebar {
     display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    z-index: 100;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar.open {
+    display: flex;
+    transform: translateX(0);
   }
 
   .mainContent {
@@ -242,17 +271,6 @@
 
   .menuBtn {
     display: flex;
-  }
-
-  .sidebar.open {
-    display: flex;
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 260px;
-    z-index: 100;
-    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
   }
 
   .sidebarOverlay {
@@ -269,6 +287,14 @@
     cursor: default;
     -webkit-appearance: none;
     appearance: none;
+    opacity: 0;
+    animation: fadeIn 0.2s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    to {
+      opacity: 1;
+    }
   }
 }
 

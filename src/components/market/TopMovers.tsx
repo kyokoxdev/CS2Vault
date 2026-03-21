@@ -1,9 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import styles from "./TopMovers.module.css";
 import SparklineChart from "@/components/charts/SparklineChart";
 import { Badge } from "@/components/ui/Badge";
+import { useReducedMotion } from "@/hooks/useMediaQuery";
 
 export interface TopMover {
   id: string;
@@ -20,37 +22,63 @@ interface TopMoversProps {
   source?: 'pricempire' | 'watchlist';
 }
 
+const itemVariants = {
+  hidden: { opacity: 0, y: 8 },
+  visible: { opacity: 1, y: 0 },
+};
+
 export function TopMovers({ gainers, losers, isLoading = false, source }: TopMoversProps) {
   const router = useRouter();
+  const reducedMotion = useReducedMotion();
 
   const handleItemClick = (id: string) => {
     router.push(`/item/${id}`);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent, id: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleItemClick(id);
+    }
+  };
+
   const renderSkeletons = () => (
     <>
-      {[...Array(5)].map((_, i) => (
-        <div key={i} className={styles.skeleton} />
+      {['sk-1', 'sk-2', 'sk-3', 'sk-4', 'sk-5'].map((key) => (
+        <div key={key} className={styles.skeleton} />
       ))}
     </>
   );
 
-  const renderCard = (item: TopMover, type: 'gainer' | 'loser') => {
+  const renderCard = (item: TopMover, type: 'gainer' | 'loser', index: number) => {
     const isPositive = item.change24h > 0;
     const badgeVariant = isPositive ? "success" : "danger";
     const changeText = `${isPositive ? "+" : ""}${item.change24h.toFixed(2)}%`;
     const chartColor = type === 'gainer' ? "#00C076" : "#FF4D4F";
 
+    const CardWrapper = reducedMotion ? 'button' : motion.button;
+    const motionProps = reducedMotion ? {} : {
+      variants: itemVariants,
+      initial: "hidden",
+      animate: "visible",
+      transition: { delay: index * 0.05, duration: 0.2 },
+      whileHover: { backgroundColor: "var(--surface-hover)" },
+      whileTap: { scale: 0.99 },
+    };
+
     return (
-      <div 
-        key={item.id} 
+      <CardWrapper
+        key={item.id}
+        type="button"
         className={styles.card}
         onClick={() => handleItemClick(item.id)}
+        onKeyDown={(e: React.KeyboardEvent<HTMLButtonElement>) => handleKeyDown(e, item.id)}
+        {...motionProps}
       >
-        <div className={styles.itemName} title={item.name}>{item.name}</div>
-        <div className={styles.itemPrice}>
+        <span className={styles.itemName} title={item.name}>{item.name}</span>
+        <span className={styles.itemPrice}>
           ${item.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </div>
+        </span>
         <Badge variant={badgeVariant} size="sm">{changeText}</Badge>
         <SparklineChart 
           data={item.sparkline} 
@@ -58,7 +86,7 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
           height={32} 
           color={chartColor} 
         />
-      </div>
+      </CardWrapper>
     );
   };
 
@@ -76,11 +104,11 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
       <div className={styles.container}>
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Top Gainers</div>
-          {isLoading ? renderSkeletons() : gainers.slice(0, 5).map(item => renderCard(item, 'gainer'))}
+          {isLoading ? renderSkeletons() : gainers.slice(0, 5).map((item, i) => renderCard(item, 'gainer', i))}
         </div>
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Top Losers</div>
-          {isLoading ? renderSkeletons() : losers.slice(0, 5).map(item => renderCard(item, 'loser'))}
+          {isLoading ? renderSkeletons() : losers.slice(0, 5).map((item, i) => renderCard(item, 'loser', i))}
         </div>
       </div>
     </>

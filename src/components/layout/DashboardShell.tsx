@@ -166,11 +166,6 @@ export default function DashboardShell({
                 </header>
                 <div className={styles.mainBody}>
                     {children}
-                    <footer className={styles.appFooter}>
-                        <span>Made with love for the CS2 community</span>
-                        <span className={styles.footerDot}>·</span>
-                        <span>Charts by <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">TradingView</a></span>
-                    </footer>
                 </div>
             </main>
         </div>

@@ -114,7 +114,6 @@
 
 .emptyDescription {
   color: var(--text-secondary-60);
-  margin-bottom: 24px;
   max-width: 400px;
   margin: 0 auto 24px;
 }

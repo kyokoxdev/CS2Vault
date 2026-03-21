@@ -218,8 +218,9 @@ export default function ItemSearch({
                     }}
                 >
                     {results.map((item, i) => (
-                        <div
+                        <button
                             key={item.hashName}
+                            type="button"
                             data-search-item
                             onClick={() => handleSelect(item)}
                             style={{
@@ -230,11 +231,18 @@ export default function ItemSearch({
                                 cursor: "pointer",
                                 background:
                                     i === activeIndex ? "var(--bg-hover)" : "transparent",
+                                borderTop: "none",
+                                borderLeft: "none",
+                                borderRight: "none",
                                 borderBottom:
                                     i < results.length - 1
                                         ? "1px solid var(--border)"
                                         : "none",
                                 transition: "background var(--transition-fast)",
+                                width: "100%",
+                                textAlign: "left",
+                                fontFamily: "inherit",
+                                color: "inherit",
                             }}
                             onMouseEnter={() => setActiveIndex(i)}
                         >
@@ -329,7 +337,7 @@ export default function ItemSearch({
                                     {item.listings.toLocaleString()} listings
                                 </div>
                             </div>
-                        </div>
+                        </button>
                     ))}
                 </div>
             )}
