@@ -22,3 +22,15 @@
     height: auto;
     max-width: 100%;
 }
+
+@media (max-width: 767px) {
+    .steamButton {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    .steamButton:hover {
+        transform: none;
+        box-shadow: none;
+    }
+}

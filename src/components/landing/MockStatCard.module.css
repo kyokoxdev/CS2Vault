@@ -48,3 +48,33 @@
 @media (prefers-reduced-motion: reduce) {
     .card { animation: none; }
 }
+
+@media (max-width: 767px) {
+    .card {
+        animation-duration: 6s;
+        min-height: 44px;
+        padding: 0.625rem 0.875rem;
+    }
+
+    .value {
+        font-size: 1.125rem;
+    }
+}
+
+@media (max-width: 320px) {
+    .card {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .label {
+        font-size: 10px;
+    }
+
+    .value {
+        font-size: 1rem;
+    }
+
+    .trend {
+        font-size: 11px;
+    }
+}

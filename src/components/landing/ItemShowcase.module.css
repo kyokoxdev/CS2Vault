@@ -373,6 +373,62 @@
     }
 }
 
+@media (max-width: 767px) {
+    .itemCard {
+        animation-duration: 0.3s;
+    }
+
+    .itemCard:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .itemCard:hover .itemImage {
+        transform: none;
+    }
+
+    .itemInfo {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 320px) {
+    .showcaseSection {
+        padding: 2.5rem 0.75rem;
+    }
+
+    .sectionTitle {
+        font-size: 1.25rem;
+        letter-spacing: 0.08em;
+    }
+
+    .titleUnderline {
+        width: 60px;
+        height: 3px;
+    }
+
+    .itemInfo {
+        padding: 0.875rem;
+    }
+
+    .itemName {
+        font-size: 0.8125rem;
+    }
+
+    .itemPrice {
+        font-size: 1rem;
+    }
+
+    .itemChange {
+        font-size: 0.6875rem;
+        padding: 0.15rem 0.35rem;
+    }
+
+    .sparklineWrapper {
+        height: 28px;
+    }
+}
+
 /* ===== Reduced Motion ===== */
 
 @media (prefers-reduced-motion: reduce) {

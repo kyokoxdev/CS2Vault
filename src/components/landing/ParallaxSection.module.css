@@ -46,6 +46,18 @@
     }
 }
 
+@media (max-width: 767px) {
+    .container {
+        perspective: none;
+        transform-style: flat;
+    }
+
+    .layer {
+        transform: none !important;
+        will-change: auto;
+    }
+}
+
 @media (min-width: 1440px) {
     .container {
         perspective: 1200px;
