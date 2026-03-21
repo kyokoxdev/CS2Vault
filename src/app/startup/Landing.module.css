@@ -100,6 +100,132 @@
     animation: bounce 2s ease-in-out infinite;
 }
 
+/* ===== Hero Cinematic (Brutalist) ===== */
+
+.heroParallax {
+    min-height: 100vh;
+    background: var(--surface-0);
+}
+
+.heroCinematic {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.heroCinematicContent {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    max-width: 1000px;
+}
+
+.heroCinematicTitle {
+    font: var(--font-heading-xl, 700 clamp(3rem, 8vw, 6rem) var(--font-sans));
+    line-height: 1.05;
+    margin-bottom: 2rem;
+    color: var(--text-primary-90);
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    opacity: 0;
+}
+
+.heroCinematicTitleAccent {
+    display: block;
+    background: linear-gradient(90deg, var(--bull), var(--text-primary-90) 80%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    border-bottom: var(--brutalist-border, 3px solid var(--text-primary-90));
+    padding-bottom: 0.25rem;
+}
+
+.heroCinematicStats {
+    display: flex;
+    justify-content: center;
+    gap: 3rem;
+    margin-bottom: 2.5rem;
+    flex-wrap: wrap;
+}
+
+.heroCinematicStatItem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.25rem 2rem;
+    background: var(--surface-1);
+    border: var(--brutalist-border, 3px solid var(--text-primary-90));
+    box-shadow: var(--brutalist-shadow, 4px 4px 0 var(--surface-0));
+    opacity: 0;
+}
+
+.heroCinematicStatValue {
+    font: 700 clamp(2rem, 5vw, 3.5rem) var(--font-sans);
+    color: var(--bull);
+    line-height: 1.1;
+}
+
+.heroCinematicStatLabel {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary-60);
+    margin-top: 0.5rem;
+}
+
+.heroCinematicSubtitle {
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    color: var(--text-secondary-60);
+    max-width: 640px;
+    margin: 0 auto 2.5rem;
+    line-height: 1.7;
+    opacity: 0;
+}
+
+.heroCinematicCta {
+    display: flex;
+    justify-content: center;
+    opacity: 0;
+}
+
+@media (max-width: 768px) {
+    .heroCinematicStats {
+        gap: 1.5rem;
+    }
+
+    .heroCinematicStatItem {
+        padding: 1rem 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .heroCinematic {
+        padding: 1rem;
+    }
+
+    .heroCinematicStats {
+        gap: 1rem;
+    }
+
+    .heroCinematicStatItem {
+        padding: 0.75rem 1rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .heroCinematicTitle,
+    .heroCinematicStatItem,
+    .heroCinematicSubtitle,
+    .heroCinematicCta {
+        opacity: 1;
+    }
+}
+
 .landingFooter {
     background: var(--surface-0);
     border-top: 1px solid var(--border-primary);
@@ -131,120 +257,220 @@
     opacity: 0.65;
 }
 
-/* ===== Features Section ===== */
+/* ===== Features Section — Brutalist ===== */
 
 @keyframes typingBounce {
     0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
     40% { transform: translateY(-4px); opacity: 1; }
 }
 
+@keyframes featureSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
 .featuresSection {
-    padding: 0 0 4rem;
+    padding: 6rem 0;
+    background: var(--surface-0);
+    position: relative;
+}
+
+.featuresSection::before {
+    content: "FEATURES";
+    position: absolute;
+    top: 2rem;
+    right: 2rem;
+    font: var(--font-heading-xl);
+    color: var(--surface-2);
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    letter-spacing: 0.15em;
+    pointer-events: none;
+    opacity: 0.3;
 }
 
 .featuresContent {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 4rem 2rem 0;
+    padding: 0 2rem;
 }
 
 .featuresTitle {
-    font-size: clamp(1.5rem, 3vw + 0.5rem, 2.5rem);
-    font-weight: 700;
-    text-align: center;
-    margin-bottom: 3rem;
+    font: var(--font-heading-lg);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    text-align: left;
+    margin-bottom: 4rem;
     color: var(--text-primary-90);
-    font-family: var(--font-sans);
+    position: relative;
+    display: inline-block;
 }
 
+.featuresTitle::after {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 6px;
+    background: var(--bull);
+    margin-top: 0.5rem;
+}
+
+/* Asymmetric grid with deliberate imbalance */
 .featuresGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-    gap: 1.5rem;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 2rem;
+}
+
+/* First card spans full width for emphasis */
+.featureCard:first-child {
+    grid-column: 1 / -1;
 }
 
 .featureCard {
-    background: var(--surface-2);
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    background: var(--surface-1);
+    border: var(--brutalist-border);
+    border-radius: var(--brutalist-radius);
+    box-shadow: var(--brutalist-shadow);
+    padding: 2.5rem;
+    position: relative;
+    transition: box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+.featureCard::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 8px;
+    height: 100%;
+    background: var(--bull);
 }
 
 .featureCard:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--brutalist-shadow-accent);
+    transform: translate(-2px, -2px);
 }
 
 .featureCardHeader {
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
+    align-items: flex-start;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
 }
 
 .featureIcon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-sm);
-    background: rgba(0, 192, 118, 0.1);
+    width: 56px;
+    height: 56px;
+    border: 2px solid var(--text-primary-90);
+    border-radius: var(--brutalist-radius);
+    background: var(--surface-0);
     color: var(--bull);
-    font-size: 1rem;
+    font-size: 1.5rem;
     flex-shrink: 0;
 }
 
 .featureCardTitle {
-    font-size: 1.125rem;
-    font-weight: 600;
+    font: var(--font-heading-md);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
     color: var(--text-primary-90);
+    margin-top: 0.5rem;
 }
 
 .featureCardDescription {
-    font-size: 0.875rem;
+    font-size: 1rem;
     color: var(--text-secondary-60);
-    line-height: 1.6;
-    margin-bottom: 1.25rem;
+    line-height: 1.7;
+    margin-bottom: 1.5rem;
+    max-width: 600px;
 }
 
 .featureCardMock {
-    border-top: 1px solid var(--border-primary);
-    padding-top: 1.25rem;
+    border-top: 2px solid var(--border-primary);
+    padding-top: 1.5rem;
 }
 
+/* Stats with brutalist styling */
 .mockStatRow {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
 }
 
-.chatBubble {
-    background: var(--surface-3);
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-md);
+.featureMetric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
     padding: 1rem;
+    background: var(--surface-0);
+    border: 2px solid var(--border-primary);
+}
+
+.featureMetricValue {
+    font: var(--font-heading-md);
+    color: var(--bull);
+    font-variant-numeric: tabular-nums;
+}
+
+.featureMetricLabel {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary-60);
+}
+
+/* Chat bubble brutalist */
+.chatBubble {
+    background: var(--surface-0);
+    border: 2px solid var(--border-primary);
+    border-radius: var(--brutalist-radius);
+    padding: 1.5rem;
+    position: relative;
+}
+
+.chatBubble::before {
+    content: "AI_";
+    position: absolute;
+    top: -0.75rem;
+    left: 1rem;
+    background: var(--surface-1);
+    padding: 0 0.5rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--bull);
 }
 
 .chatText {
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     color: var(--text-primary-90);
-    line-height: 1.5;
-    margin-bottom: 0.75rem;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+    font-family: var(--font-mono);
 }
 
 .typingIndicator {
     display: flex;
-    gap: 4px;
+    gap: 6px;
     align-items: center;
 }
 
 .typingDot {
-    width: 6px;
-    height: 6px;
-    background: var(--text-secondary-60);
-    border-radius: 50%;
+    width: 8px;
+    height: 8px;
+    background: var(--bull);
+    border-radius: 0;
     animation: typingBounce 1.4s ease-in-out infinite;
 }
 
@@ -256,27 +482,48 @@
     animation-delay: 0.4s;
 }
 
+/* Responsive: stack on mobile */
+@media (max-width: 768px) {
+    .featuresGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .featureCard:first-child {
+        grid-column: 1;
+    }
+
+    .featuresSection::before {
+        display: none;
+    }
+
+    .mockStatRow {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ===== How It Works Section ===== */
 
 .howItWorksSection {
-    background: var(--surface-1);
-    padding: 5rem 2rem;
-    border-top: 1px solid var(--border-primary);
-    border-bottom: 1px solid var(--border-primary);
+    background: var(--surface-0);
+    padding: 6rem 2rem;
+    border-top: var(--brutalist-border);
+    border-bottom: var(--brutalist-border);
+    position: relative;
+    overflow: hidden;
 }
 
 .howItWorksContent {
-    max-width: 1000px;
+    max-width: 1200px;
     margin: 0 auto;
 }
 
 .howItWorksTitle {
-    font-size: clamp(1.5rem, 3vw + 0.5rem, 2.5rem);
-    font-weight: 700;
+    font: var(--font-heading-lg);
     text-align: center;
-    margin-bottom: 3.5rem;
+    margin-bottom: 5rem;
     color: var(--text-primary-90);
-    font-family: var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
 }
 
 .stepsContainer {
@@ -284,23 +531,19 @@
     flex-direction: row;
     gap: 0;
     justify-content: center;
-    align-items: flex-start;
+    align-items: stretch;
     position: relative;
 }
 
+/* Thick horizontal timeline */
 .stepsContainer::before {
     content: "";
     position: absolute;
-    top: 20px;
-    left: calc(16.666% + 20px);
-    right: calc(16.666% + 20px);
-    height: 2px;
-    background: linear-gradient(
-        to right,
-        var(--border-primary) 0%,
-        var(--bull) 50%,
-        var(--border-primary) 100%
-    );
+    top: 4rem;
+    left: 10%;
+    right: 10%;
+    height: 4px;
+    background: var(--text-primary-90);
     z-index: 0;
 }
 
@@ -310,57 +553,116 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    padding: 0 1.5rem;
+    padding: 0 1rem;
     position: relative;
     z-index: 1;
+    opacity: 0;
+    transform: translateY(24px);
 }
 
-.stepNumberCircle {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--bull);
-    color: #000;
-    font-weight: 700;
-    font-size: 1rem;
-    font-family: var(--font-sans);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 1rem;
-    flex-shrink: 0;
+/* Reduced motion: show steps immediately */
+@media (prefers-reduced-motion: reduce) {
+    .step {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* Oversized step number */
+.stepNumber {
+    font: var(--font-heading-xl);
+    font-weight: 900;
+    color: var(--text-primary-90);
+    line-height: 1;
+    margin-bottom: 1.5rem;
     position: relative;
-    z-index: 1;
-    box-shadow: 0 0 0 4px var(--surface-1);
+    z-index: 2;
+    background: var(--surface-0);
+    padding: 0 0.5rem;
+}
+
+.stepCard {
+    background: var(--surface-1);
+    border: var(--brutalist-border);
+    padding: 2rem 1.5rem;
+    width: 100%;
+    max-width: 280px;
+    position: relative;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.stepCard:hover {
+    transform: translate(-4px, -4px);
+    box-shadow: var(--brutalist-shadow-accent);
 }
 
 .stepIcon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius-md);
-    background: rgba(0, 192, 118, 0.1);
-    border: 1px solid rgba(0, 192, 118, 0.2);
+    width: 56px;
+    height: 56px;
+    border: var(--brutalist-border);
+    background: var(--surface-0);
     color: var(--bull);
-    font-size: 1.375rem;
-    margin-bottom: 1rem;
+    font-size: 1.5rem;
+    margin: 0 auto 1.25rem;
 }
 
 .stepTitle {
-    font-size: 1rem;
-    font-weight: 600;
+    font-size: 1.125rem;
+    font-weight: 700;
     color: var(--text-primary-90);
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
     font-family: var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
 }
 
 .stepDescription {
     font-size: 0.875rem;
     color: var(--text-secondary-60);
     line-height: 1.6;
-    max-width: 240px;
+}
+
+/* Mobile: vertical stack */
+@media (max-width: 768px) {
+    .howItWorksSection {
+        padding: 4rem 1.5rem;
+    }
+
+    .howItWorksTitle {
+        margin-bottom: 3rem;
+    }
+
+    .stepsContainer {
+        flex-direction: column;
+        gap: 2rem;
+        align-items: center;
+    }
+
+    /* Vertical timeline on mobile */
+    .stepsContainer::before {
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        right: auto;
+        width: 4px;
+        height: 100%;
+        transform: translateX(-50%);
+    }
+
+    .step {
+        padding: 0;
+    }
+
+    .stepNumber {
+        margin-bottom: 1rem;
+    }
+
+    .stepCard {
+        max-width: 320px;
+    }
 }
 
 /* ===== CTA Section ===== */
