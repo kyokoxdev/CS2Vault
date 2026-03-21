@@ -53,6 +53,17 @@
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
   --transition-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ================== Brutalist Design Tokens ================== */
+  --brutalist-border: 3px solid var(--text-primary-90);
+  --brutalist-shadow: 4px 4px 0 var(--surface-0);
+  --brutalist-shadow-accent: 4px 4px 0 var(--bull);
+  --brutalist-radius: 0;
+  
+  /* Brutalist Typography */
+  --font-heading-xl: 700 clamp(3rem, 8vw, 6rem) var(--font-sans);
+  --font-heading-lg: 700 clamp(2rem, 5vw, 4rem) var(--font-sans);
+  --font-heading-md: 600 clamp(1.5rem, 3vw, 2.5rem) var(--font-sans);
 }
 
 * {
@@ -481,6 +492,19 @@ button {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--border-hover);
+}
+
+/* ================== Brutalist Utilities ================== */
+.brutalist-box {
+  border: var(--brutalist-border);
+  border-radius: var(--brutalist-radius);
+  box-shadow: var(--brutalist-shadow);
+}
+
+.brutalist-text {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
 }
 
 @media (max-width: 768px) {
