@@ -9,8 +9,9 @@ export interface FeedItem {
   type: "news" | "price_alert";
   title: string;
   summary: string;
-  timestamp: string; // ISO string from API
+  timestamp: string;
   url?: string;
+  source?: string;
   meta?: {
     itemName?: string;
     priceChange?: number;

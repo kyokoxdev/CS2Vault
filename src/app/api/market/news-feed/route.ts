@@ -14,12 +14,47 @@ export type FeedItem = {
   summary: string;
   timestamp: Date;
   url?: string;
+  source?: string;
   meta?: {
     itemName?: string;
     priceChange?: number;
     newPrice?: number;
+    itemId?: string;
   };
 };
+
+const MARKET_KEYWORDS = [
+  // Regulatory / Legal
+  'ban', 'banned', 'lawsuit', 'legal', 'court', 'regulation', 'law', 'illegal',
+  'gambling', 'lootbox', 'loot box', 'belgium', 'netherlands', 'australia',
+  
+  // Trade / Market mechanics
+  'trade hold', 'trade ban', 'trade lock', 'market fee', 'tax', 'vat',
+  'steam market', 'community market', 'market change', 'price change',
+  'api change', 'api update',
+  
+  // Anti-cheat / Security (affects skin value)
+  'xray', 'x-ray', 'scanner', 'vac', 'anti-cheat', 'anticheat', 'overwatch',
+  'ban wave', 'cheater', 'exploit',
+  
+  // Valve / CS2 official changes
+  'valve', 'cs2 update', 'csgo update', 'patch', 'operation', 'case',
+  'collection', 'souvenir', 'sticker capsule', 'major', 'tournament',
+  'drop rate', 'drop system', 'rare drop',
+  
+  // Economy / Trading platforms
+  'csfloat', 'buff163', 'buff market', 'skinport', 'dmarket', 'bitskins',
+  'steam inventory', 'trade bot', 'cashout',
+  
+  // Market events
+  'crash', 'spike', 'surge', 'manipulation', 'investment', 'roi',
+  'discontinued', 'contraband', 'rare pattern', 'blue gem', 'float value'
+];
+
+function isMarketAffecting(title: string, summary: string): boolean {
+  const combined = `${title} ${summary}`.toLowerCase();
+  return MARKET_KEYWORDS.some(keyword => combined.includes(keyword.toLowerCase()));
+}
 
 interface FeedData {
   items: FeedItem[];
@@ -51,6 +86,7 @@ async function buildFeed(limit: number): Promise<FeedData> {
       summary: news.contents,
       timestamp: news.date,
       url: news.url,
+      source: news.source ?? 'steam',
     });
   }
 
@@ -62,6 +98,7 @@ async function buildFeed(limit: number): Promise<FeedData> {
       summary: rss.contents,
       timestamp: rss.date,
       url: rss.url,
+      source: rss.source,
     });
   }
 
@@ -87,13 +124,19 @@ async function buildFeed(limit: number): Promise<FeedData> {
     (item) => new Date(item.timestamp).getTime() >= cutoff.getTime()
   );
 
+  // Filter news to only market-affecting content (price alerts always pass)
+  const marketRelevantItems = recentItems.filter((item) => {
+    if (item.type === 'price_alert') return true;
+    return isMarketAffecting(item.title, item.summary);
+  });
+
   // Sort by timestamp descending
-  recentItems.sort(
+  marketRelevantItems.sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
 
   return {
-    items: recentItems.slice(0, limit),
+    items: marketRelevantItems.slice(0, limit),
     updatedAt: new Date().toISOString(),
   };
 }
