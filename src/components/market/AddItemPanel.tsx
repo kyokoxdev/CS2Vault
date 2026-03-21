@@ -29,7 +29,7 @@ export function AddItemPanel({ onAdd, status }: AddItemPanelProps) {
       {status && (
         <div
           className={styles.statusMessage}
-          data-error={status.startsWith("❌")}
+          data-error={status.startsWith("[ERR]")}
         >
           {status}
         </div>

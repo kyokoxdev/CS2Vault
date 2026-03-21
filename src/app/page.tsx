@@ -255,15 +255,15 @@ export default function MarketOverview() {
       });
       const data = await res.json();
       if (data.success) {
-        setAddStatus(`✅ Added "${data.data.name}" to watchlist`);
+        setAddStatus(`[OK] Added "${data.data.name}" to watchlist`);
         fetchData();
         setTimeout(() => setAddStatus(""), 3000);
       } else {
-        setAddStatus(`❌ ${data.error}`);
+        setAddStatus(`[ERR] ${data.error}`);
         setTimeout(() => setAddStatus(""), 5000);
       }
     } catch (err) {
-      setAddStatus(`❌ ${err}`);
+      setAddStatus(`[ERR] ${err}`);
       setTimeout(() => setAddStatus(""), 5000);
     }
   }

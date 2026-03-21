@@ -141,20 +141,20 @@ export default function ItemSearch({
 
     const categoryLabel = (cat: string) => {
         const labels: Record<string, string> = {
-            weapon: "🔫",
-            knife: "🔪",
-            glove: "🧤",
-            container: "📦",
-            key: "🔑",
-            sticker: "🏷️",
-            agent: "🕵️",
-            graffiti: "🎨",
-            music_kit: "🎵",
-            patch: "🩹",
-            collectible: "📌",
-            tool: "🔧",
+            weapon: "[W]",
+            knife: "[K]",
+            glove: "[G]",
+            container: "[C]",
+            key: "[KY]",
+            sticker: "[S]",
+            agent: "[A]",
+            graffiti: "[GR]",
+            music_kit: "[M]",
+            patch: "[P]",
+            collectible: "[CO]",
+            tool: "[T]",
         };
-        return labels[cat] ?? "📦";
+        return labels[cat] ?? "[?]";
     };
 
     return (

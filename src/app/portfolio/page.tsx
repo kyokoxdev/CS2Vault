@@ -129,7 +129,7 @@ export default function PortfolioPage() {
         const coverageLabel = coverage
           ? ` • Priced ${coverage.priced}/${coverage.total}${limitLabel}`
           : "";
-        setSyncStatus(`✅ Synced ${data.data.synced} items from Steam${coverageLabel}`);
+        setSyncStatus(`[OK] Synced ${data.data.synced} items from Steam${coverageLabel}`);
         await fetchPortfolio();
 
         if (data.data?.fallbackAvailable && data.data?.failureReason) {
@@ -140,10 +140,10 @@ export default function PortfolioPage() {
           });
         }
       } else {
-        setSyncStatus(`❌ ${data.error}`);
+        setSyncStatus(`[ERR] ${data.error}`);
       }
     } catch (err) {
-      setSyncStatus(`❌ Error: ${err}`);
+      setSyncStatus(`[ERR] ${err}`);
     }
     setSyncing(false);
   }, [fetchPortfolio]);
@@ -164,7 +164,7 @@ export default function PortfolioPage() {
       if (data.success) {
         const limited = data.data?.priceLimitedTo;
         const limitLabel = limited ? ` (limited to ${limited})` : "";
-        setSyncStatus(`✅ Refreshed prices for ${data.data.pricedCount ?? 0} items${limitLabel}`);
+        setSyncStatus(`[OK] Refreshed prices for ${data.data.pricedCount ?? 0} items${limitLabel}`);
         await fetchPortfolio();
 
         if (data.data?.fallbackAvailable && data.data?.failureReason) {
@@ -175,10 +175,10 @@ export default function PortfolioPage() {
           });
         }
       } else {
-        setSyncStatus(`❌ ${data.error}`);
+        setSyncStatus(`[ERR] ${data.error}`);
       }
     } catch (err) {
-      setSyncStatus(`❌ Error: ${err}`);
+      setSyncStatus(`[ERR] ${err}`);
     }
     setRefreshingPrices(false);
   }, [fetchPortfolio]);
@@ -394,7 +394,7 @@ export default function PortfolioPage() {
     return (
       <div className={styles.loadingState}>
         <div className={styles.loadingContent}>
-          <div className={styles.loadingIcon}>💼</div>
+          <div className={styles.loadingIcon}>[...]</div>
           <div>Loading portfolio...</div>
         </div>
       </div>
@@ -428,7 +428,7 @@ export default function PortfolioPage() {
             disabled={refreshingPrices}
             className={styles.refreshButton}
           >
-            {refreshingPrices ? "⏳ Refreshing..." : "💲 Refresh Prices"}
+            {refreshingPrices ? "Refreshing..." : "Refresh Prices"}
           </button>
           <button
             type="button"
@@ -436,7 +436,7 @@ export default function PortfolioPage() {
             disabled={syncing}
             className={styles.syncButton}
           >
-            {syncing ? "⏳ Syncing..." : "🔄 Sync from Steam"}
+            {syncing ? "Syncing..." : "Sync from Steam"}
           </button>
         </div>
       </div>
@@ -453,14 +453,14 @@ export default function PortfolioPage() {
       />
 
       {syncStatus && (
-        <div className={`${styles.syncStatus} ${syncStatus.startsWith("✅") ? styles.syncStatusSuccess : syncStatus.startsWith("❌") ? styles.syncStatusError : ""}`}>
+        <div className={`${styles.syncStatus} ${syncStatus.startsWith("[OK]") ? styles.syncStatusSuccess : syncStatus.startsWith("[ERR]") ? styles.syncStatusError : ""}`}>
           {syncStatus}
         </div>
       )}
 
       {isEmpty ? (
         <div className={`${styles.emptyState} card`}>
-          <div className={styles.emptyIcon}>📦</div>
+          <div className={styles.emptyIcon}>[empty]</div>
           <h3 className={styles.emptyTitle}>No inventory items yet</h3>
           <p className={styles.emptyDescription}>
             Sync your Steam CS2 inventory to start tracking your portfolio value and profit/loss.
@@ -471,7 +471,7 @@ export default function PortfolioPage() {
             disabled={syncing}
             className={styles.syncButton}
           >
-            🔄 Sync from Steam
+            Sync from Steam
           </button>
         </div>
       ) : (
