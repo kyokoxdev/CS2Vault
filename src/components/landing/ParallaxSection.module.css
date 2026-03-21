@@ -45,3 +45,21 @@
         transform: none !important;
     }
 }
+
+@media (min-width: 1440px) {
+    .container {
+        perspective: 1200px;
+    }
+}
+
+@media (min-width: 1920px) {
+    .container {
+        perspective: 1500px;
+    }
+}
+
+@media (min-width: 2560px) {
+    .container {
+        perspective: 1800px;
+    }
+}
