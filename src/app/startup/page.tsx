@@ -25,21 +25,22 @@ export default function StartupPage() {
 
     return (
         <main className={styles.landingPage} data-testid="landing-page">
-            {/* Hero Section — cinematic with GSAP animations */}
+            <a href="#features" className="skip-link">
+                Skip to content
+            </a>
+
             <HeroCinematic />
 
-            {/* Features Section */}
             <ScrollReveal className={styles.scrollRevealBase}>
-                <section className={styles.featuresSection} data-testid="features-section">
+                <section id="features" className={styles.featuresSection} data-testid="features-section">
                     <MockPriceTicker />
                     <div className={styles.featuresContent}>
                         <h2 className={styles.featuresTitle}>Everything You Need for CS2 Trading</h2>
                         <div className={styles.featuresGrid}>
-                            {/* Card 1: Real-Time Price Tracking */}
                             <ScrollReveal className={styles.scrollRevealBase} delay={0}>
                                 <div className={styles.featureCard} data-testid="feature-card">
                                     <div className={styles.featureCardHeader}>
-                                        <div className={styles.featureIcon}>
+                                        <div className={styles.featureIcon} aria-hidden="true">
                                             <FaChartPie />
                                         </div>
                                         <h3 className={styles.featureCardTitle}>Real-Time Price Tracking</h3>
@@ -67,11 +68,10 @@ export default function StartupPage() {
                                 </div>
                             </ScrollReveal>
 
-                            {/* Card 2: Portfolio Management */}
                             <ScrollReveal className={styles.scrollRevealBase} delay={100}>
                                 <div className={styles.featureCard} data-testid="feature-card">
                                     <div className={styles.featureCardHeader}>
-                                        <div className={styles.featureIcon}>
+                                        <div className={styles.featureIcon} aria-hidden="true">
                                             <FaWallet />
                                         </div>
                                         <h3 className={styles.featureCardTitle}>Portfolio Management</h3>
@@ -89,11 +89,10 @@ export default function StartupPage() {
                                 </div>
                             </ScrollReveal>
 
-                            {/* Card 3: AI Market Insights */}
                             <ScrollReveal className={styles.scrollRevealBase} delay={200}>
                                 <div className={styles.featureCard} data-testid="feature-card">
                                     <div className={styles.featureCardHeader}>
-                                        <div className={styles.featureIcon}>
+                                        <div className={styles.featureIcon} aria-hidden="true">
                                             <FaRobot />
                                         </div>
                                         <h3 className={styles.featureCardTitle}>AI Market Insights</h3>
@@ -120,12 +119,10 @@ export default function StartupPage() {
                 </section>
             </ScrollReveal>
 
-            {/* Item Showcase Section */}
             <ScrollReveal className={styles.scrollRevealBase}>
                 <ItemShowcase />
             </ScrollReveal>
 
-            {/* How It Works Section */}
             <section className={styles.howItWorksSection} data-testid="how-it-works-section">
                 <div className={styles.howItWorksContent}>
                     <h2 className={styles.howItWorksTitle}>Get Started in 3 Simple Steps</h2>
@@ -133,7 +130,7 @@ export default function StartupPage() {
                         <div className={styles.step}>
                             <div className={styles.stepNumber}>01</div>
                             <div className={styles.stepCard}>
-                                <div className={styles.stepIcon}>
+                                <div className={styles.stepIcon} aria-hidden="true">
                                     <FaSteam />
                                 </div>
                                 <h3 className={styles.stepTitle}>Sign In with Steam</h3>
@@ -145,7 +142,7 @@ export default function StartupPage() {
                         <div className={styles.step}>
                             <div className={styles.stepNumber}>02</div>
                             <div className={styles.stepCard}>
-                                <div className={styles.stepIcon}>
+                                <div className={styles.stepIcon} aria-hidden="true">
                                     <FaBoxOpen />
                                 </div>
                                 <h3 className={styles.stepTitle}>Import Your Inventory</h3>
@@ -157,7 +154,7 @@ export default function StartupPage() {
                         <div className={styles.step}>
                             <div className={styles.stepNumber}>03</div>
                             <div className={styles.stepCard}>
-                                <div className={styles.stepIcon}>
+                                <div className={styles.stepIcon} aria-hidden="true">
                                     <FaChartPie />
                                 </div>
                                 <h3 className={styles.stepTitle}>Track &amp; Analyze</h3>
@@ -170,7 +167,6 @@ export default function StartupPage() {
                 </div>
             </section>
 
-            {/* CTA Section */}
             <ScrollReveal className={styles.scrollRevealBase}>
                 <section className={styles.ctaSection} data-testid="cta-section">
                     <div className={styles.ctaGlow} aria-hidden="true" />

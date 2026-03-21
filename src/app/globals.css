@@ -100,6 +100,35 @@ button {
   outline: none;
 }
 
+:focus-visible {
+  outline: 3px solid var(--bull);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  padding: 1rem 2rem;
+  background: var(--surface-0);
+  color: var(--text-primary-90);
+  border: var(--brutalist-border);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: top 150ms ease;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
 /* ─── Layout Shell ─────────────────────────────────────── */
 
 .app-shell {

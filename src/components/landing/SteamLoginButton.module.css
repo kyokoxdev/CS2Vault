@@ -17,6 +17,11 @@
     box-shadow: none;
 }
 
+.steamButton:focus-visible {
+    outline: 3px solid var(--accent-green, #00c076);
+    outline-offset: 2px;
+}
+
 .steamImage {
     display: block;
     height: auto;

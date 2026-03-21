@@ -7,6 +7,7 @@ export default function SteamLoginButton() {
         <a
             href="/api/auth/steam/login"
             className={styles.steamButton}
+            aria-label="Sign in through Steam"
             data-testid="steam-login-button"
         >
             <img
