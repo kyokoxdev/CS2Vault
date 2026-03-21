@@ -843,6 +843,155 @@
     }
 }
 
+/* ===== Tablet Breakpoint (768-1023px) ===== */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    /* Hero: refined spacing for tablet */
+    .heroSection {
+        min-height: 90vh;
+        padding: 2rem;
+    }
+
+    .heroContent {
+        max-width: 720px;
+    }
+
+    .heroCinematic {
+        padding: 2rem;
+    }
+
+    .heroCinematicContent {
+        max-width: 860px;
+    }
+
+    /* Stats: maintain row layout but tighter */
+    .heroCinematicStats {
+        gap: 2rem;
+    }
+
+    .heroCinematicStatItem {
+        padding: 1rem 1.75rem;
+    }
+
+    /* Features: 2-column grid */
+    .featuresSection {
+        padding: 5rem 0;
+    }
+
+    .featuresSection::before {
+        font-size: clamp(3rem, 6vw, 5rem);
+        top: 1.5rem;
+        right: 1.5rem;
+        opacity: 0.2;
+    }
+
+    .featuresContent {
+        padding: 0 2rem;
+    }
+
+    .featuresTitle {
+        margin-bottom: 3rem;
+    }
+
+    .featuresGrid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+    }
+
+    /* First card still spans full width for emphasis */
+    .featureCard:first-child {
+        grid-column: 1 / -1;
+    }
+
+    .featureCard {
+        padding: 2rem;
+    }
+
+    .featureCardDescription {
+        max-width: 100%;
+    }
+
+    .mockStatRow {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+    }
+
+    .featureMetric {
+        padding: 0.75rem;
+    }
+
+    /* How It Works: horizontal with tighter spacing */
+    .howItWorksSection {
+        padding: 5rem 2rem;
+    }
+
+    .howItWorksTitle {
+        margin-bottom: 4rem;
+    }
+
+    .stepsContainer {
+        flex-direction: row;
+        gap: 0;
+    }
+
+    .stepsContainer::before {
+        top: 4rem;
+        left: 12%;
+        right: 12%;
+        height: 3px;
+        width: auto;
+        transform: none;
+    }
+
+    .step {
+        padding: 0 0.75rem;
+    }
+
+    .stepCard {
+        max-width: 240px;
+        padding: 1.75rem 1.25rem;
+    }
+
+    .stepIcon {
+        width: 48px;
+        height: 48px;
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+    }
+
+    .stepTitle {
+        font-size: 1rem;
+    }
+
+    .stepDescription {
+        font-size: 0.8125rem;
+    }
+
+    /* CTA: balanced padding */
+    .ctaSection {
+        padding: 5rem 2rem;
+    }
+
+    .ctaContent {
+        max-width: 640px;
+    }
+
+    .ctaSubtext {
+        font-size: 1.0625rem;
+        margin-bottom: 2rem;
+    }
+
+    /* Footer: maintain grid at tablet */
+    .footerContent {
+        grid-template-columns: 1fr auto;
+    }
+
+    .footerAttribution {
+        max-width: 480px;
+        font-size: 0.6875rem;
+    }
+}
+
 /* ===== Scroll Reveal ===== */
 
 .scrollRevealBase {
@@ -874,5 +1023,383 @@
     .typingDot {
         animation: none;
         opacity: 1;
+    }
+}
+
+/* ===== Large Screen Responsive (1440px+) ===== */
+
+@media (min-width: 1440px) {
+    /* Content containers: center with max-width to prevent edge-to-edge stretching */
+    .heroContent,
+    .heroCinematicContent {
+        max-width: 1100px;
+    }
+
+    .featuresContent {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 0 3rem;
+    }
+
+    .howItWorksContent {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .ctaContent {
+        max-width: 900px;
+    }
+
+    .footerContent {
+        max-width: 1400px;
+    }
+
+    /* Enhanced typography with capped clamp bounds */
+    .heroCinematicTitle {
+        font-size: clamp(4rem, 6vw, 5.5rem);
+        letter-spacing: -0.03em;
+    }
+
+    .heroCinematicStatValue {
+        font-size: clamp(2.5rem, 4vw, 3.5rem);
+    }
+
+    .heroCinematicSubtitle {
+        font-size: 1.35rem;
+        max-width: 720px;
+    }
+
+    .featuresTitle {
+        font-size: 2.25rem;
+        margin-bottom: 5rem;
+    }
+
+    .ctaTitle {
+        font-size: clamp(2.5rem, 4vw, 3.5rem);
+    }
+
+    .howItWorksTitle {
+        font-size: 2.25rem;
+        margin-bottom: 6rem;
+    }
+
+    /* Enhanced section padding */
+    .featuresSection {
+        padding: 8rem 0;
+    }
+
+    .howItWorksSection {
+        padding: 8rem 3rem;
+    }
+
+    .ctaSection {
+        padding: 8rem 3rem;
+    }
+
+    /* Features grid: more breathing room */
+    .featuresGrid {
+        gap: 2.5rem;
+    }
+
+    .featureCard {
+        padding: 3rem;
+    }
+
+    .featureCardDescription {
+        max-width: 720px;
+    }
+
+    /* Steps: wider cards, more spacing */
+    .stepsContainer {
+        gap: 1rem;
+    }
+
+    .stepsContainer::before {
+        left: 8%;
+        right: 8%;
+    }
+
+    .stepCard {
+        max-width: 340px;
+        padding: 2.5rem 2rem;
+    }
+
+    /* Hero stats: more spacing */
+    .heroCinematicStats {
+        gap: 4rem;
+        margin-bottom: 3rem;
+    }
+
+    .heroCinematicStatItem {
+        padding: 1.5rem 2.5rem;
+    }
+
+    /* Grid overlay: larger cells for dramatic effect */
+    .gridOverlay {
+        background-size: 80px 80px;
+    }
+
+    /* Footer: enhanced layout */
+    .landingFooter {
+        padding: 3rem;
+    }
+}
+
+/* ===== Very Large Screens (1920px+) ===== */
+
+@media (min-width: 1920px) {
+    /* Tighter max-widths to prevent over-expansion */
+    .heroContent,
+    .heroCinematicContent {
+        max-width: 1200px;
+    }
+
+    .featuresContent,
+    .howItWorksContent,
+    .footerContent {
+        max-width: 1600px;
+    }
+
+    .ctaContent {
+        max-width: 1000px;
+    }
+
+    /* Typography: cap at upper bounds */
+    .heroCinematicTitle {
+        font-size: 5.5rem;
+    }
+
+    .heroTitle {
+        font-size: 4.5rem;
+    }
+
+    .heroCinematicStatValue {
+        font-size: 3.5rem;
+    }
+
+    .heroCinematicSubtitle {
+        font-size: 1.5rem;
+        max-width: 800px;
+    }
+
+    .featuresTitle,
+    .howItWorksTitle {
+        font-size: 2.5rem;
+    }
+
+    .ctaTitle {
+        font-size: 3.5rem;
+    }
+
+    /* Enhanced section padding */
+    .featuresSection {
+        padding: 10rem 0;
+    }
+
+    .howItWorksSection {
+        padding: 10rem 4rem;
+    }
+
+    .ctaSection {
+        padding: 10rem 4rem;
+    }
+
+    /* Features grid: 3-column on ultra-wide (except first card) */
+    .featuresGrid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 3rem;
+    }
+
+    /* First card stays full-width for emphasis */
+    .featureCard:first-child {
+        grid-column: 1 / -1;
+    }
+
+    .featureCard {
+        padding: 3.5rem;
+    }
+
+    .featureCardDescription {
+        max-width: 800px;
+    }
+
+    /* Steps: even wider cards */
+    .stepCard {
+        max-width: 400px;
+        padding: 3rem 2.5rem;
+    }
+
+    .stepNumber {
+        font-size: 5rem;
+    }
+
+    /* Hero stats: dramatic spacing */
+    .heroCinematicStats {
+        gap: 5rem;
+        margin-bottom: 4rem;
+    }
+
+    .heroCinematicStatItem {
+        padding: 2rem 3rem;
+    }
+
+    /* Grid overlay: even larger cells */
+    .gridOverlay {
+        background-size: 100px 100px;
+    }
+
+    /* Footer: enhanced padding */
+    .landingFooter {
+        padding: 4rem;
+    }
+
+    .footerBrand {
+        font-size: 1.25rem;
+    }
+}
+
+/* ===== Ultra-Wide Screens (2560px+) ===== */
+
+@media (min-width: 2560px) {
+    /* Hard cap max-widths to prevent infinite expansion */
+    .heroContent,
+    .heroCinematicContent {
+        max-width: 1400px;
+    }
+
+    .featuresContent,
+    .howItWorksContent {
+        max-width: 1800px;
+    }
+
+    .footerContent {
+        max-width: 1800px;
+    }
+
+    .ctaContent {
+        max-width: 1100px;
+    }
+
+    /* Typography: absolute caps */
+    .heroCinematicTitle {
+        font-size: 6rem;
+    }
+
+    .heroCinematicStatValue {
+        font-size: 4rem;
+    }
+
+    .heroCinematicSubtitle {
+        font-size: 1.625rem;
+        max-width: 900px;
+    }
+
+    .featuresTitle,
+    .howItWorksTitle {
+        font-size: 3rem;
+    }
+
+    .ctaTitle {
+        font-size: 4rem;
+    }
+
+    .ctaSubtext {
+        font-size: 1.375rem;
+    }
+
+    /* Section padding: generous but controlled */
+    .featuresSection {
+        padding: 12rem 0;
+    }
+
+    .howItWorksSection {
+        padding: 12rem 5rem;
+    }
+
+    .ctaSection {
+        padding: 12rem 5rem;
+    }
+
+    /* Feature cards: extra breathing room */
+    .featureCard {
+        padding: 4rem;
+    }
+
+    .featureCardHeader {
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    .featureIcon {
+        width: 72px;
+        height: 72px;
+        font-size: 2rem;
+    }
+
+    .featureCardTitle {
+        font-size: 1.5rem;
+    }
+
+    .featureCardDescription {
+        font-size: 1.125rem;
+        max-width: 900px;
+    }
+
+    /* Steps: maximum size */
+    .stepCard {
+        max-width: 480px;
+        padding: 3.5rem 3rem;
+    }
+
+    .stepNumber {
+        font-size: 6rem;
+    }
+
+    .stepIcon {
+        width: 72px;
+        height: 72px;
+        font-size: 2rem;
+    }
+
+    .stepTitle {
+        font-size: 1.375rem;
+    }
+
+    .stepDescription {
+        font-size: 1rem;
+    }
+
+    /* Hero stats: maximum impact */
+    .heroCinematicStats {
+        gap: 6rem;
+        margin-bottom: 5rem;
+    }
+
+    .heroCinematicStatItem {
+        padding: 2.5rem 4rem;
+    }
+
+    .heroCinematicStatLabel {
+        font-size: 0.875rem;
+        margin-top: 0.75rem;
+    }
+
+    /* Grid overlay: dramatic scale */
+    .gridOverlay {
+        background-size: 120px 120px;
+    }
+
+    /* Footer: maximum padding */
+    .landingFooter {
+        padding: 5rem;
+    }
+
+    .footerBrand {
+        font-size: 1.375rem;
+    }
+
+    .footerAttribution {
+        font-size: 0.875rem;
+        max-width: 720px;
     }
 }

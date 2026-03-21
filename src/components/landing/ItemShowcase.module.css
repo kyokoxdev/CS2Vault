@@ -279,7 +279,52 @@
     height: 100%;
 }
 
-/* ===== Responsive Adjustments ===== */
+/* ===== Tablet (768-1023px) ===== */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .showcaseSection {
+        padding: 5rem 2rem;
+    }
+
+    .sectionHeader {
+        margin-bottom: 3rem;
+    }
+
+    .sectionTitle {
+        letter-spacing: 0.12em;
+    }
+
+    .titleUnderline {
+        width: 100px;
+    }
+
+    .itemGrid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.25rem;
+    }
+
+    .itemInfo {
+        padding: 1rem;
+    }
+
+    .itemName {
+        font-size: 0.875rem;
+    }
+
+    .itemPrice {
+        font-size: 1.125rem;
+    }
+
+    .itemChange {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.4rem;
+    }
+
+    .sparklineWrapper {
+        height: 32px;
+        padding-top: 0.5rem;
+    }
+}
 
 @media (max-width: 768px) {
     .showcaseSection {
