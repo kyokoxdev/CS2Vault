@@ -3,8 +3,6 @@ import type { NewsItem, NewsSource } from "./steam-news";
 import { sanitizeContents } from "./steam-news";
 
 const RSS_SOURCES: { name: string; url: string; source: NewsSource }[] = [
-  { name: "hltv", url: "https://www.hltv.org/rss/news", source: "hltv" },
-  { name: "reddit", url: "https://www.reddit.com/r/cs2/.rss", source: "reddit" },
   { name: "steamdb", url: "https://steamdb.info/blog/rss/", source: "steamdb" },
   { name: "valve", url: "https://blog.counter-strike.net/index.php/feed/", source: "valve" },
 ];

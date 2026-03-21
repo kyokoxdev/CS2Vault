@@ -1,4 +1,4 @@
-export type NewsSource = "steam" | "hltv" | "reddit" | "steamdb" | "valve";
+export type NewsSource = "steam" | "steamdb" | "valve";
 
 export type NewsItem = {
   id: string;
