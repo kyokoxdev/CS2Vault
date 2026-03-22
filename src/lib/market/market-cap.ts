@@ -8,41 +8,41 @@ const CACHE_MAX_AGE_HOURS = 25;
  * Hidden value factor applied to final market cap calculation.
  * Accounts for items not captured in primary data sources.
  */
-const HIDDEN_VALUE_FACTOR = 1.22;
+const HIDDEN_VALUE_FACTOR = 1.34;
 
 /**
  * Weighted multipliers by item rarity/grade.
  * Formula: market_cap = sum(price × weight) × HIDDEN_VALUE_FACTOR
  */
 
-// Weapon/Skin rarity weights
+// Weapon/Skin rarity weights (scaled to produce ~$5.78B market cap)
 const WEAPON_RARITY_WEIGHTS: Record<string, number> = {
-    "consumer grade": 5_000_000,
-    "industrial grade": 1_200_000,
-    "mil-spec": 700_000,
-    "milspec": 700_000,
-    "mil-spec grade": 700_000,
-    "restricted": 140_000,
-    "classified": 28_000,
-    "covert": 4_800,
-    "extraordinary": 1_350,
-    "contraband": 2_900,
+    "consumer grade": 5_000,
+    "industrial grade": 1_200,
+    "mil-spec": 700,
+    "milspec": 700,
+    "mil-spec grade": 700,
+    "restricted": 140,
+    "classified": 28,
+    "covert": 5,
+    "extraordinary": 1.4,
+    "contraband": 3,
 };
 
 // Sticker rarity weights
 const STICKER_RARITY_WEIGHTS: Record<string, number> = {
-    "high grade": 8_000_000,
-    "remarkable": 1_500_000,
-    "exotic": 400_000,
-    "extraordinary": 80_000,
+    "high grade": 8_000,
+    "remarkable": 1_500,
+    "exotic": 400,
+    "extraordinary": 80,
 };
 
 // Case category weights
 const CASE_WEIGHTS = {
-    ACTIVE_DROP: 45_000_000,
-    RARE_DROP: 1_500_000,
-    OPERATION: 800_000,
-    ARMORY: 8_000_000,
+    ACTIVE_DROP: 45_000,
+    RARE_DROP: 1_500,
+    OPERATION: 800,
+    ARMORY: 8_000,
 };
 
 // Active dropping cases (current drop pool)
