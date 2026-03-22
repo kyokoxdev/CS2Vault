@@ -4,6 +4,10 @@
     border: 3px solid var(--text-primary-90);
     background: var(--surface-0);
     transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+    /* Isolate stacking context to prevent 3D transform conflicts with ParallaxSection */
+    isolation: isolate;
+    position: relative;
+    z-index: 1;
 }
 
 .steamButton:hover {
