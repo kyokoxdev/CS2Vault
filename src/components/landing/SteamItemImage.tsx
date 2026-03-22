@@ -11,6 +11,12 @@ interface SteamItemImageProps {
     fallback?: React.ReactNode;
 }
 
+const IMAGE_DIMENSIONS: Record<NonNullable<SteamItemImageProps['size']>, number> = {
+    sm: 64,
+    md: 128,
+    lg: 256,
+};
+
 export const POPULAR_ITEMS = {
     AK47_REDLINE: 'https://community.akamai.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV09-5lpKKqPrxN7LEm1Rd6dd2j6fA9Nyn2gTgqRI6Nmj0doaQdlJtMwrT-FK-wOnsgsC-tJ_BznZjsyEh5SvelQv330-5iC1cfA',
     AWP_ASIIMOV: 'https://community.akamai.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot621FAR17PLfYQJD_9W7m5a0mvLwOq7c2D1Q7MBOhuDG_ZjKhFWmrBQ5fWGldoTBdFJoMgnW-QK_lebthpPpupnN1zI97eqJMvvG',
@@ -31,6 +37,7 @@ export default function SteamItemImage({
 }: SteamItemImageProps) {
     const [hasError, setHasError] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const imageDimension = IMAGE_DIMENSIONS[size];
 
     const handleError = () => {
         setHasError(true);
@@ -51,6 +58,8 @@ export default function SteamItemImage({
             <img
                 src={imageUrl}
                 alt={alt}
+                width={imageDimension}
+                height={imageDimension}
                 loading="lazy"
                 onError={handleError}
                 onLoad={handleLoad}
