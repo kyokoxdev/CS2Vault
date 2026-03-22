@@ -28,7 +28,7 @@ export default function MarketOverview() {
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [watchedCount, setWatchedCount] = useState(0);
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
-  const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[]; source?: 'pricempire' | 'watchlist' }>({ gainers: [], losers: [] });
+  const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[]; source?: string; cached?: boolean; updatedAt?: string }>({ gainers: [], losers: [] });
   const [topMoversLoading, setTopMoversLoading] = useState(true);
   const [portfolioValue, setPortfolioValue] = useState<number | null>(null);
   const [portfolioLoading, setPortfolioLoading] = useState(true);
@@ -84,7 +84,13 @@ export default function MarketOverview() {
       const res = await fetch('/api/market/top-movers');
       const data = await res.json();
       if (data.success) {
-        setTopMovers({ gainers: data.data.gainers, losers: data.data.losers, source: data.data.source });
+        setTopMovers({
+          gainers: data.data.gainers,
+          losers: data.data.losers,
+          source: data.data.source,
+          cached: data.data.cached,
+          updatedAt: data.data.updatedAt,
+        });
       }
     } catch (err) {
       console.warn('Top movers fetch error:', err);
@@ -253,7 +259,14 @@ export default function MarketOverview() {
         </Card>
       </div>
 
-      <TopMovers gainers={topMovers.gainers} losers={topMovers.losers} source={topMovers.source} isLoading={topMoversLoading} />
+      <TopMovers
+        gainers={topMovers.gainers}
+        losers={topMovers.losers}
+        source={topMovers.source}
+        cached={topMovers.cached}
+        updatedAt={topMovers.updatedAt}
+        isLoading={topMoversLoading}
+      />
 
       <NewsFeed items={feedItems} isLoading={feedLoading} />
     </div>

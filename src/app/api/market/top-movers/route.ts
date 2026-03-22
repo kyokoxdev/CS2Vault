@@ -1,7 +1,3 @@
-/**
- * GET /api/market/top-movers — Top 5 gainers and losers with sparkline data
- */
-
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { resolveMarketProvider } from "@/lib/market/registry";
@@ -26,22 +22,85 @@ interface TopMoversData {
     losers: Mover[];
     updatedAt: string;
     source: string;
+    cached?: boolean;
 }
 
-let cachedData: TopMoversData | null = null;
-let cachedAt = 0;
-const CACHE_MS = 5 * 60 * 1000;
+let memoryCache: TopMoversData | null = null;
+let memoryCacheAt = 0;
+const MEMORY_CACHE_MS = 5 * 60 * 1000;
+const PERSISTENT_CACHE_TTL_MS = 60 * 60 * 1000;
 
-async function computeTopMovers(): Promise<TopMoversData> {
+async function loadCachedData(): Promise<TopMoversData | null> {
+    try {
+        const cached = await prisma.topMoversCache.findUnique({
+            where: { id: "singleton" },
+        });
+        
+        if (!cached) return null;
+        
+        return {
+            gainers: JSON.parse(cached.gainers) as Mover[],
+            losers: JSON.parse(cached.losers) as Mover[],
+            updatedAt: cached.updatedAt.toISOString(),
+            source: cached.source,
+            cached: true,
+        };
+    } catch (error) {
+        console.warn("[Top Movers] Failed to load cache:", error);
+        return null;
+    }
+}
+
+async function saveCachedData(data: TopMoversData): Promise<void> {
+    try {
+        await prisma.topMoversCache.upsert({
+            where: { id: "singleton" },
+            create: {
+                id: "singleton",
+                gainers: JSON.stringify(data.gainers),
+                losers: JSON.stringify(data.losers),
+                source: data.source,
+                updatedAt: new Date(),
+            },
+            update: {
+                gainers: JSON.stringify(data.gainers),
+                losers: JSON.stringify(data.losers),
+                source: data.source,
+                updatedAt: new Date(),
+            },
+        });
+    } catch (error) {
+        console.warn("[Top Movers] Failed to save cache:", error);
+    }
+}
+
+async function isCacheValid(): Promise<boolean> {
+    try {
+        const cached = await prisma.topMoversCache.findUnique({
+            where: { id: "singleton" },
+            select: { updatedAt: true },
+        });
+        
+        if (!cached) return false;
+        
+        const age = Date.now() - cached.updatedAt.getTime();
+        return age < PERSISTENT_CACHE_TTL_MS;
+    } catch {
+        return false;
+    }
+}
+
+async function computeTopMovers(existingCache: TopMoversData | null): Promise<TopMoversData> {
     const now = new Date();
     const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // 1. Always use CSFloat for top movers
     const activeSource: MarketSource = "csfloat";
     const provider = resolveMarketProvider(activeSource);
 
     let allPrices: Map<string, { price: number; source: string }> | null = null;
     let dataSource: string = activeSource;
+    let providerFailed = false;
+    
     if (provider) {
         try {
             const localItems = await prisma.item.findMany({
@@ -54,19 +113,24 @@ async function computeTopMovers(): Promise<TopMoversData> {
                 [...bulkResult.entries()].map(([k, v]) => [k, { price: v.price, source: v.source }])
             );
         } catch (error) {
-            console.warn(
-                `[Top Movers] Provider "${activeSource}" unavailable, falling back to watchlist:`,
-                error
-            );
-            allPrices = null;
-            dataSource = "watchlist";
+            console.warn(`[Top Movers] Provider "${activeSource}" unavailable:`, error);
+            providerFailed = true;
         }
     } else {
-        console.warn(`[Top Movers] No provider for "${activeSource}", using watchlist fallback`);
+        console.warn(`[Top Movers] No provider for "${activeSource}"`);
+        providerFailed = true;
+    }
+
+    if (providerFailed) {
+        if (existingCache && existingCache.gainers.length > 0) {
+            console.log("[Top Movers] Provider failed, returning cached data");
+            return { ...existingCache, cached: true };
+        }
+        
+        console.log("[Top Movers] No cache available, falling back to watchlist");
         dataSource = "watchlist";
     }
 
-    // 2. Watchlist fallback path
     if (dataSource === "watchlist") {
         const watchedItems = await prisma.item.findMany({
             where: { isWatched: true, isActive: true },
@@ -88,25 +152,18 @@ async function computeTopMovers(): Promise<TopMoversData> {
             const price = latest.price;
             let change24h = 0;
             if (snapshots.length >= 2 && earliest.price > 0) {
-                change24h =
-                    ((latest.price - earliest.price) / earliest.price) * 100;
+                change24h = ((latest.price - earliest.price) / earliest.price) * 100;
             }
 
-            // Build sparkline from ascending order
             const hourMap = new Map<number, { time: number; value: number }>();
             for (const snap of [...snapshots].reverse()) {
                 const ts = snap.timestamp.getTime();
                 const hourKey = Math.floor(ts / 3600000);
                 if (!hourMap.has(hourKey)) {
-                    hourMap.set(hourKey, {
-                        time: Math.floor(ts / 1000),
-                        value: snap.price,
-                    });
+                    hourMap.set(hourKey, { time: Math.floor(ts / 1000), value: snap.price });
                 }
             }
-            const sparkline = [...hourMap.values()]
-                .sort((a, b) => a.time - b.time)
-                .slice(-24);
+            const sparkline = [...hourMap.values()].sort((a, b) => a.time - b.time).slice(-24);
 
             movers.push({
                 id: item.id,
@@ -118,46 +175,23 @@ async function computeTopMovers(): Promise<TopMoversData> {
             });
         }
 
-        const gainers = movers
-            .filter((m) => m.change24h > 0)
-            .sort((a, b) => b.change24h - a.change24h)
-            .slice(0, 5);
+        const gainers = movers.filter((m) => m.change24h > 0).sort((a, b) => b.change24h - a.change24h).slice(0, 5);
+        const losers = movers.filter((m) => m.change24h < 0).sort((a, b) => a.change24h - b.change24h).slice(0, 5);
 
-        const losers = movers
-            .filter((m) => m.change24h < 0)
-            .sort((a, b) => a.change24h - b.change24h)
-            .slice(0, 5);
-
-        return {
-            gainers,
-            losers,
-            updatedAt: now.toISOString(),
-            source: dataSource,
-        };
+        return { gainers, losers, updatedAt: now.toISOString(), source: dataSource };
     }
 
-    // 3. Provider path — get local items for 24h change calculation
     const localItems = await prisma.item.findMany({
         where: { isActive: true },
         select: { id: true, name: true, marketHashName: true },
     });
 
-    // Build a lookup: marketHashName -> local item info
-    const localItemMap = new Map(
-        localItems.map((item) => [item.marketHashName, item])
-    );
+    const localItemMap = new Map(localItems.map((item) => [item.marketHashName, item]));
 
-    // 4. For local items, fetch 24h snapshots for change calculation + sparkline
-    const snapshotsByHash = new Map<
-        string,
-        { price: number; timestamp: Date }[]
-    >();
+    const snapshotsByHash = new Map<string, { price: number; timestamp: Date }[]>();
     for (const item of localItems) {
         const snapshots = await prisma.priceSnapshot.findMany({
-            where: {
-                itemId: item.id,
-                timestamp: { gte: cutoff24h },
-            },
+            where: { itemId: item.id, timestamp: { gte: cutoff24h } },
             orderBy: { timestamp: "asc" },
             select: { price: true, timestamp: true },
         });
@@ -166,7 +200,6 @@ async function computeTopMovers(): Promise<TopMoversData> {
         }
     }
 
-    // 5. Build movers from ALL provider items
     const movers: Mover[] = [];
 
     for (const [marketHashName, priceData] of allPrices!) {
@@ -179,34 +212,25 @@ async function computeTopMovers(): Promise<TopMoversData> {
         let sparkline: SparklinePoint[] = [];
 
         if (snapshots && snapshots.length >= 2) {
-            // Has local history — compute real 24h change
             const earliest = snapshots[0];
             const latest = snapshots[snapshots.length - 1];
 
             if (earliest.price > 0) {
-                change24h =
-                    ((latest.price - earliest.price) / earliest.price) * 100;
+                change24h = ((latest.price - earliest.price) / earliest.price) * 100;
             }
 
-            // Build sparkline: hourly data points (from Task 2 logic)
             const hourMap = new Map<number, { time: number; value: number }>();
             for (const snap of snapshots) {
                 const ts = snap.timestamp.getTime();
                 const hourKey = Math.floor(ts / 3600000);
                 if (!hourMap.has(hourKey)) {
-                    hourMap.set(hourKey, {
-                        time: Math.floor(ts / 1000),
-                        value: snap.price,
-                    });
+                    hourMap.set(hourKey, { time: Math.floor(ts / 1000), value: snap.price });
                 }
             }
 
-            sparkline = [...hourMap.values()]
-                .sort((a, b) => a.time - b.time)
-                .slice(-24);
+            sparkline = [...hourMap.values()].sort((a, b) => a.time - b.time).slice(-24);
         }
 
-        // Include items with at least 1 snapshot
         if (!snapshots || snapshots.length === 0) continue;
 
         movers.push({
@@ -219,38 +243,45 @@ async function computeTopMovers(): Promise<TopMoversData> {
         });
     }
 
-    // Sort: Gainers descending, Losers ascending
-    const gainers = movers
-        .filter((m) => m.change24h > 0)
-        .sort((a, b) => b.change24h - a.change24h)
-        .slice(0, 5);
+    const gainers = movers.filter((m) => m.change24h > 0).sort((a, b) => b.change24h - a.change24h).slice(0, 5);
+    const losers = movers.filter((m) => m.change24h < 0).sort((a, b) => a.change24h - b.change24h).slice(0, 5);
 
-    const losers = movers
-        .filter((m) => m.change24h < 0)
-        .sort((a, b) => a.change24h - b.change24h)
-        .slice(0, 5);
-
-    return {
-        gainers,
-        losers,
-        updatedAt: now.toISOString(),
-        source: dataSource,
-    };
+    return { gainers, losers, updatedAt: now.toISOString(), source: dataSource };
 }
 
 export async function GET() {
     try {
-        if (cachedData && Date.now() - cachedAt < CACHE_MS) {
-            return NextResponse.json({ success: true, data: cachedData });
+        if (memoryCache && Date.now() - memoryCacheAt < MEMORY_CACHE_MS) {
+            return NextResponse.json({ success: true, data: memoryCache });
         }
 
-        const data = await computeTopMovers();
-        cachedData = data;
-        cachedAt = Date.now();
+        const cacheValid = await isCacheValid();
+        const existingCache = await loadCachedData();
+        
+        if (cacheValid && existingCache) {
+            memoryCache = existingCache;
+            memoryCacheAt = Date.now();
+            return NextResponse.json({ success: true, data: existingCache });
+        }
 
-        return NextResponse.json({ success: true, data: cachedData });
+        const data = await computeTopMovers(existingCache);
+        
+        if (data.source !== "watchlist" && !data.cached) {
+            await saveCachedData(data);
+        }
+
+        memoryCache = data;
+        memoryCacheAt = Date.now();
+
+        return NextResponse.json({ success: true, data });
     } catch (error) {
         console.error("[API /market/top-movers]", error);
+        
+        const fallbackCache = await loadCachedData();
+        if (fallbackCache) {
+            return NextResponse.json({ success: true, data: fallbackCache });
+        }
+        
         return NextResponse.json(
             { success: false, error: "Failed to compute top movers" },
             { status: 500 }
@@ -258,12 +289,10 @@ export async function GET() {
     }
 }
 
-// Export for testing purposes
 export { computeTopMovers };
 export type { TopMoversData, Mover, SparklinePoint };
 
-// Reset cache (for testing)
 export function __resetCache() {
-    cachedData = null;
-    cachedAt = 0;
+    memoryCache = null;
+    memoryCacheAt = 0;
 }

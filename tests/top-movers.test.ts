@@ -10,6 +10,7 @@ vi.mock("@/lib/db", () => ({
         item: { findMany: vi.fn() },
         priceSnapshot: { findMany: vi.fn() },
         appSettings: { findUnique: vi.fn() },
+        topMoversCache: { findUnique: vi.fn(), upsert: vi.fn() },
     },
 }));
 
@@ -73,7 +74,7 @@ describe("GET /api/market/top-movers", () => {
         mockResolveMarketProvider.mockReturnValue(makeMockProvider(new Map()) as never);
         mockItemFindMany.mockResolvedValue([]);
 
-        const result = await computeTopMovers();
+        const result = await computeTopMovers(null);
 
         expect(result.gainers).toEqual([]);
         expect(result.losers).toEqual([]);
@@ -93,7 +94,7 @@ describe("GET /api/market/top-movers", () => {
             { price: 10.5, timestamp: hoursAgo(12) },
         ] as never);
 
-        const result = await computeTopMovers();
+        const result = await computeTopMovers(null);
 
         expect(result.gainers).toEqual([]);
         expect(result.losers).toEqual([]);
@@ -136,7 +137,7 @@ describe("GET /api/market/top-movers", () => {
             ]);
         }) as never);
 
-        const result = await computeTopMovers();
+        const result = await computeTopMovers(null);
 
         // Gainers sorted descending
         expect(result.gainers).toHaveLength(2);
@@ -166,7 +167,7 @@ describe("GET /api/market/top-movers", () => {
             { price: 100, timestamp: hoursAgo(1) },
         ] as never);
 
-        const result = await computeTopMovers();
+        const result = await computeTopMovers(null);
 
         expect(result.gainers).toHaveLength(0);
         expect(result.losers).toHaveLength(0);
@@ -200,7 +201,7 @@ describe("GET /api/market/top-movers", () => {
             ]);
         }) as never);
 
-        const result = await computeTopMovers();
+        const result = await computeTopMovers(null);
 
         expect(result.gainers).toHaveLength(5);
         expect(result.losers).toHaveLength(5);
@@ -221,7 +222,7 @@ describe("GET /api/market/top-movers", () => {
             { price: 120, timestamp: hoursAgo(1) },
         ] as never);
 
-        const result = await computeTopMovers();
+        const result = await computeTopMovers(null);
 
         expect(result.gainers).toHaveLength(1);
         expect(result.losers).toHaveLength(0);
@@ -245,7 +246,7 @@ describe("GET /api/market/top-movers", () => {
             { price: 100, timestamp: new Date(now) },
         ] as never);
 
-        const result = await computeTopMovers();
+        const result = await computeTopMovers(null);
 
         expect(result.gainers).toHaveLength(1);
         const sparkline = result.gainers[0].sparkline;
@@ -313,7 +314,7 @@ describe("GET /api/market/top-movers", () => {
             { price: 120, timestamp: hoursAgo(1) },
         ] as never);
 
-        const result = await computeTopMovers();
+        const result = await computeTopMovers(null);
 
         expect(result.source).toBe("csfloat");
         expect(result.gainers).toHaveLength(1);
@@ -335,7 +336,7 @@ describe("GET /api/market/top-movers", () => {
             },
         ] as never);
 
-        const result = await computeTopMovers();
+        const result = await computeTopMovers(null);
 
         expect(result.source).toBe("watchlist");
         expect(result.updatedAt).toBeDefined();
@@ -382,7 +383,7 @@ describe("GET /api/market/top-movers", () => {
             },
         ] as never);
 
-        const result = await computeTopMovers();
+        const result = await computeTopMovers(null);
 
         expect(result.source).toBe("watchlist");
         // Gainer: 100 -> 150 = +50%
@@ -401,7 +402,7 @@ describe("GET /api/market/top-movers", () => {
         mockResolveMarketProvider.mockReturnValue(null);
         mockItemFindMany.mockResolvedValue([] as never);
 
-        const result = await computeTopMovers();
+        const result = await computeTopMovers(null);
 
         expect(result.source).toBe("watchlist");
         expect(result.gainers).toEqual([]);

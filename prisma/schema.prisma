@@ -128,3 +128,11 @@ model AppSettings {
   googleRefreshToken String?
   googleTokenExpiry  DateTime?
 }
+
+model TopMoversCache {
+  id        String   @id @default("singleton")
+  gainers   String   // JSON array of top 5 gainers
+  losers    String   // JSON array of top 5 losers
+  source    String   @default("csfloat")
+  updatedAt DateTime @default(now())
+}

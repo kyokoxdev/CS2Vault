@@ -20,7 +20,9 @@ interface TopMoversProps {
   gainers: TopMover[];
   losers: TopMover[];
   isLoading?: boolean;
-  source?: 'pricempire' | 'watchlist';
+  source?: string;
+  cached?: boolean;
+  updatedAt?: string;
 }
 
 const itemVariants = {
@@ -28,7 +30,7 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
-export function TopMovers({ gainers, losers, isLoading = false, source }: TopMoversProps) {
+export function TopMovers({ gainers, losers, isLoading = false, source, cached, updatedAt }: TopMoversProps) {
   const router = useRouter();
   const reducedMotion = useReducedMotion();
 
@@ -41,6 +43,11 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
       e.preventDefault();
       handleItemClick(id);
     }
+  };
+
+  const formatUpdatedAt = (isoString: string) => {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const renderSkeletons = () => (
@@ -115,6 +122,11 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
       {source === 'watchlist' && (
         <div className={styles.fallbackNotice}>
           Live market data unavailable — showing watchlist items only
+        </div>
+      )}
+      {cached && updatedAt && source !== 'watchlist' && (
+        <div className={styles.cachedNotice}>
+          Showing cached data from {formatUpdatedAt(updatedAt)}
         </div>
       )}
       <div className={styles.container}>
