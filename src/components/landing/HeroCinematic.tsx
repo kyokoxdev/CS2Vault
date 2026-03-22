@@ -81,10 +81,17 @@ export default function HeroCinematic() {
         return tl;
     }, [prefersReducedMotion, hasAnimated]);
 
-    useGSAP(animateHero, [prefersReducedMotion, hasAnimated], containerRef);
+    useGSAP(
+        (ctx) => {
+            if (prefersReducedMotion || hasAnimated) return;
+            animateHero(ctx);
+        },
+        [prefersReducedMotion, hasAnimated],
+        containerRef
+    );
 
-    // Keep elements visible after animation completes OR if user prefers reduced motion
-    const staticVisible = (prefersReducedMotion || hasAnimated) ? { opacity: 1, transform: "none" } : undefined;
+    // Prevent ctx.revert() from hiding elements after animation completes
+    const staticVisible = (prefersReducedMotion || hasAnimated) ? { opacity: 1, transform: "none", visibility: "visible" as const } : { opacity: 0 };
 
     const backgroundLayers = [
         {
