@@ -83,7 +83,8 @@ export default function HeroCinematic() {
 
     useGSAP(animateHero, [prefersReducedMotion, hasAnimated], containerRef);
 
-    const staticVisible = prefersReducedMotion ? { opacity: 1, transform: "none" } : undefined;
+    // Keep elements visible after animation completes OR if user prefers reduced motion
+    const staticVisible = (prefersReducedMotion || hasAnimated) ? { opacity: 1, transform: "none" } : undefined;
 
     const backgroundLayers = [
         {
@@ -151,7 +152,7 @@ export default function HeroCinematic() {
                         className={styles.heroCinematicSubtitle}
                         style={staticVisible}
                     >
-                        Track prices, manage your portfolio, and get AI-powered insights for Counter-Strike 2 items.
+                        Stop guessing. Start knowing exactly what your skins are worth—and when to trade them.
                     </p>
 
                     {/* Beat 4: CTA */}

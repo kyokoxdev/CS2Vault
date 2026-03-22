@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import styles from './SteamItemImage.module.css';
 
 interface SteamItemImageProps {
-    imageUrl: string; // Full Steam CDN URL
+    imageUrl: string;
     alt: string;
     size?: 'sm' | 'md' | 'lg';
     className?: string;
@@ -17,27 +17,62 @@ const IMAGE_DIMENSIONS: Record<NonNullable<SteamItemImageProps['size']>, number>
     lg: 256,
 };
 
+const RARITY_GRADIENTS = [
+    'linear-gradient(135deg, #b28a00 0%, #4a3500 100%)', // Gold
+    'linear-gradient(135deg, #8847ff 0%, #3d1d6e 100%)', // Purple
+    'linear-gradient(135deg, #d32ce6 0%, #5c1362 100%)', // Pink
+    'linear-gradient(135deg, #4b69ff 0%, #1e2a66 100%)', // Blue
+    'linear-gradient(135deg, #eb4b4b 0%, #5c1e1e 100%)', // Red (covert)
+    'linear-gradient(135deg, #70b04a 0%, #2d4a1f 100%)', // Green
+    'linear-gradient(135deg, #5e98d9 0%, #25405c 100%)', // Light blue
+    'linear-gradient(135deg, #ade55c 0%, #4a5c26 100%)', // Lime
+];
+
 export const POPULAR_ITEMS = {
-    AK47_REDLINE: 'https://community.akamai.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV09-5lpKKqPrxN7LEm1Rd6dd2j6fA9Nyn2gTgqRI6Nmj0doaQdlJtMwrT-FK-wOnsgsC-tJ_BznZjsyEh5SvelQv330-5iC1cfA',
-    AWP_ASIIMOV: 'https://community.akamai.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot621FAR17PLfYQJD_9W7m5a0mvLwOq7c2D1Q7MBOhuDG_ZjKhFWmrBQ5fWGldoTBdFJoMgnW-QK_lebthpPpupnN1zI97eqJMvvG',
-    M4A4_HOWL: 'https://community.akamai.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpou-6kejhjxszFJQJD_9W0mIW0m_7zO6-fkm5D8fp9g-7J4bP5iUazrl07azj3JdDBJAQ3ZFzUqAO6k-7m0cDqucvIynZkvD5iuyh4RWpTAQ',
-    KARAMBIT_FADE: 'https://community.akamai.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpovbSsLQJf2PLacDBA5ciJlZG0mP74Nr_ummJW4NE_0u2R9I-g0FHn-0Q_Nz2iLYDHcwU6NFyF-lm5yO-515C87p_IwHMwpGB8srBcMDk0',
-    GLOCK_FADE: 'https://community.akamai.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposbaqKAxf0v73dC5K7eO3g5C0mvLwOq7c2G5Qvpdw3ejH94-k2FK1-BVpYW_3LYKWdwRsMgyGr1C-xLzxxcjrXJHx6Q',
-    DEAGLE_BLAZE: 'https://community.akamai.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposr-kLAtl7PLZTjlH_9mkgIW0m_7zO6-fxmpB18h0juDU-LP5gVO8vys5ZjigJIXEJ1Q6aVvRr1foxO_u1sXqvsjKy3Vnsngh5HmJnhCpwUYbZv-GJuk',
-    USPS_KILL_CONFIRMED: 'https://community.akamai.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpopbmkOVUw7PvRTi5K7_GJmImMn-O6YeDVk2VQ4NFOhuDG_ZjKhFWmrBQ5fWGldoTBdFJoMgnW-QK_lebth8To7snLyHFgs3Uu7CqOlxO-1hwffrJThqfOUUJMRPTJHwuFy_Y',
-    BUTTERFLY_DOPPLER: 'https://community.akamai.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpovbSsLQJf0ebcZThQ6tCvq4GFk8jzIb7IqWdQ-sJ0teXI8oThxlbjrkI9NWH3cYbAdQJtMw3V_wC8366x0p-u-JHWnq_VSEQ',
+    AK47_REDLINE: '',
+    AWP_ASIIMOV: '',
+    M4A4_HOWL: '',
+    KARAMBIT_FADE: '',
+    GLOCK_FADE: '',
+    DEAGLE_BLAZE: '',
+    USPS_KILL_CONFIRMED: '',
+    BUTTERFLY_DOPPLER: '',
 } as const;
+
+function PlaceholderFallback({ alt, gradient }: { alt: string; gradient: string }) {
+    const initials = alt
+        .split(/[\s|]+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(word => word[0]?.toUpperCase() || '')
+        .join('');
+
+    return (
+        <div className={styles.placeholderFallback} style={{ background: gradient }}>
+            <span className={styles.placeholderInitials}>{initials}</span>
+        </div>
+    );
+}
 
 export default function SteamItemImage({
     imageUrl,
     alt,
     size = 'md',
     className,
-    fallback = <div className={styles.fallback}>Image unavailable</div>,
+    fallback,
 }: SteamItemImageProps) {
     const [hasError, setHasError] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const imageDimension = IMAGE_DIMENSIONS[size];
+    
+    const gradientIndex = useMemo(() => {
+        let hash = 0;
+        for (let i = 0; i < alt.length; i++) {
+            hash = ((hash << 5) - hash) + alt.charCodeAt(i);
+            hash = hash & hash;
+        }
+        return Math.abs(hash) % RARITY_GRADIENTS.length;
+    }, [alt]);
 
     const handleError = () => {
         setHasError(true);
@@ -48,8 +83,11 @@ export default function SteamItemImage({
         setIsLoading(false);
     };
 
-    if (hasError) {
-        return <div className={`${styles.container} ${styles[size]} ${className || ''}`}>{fallback}</div>;
+    const showFallback = hasError || !imageUrl;
+    const fallbackContent = fallback || <PlaceholderFallback alt={alt} gradient={RARITY_GRADIENTS[gradientIndex]} />;
+
+    if (showFallback) {
+        return <div className={`${styles.container} ${styles[size]} ${className || ''}`}>{fallbackContent}</div>;
     }
 
     return (
