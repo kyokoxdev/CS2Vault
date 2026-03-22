@@ -6,6 +6,7 @@ import styles from "./TopMovers.module.css";
 import SparklineChart from "@/components/charts/SparklineChart";
 import { Badge } from "@/components/ui/Badge";
 import { useReducedMotion } from "@/hooks/useMediaQuery";
+import { FaChartLine } from "react-icons/fa";
 
 export interface TopMover {
   id: string;
@@ -50,6 +51,13 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
     </>
   );
 
+  const renderEmptySection = () => (
+    <div className={styles.sectionEmptyState}>
+      <FaChartLine className={styles.emptyIcon} />
+      <span>No significant movement</span>
+    </div>
+  );
+
   const renderCard = (item: TopMover, type: 'gainer' | 'loser', index: number) => {
     const isPositive = item.change24h > 0;
     const badgeVariant = isPositive ? "success" : "danger";
@@ -90,9 +98,17 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
     );
   };
 
-  if (!isLoading && gainers.length === 0 && losers.length === 0) {
-    return <div className={styles.emptyState}>No market data available</div>;
-  }
+  const renderGainersContent = () => {
+    if (isLoading) return renderSkeletons();
+    if (gainers.length === 0) return renderEmptySection();
+    return gainers.slice(0, 5).map((item, i) => renderCard(item, 'gainer', i));
+  };
+
+  const renderLosersContent = () => {
+    if (isLoading) return renderSkeletons();
+    if (losers.length === 0) return renderEmptySection();
+    return losers.slice(0, 5).map((item, i) => renderCard(item, 'loser', i));
+  };
 
   return (
     <>
@@ -104,11 +120,11 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
       <div className={styles.container}>
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Top Gainers</div>
-          {isLoading ? renderSkeletons() : gainers.slice(0, 5).map((item, i) => renderCard(item, 'gainer', i))}
+          {renderGainersContent()}
         </div>
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Top Losers</div>
-          {isLoading ? renderSkeletons() : losers.slice(0, 5).map((item, i) => renderCard(item, 'loser', i))}
+          {renderLosersContent()}
         </div>
       </div>
     </>

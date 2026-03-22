@@ -1,16 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { FaCheckCircle, FaTimesCircle, FaTimes, FaPlus, FaSpinner, FaSyncAlt } from "react-icons/fa";
 import { StatCard } from "@/components/ui/StatCard";
-import { WatchlistTable, type Item } from "@/components/market/WatchlistTable";
-import { AddItemPanel } from "@/components/market/AddItemPanel";
 import { TopMovers, type TopMover } from "@/components/market/TopMovers";
 import styles from "./MarketOverview.module.css";
 import { NewsFeed, type FeedItem } from "@/components/market/NewsFeed";
 import { Card } from "@/components/ui/Card";
-import { FallbackToast } from "@/components/ui/FallbackToast";
 
 interface SyncLog {
   id: number;
@@ -29,10 +25,8 @@ interface MarketSummary {
 }
 
 export default function MarketOverview() {
-  const [items, setItems] = useState<Item[]>([]);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
-  const [syncing, setSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState("");
+  const [watchedCount, setWatchedCount] = useState(0);
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
   const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[]; source?: 'pricempire' | 'watchlist' }>({ gainers: [], losers: [] });
   const [topMoversLoading, setTopMoversLoading] = useState(true);
@@ -48,37 +42,28 @@ export default function MarketOverview() {
 
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
-  const [itemsLoading, setItemsLoading] = useState(true);
-  const [fallbackInfo, setFallbackInfo] = useState<{
-    failureReason: string;
-    attemptedProvider: string;
-  } | null>(null);
-  // Add item state
-  const [showAddForm, setShowAddForm] = useState(false);
-  const initialSyncRef = useRef(false);
-  const dataFetchedRef = useRef(false);
-  const [addStatus, setAddStatus] = useState("");
 
-  const fetchData = useCallback(async () => {
+  const fetchWatchedCount = useCallback(async () => {
     try {
-      setItemsLoading(true);
-      const [itemsRes, syncRes] = await Promise.all([
-        fetch("/api/items?limit=100"),
-        fetch("/api/sync"),
-      ]);
-      const itemsData = await itemsRes.json();
-      const syncData = await syncRes.json();
-
-      if (itemsData.success) {
-        setItems(itemsData.data.items);
-      }
-      if (syncData.success) {
-        setSyncLogs(syncData.data.logs);
+      const res = await fetch("/api/items?limit=1");
+      const data = await res.json();
+      if (data.success) {
+        setWatchedCount(data.data.items.length > 0 ? data.data.total : 0);
       }
     } catch (err) {
-      console.error("Fetch error:", err);
-    } finally {
-      setItemsLoading(false);
+      console.warn("Watched count fetch error:", err);
+    }
+  }, []);
+
+  const fetchSyncLogs = useCallback(async () => {
+    try {
+      const res = await fetch("/api/sync");
+      const data = await res.json();
+      if (data.success) {
+        setSyncLogs(data.data.logs);
+      }
+    } catch (err) {
+      console.warn("Sync logs fetch error:", err);
     }
   }, []);
 
@@ -122,6 +107,7 @@ export default function MarketOverview() {
       setPortfolioLoading(false);
     }
   }, []);
+
   const fetchNewsFeed = useCallback(async () => {
     try {
       const res = await fetch("/api/market/news-feed?limit=20");
@@ -153,37 +139,6 @@ export default function MarketOverview() {
     }
   }, []);
 
-  const handleSync = useCallback(async (fallback?: string) => {
-    setSyncing(true);
-    setSyncStatus("Syncing...");
-    try {
-      const url = fallback ? `/api/sync?fallback=${fallback}` : "/api/sync";
-      const res = await fetch(url, { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        setSyncStatus(
-          `Synced ${data.data.itemCount} items in ${data.data.duration}ms`
-        );
-        setTimeout(() => setSyncStatus(""), 3000);
-        fetchData();
-
-        if (data.data?.fallbackAvailable && data.data?.failureReason) {
-          setFallbackInfo({
-            failureReason: data.data.failureReason,
-            attemptedProvider: data.data.attemptedProvider ?? "unknown",
-          });
-        }
-      } else {
-        setSyncStatus(`Failed: ${data.error}`);
-        setTimeout(() => setSyncStatus(""), 5000);
-      }
-    } catch (err) {
-      setSyncStatus(`Error: ${err}`);
-      setTimeout(() => setSyncStatus(""), 5000);
-    }
-    setSyncing(false);
-  }, [fetchData]);
-
   const { status: authStatus } = useSession();
 
   useEffect(() => {
@@ -197,21 +152,13 @@ export default function MarketOverview() {
   }, [authStatus, fetchPortfolioValue]);
 
   useEffect(() => {
-    if (!dataFetchedRef.current) {
-      dataFetchedRef.current = true;
-      fetchData();
-    }
+    fetchWatchedCount();
+    fetchSyncLogs();
     fetchMarketSummary();
     fetchTopMovers();
     fetchNewsFeed();
     fetchMarketCap();
-  }, [fetchData, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
-
-  useEffect(() => {
-    if (initialSyncRef.current) return;
-    initialSyncRef.current = true;
-    handleSync();
-  }, [handleSync]);
+  }, [fetchWatchedCount, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
   useEffect(() => {
     const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
@@ -220,7 +167,8 @@ export default function MarketOverview() {
 
     const intervalMs = intervalMin * 60 * 1000;
     const timer = setInterval(() => {
-      handleSync();
+      fetchWatchedCount();
+      fetchSyncLogs();
       fetchMarketSummary();
       fetchTopMovers();
       fetchNewsFeed();
@@ -228,60 +176,8 @@ export default function MarketOverview() {
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [fetchMarketSummary, handleSync, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
+  }, [fetchWatchedCount, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
-  async function handleAddItem(selected: {
-    hashName: string;
-    name: string;
-    category: string;
-    rarity: string | null;
-    exterior: string | null;
-    type: string | null;
-  }) {
-    setAddStatus("Adding...");
-    try {
-      const res = await fetch("/api/items", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          marketHashName: selected.hashName,
-          name: selected.name,
-          category: selected.category,
-          type: selected.type ?? undefined,
-          rarity: selected.rarity ?? undefined,
-          exterior: selected.exterior ?? undefined,
-          isWatched: true,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setAddStatus(`[OK] Added "${data.data.name}" to watchlist`);
-        fetchData();
-        setTimeout(() => setAddStatus(""), 3000);
-      } else {
-        setAddStatus(`[ERR] ${data.error}`);
-        setTimeout(() => setAddStatus(""), 5000);
-      }
-    } catch (err) {
-      setAddStatus(`[ERR] ${err}`);
-      setTimeout(() => setAddStatus(""), 5000);
-    }
-  }
-
-  async function handleToggleWatch(id: string, current: boolean) {
-    try {
-      await fetch(`/api/items/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isWatched: !current }),
-      });
-      fetchData();
-    } catch (err) {
-      console.error("Toggle error:", err);
-    }
-  }
-
-  const watchedCount = items.filter((i) => i.isWatched).length;
   const lastSync = syncLogs[0];
   
   const marketCapValue = pricempireMarketCap?.totalMarketCap
@@ -306,7 +202,6 @@ export default function MarketOverview() {
 
   return (
     <div className={styles.page}>
-      {/* Stats Grid */}
       <div className={styles.statsRow}>
         <Card padding="md">
           <div className={styles.statCardContent}>
@@ -358,82 +253,9 @@ export default function MarketOverview() {
         </Card>
       </div>
 
-      {/* Top Movers */}
       <TopMovers gainers={topMovers.gainers} losers={topMovers.losers} source={topMovers.source} isLoading={topMoversLoading} />
 
-      {/* Toolbar */}
-      <div className={styles.toolbar}>
-        <h3 className={styles.toolbarTitle}>Watchlist</h3>
-        <div className={styles.toolbarActions}>
-          {syncStatus && (
-            <span className={styles.statusMessage}>
-              {syncStatus}
-            </span>
-          )}
-          {addStatus && (
-            <span className={styles.statusMessage}>
-              {addStatus}
-            </span>
-          )}
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => setShowAddForm(!showAddForm)}
-          >
-            {showAddForm ? <>
-              <FaTimes style={{ fontSize: '0.875rem', marginRight: '4px' }} />
-              Cancel
-            </> : <>
-              <FaPlus style={{ fontSize: '0.875rem', marginRight: '4px' }} />
-              Add Item
-            </>}
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={() => handleSync()}
-            disabled={syncing}
-          >
-            {syncing ? <>
-              <FaSpinner style={{ fontSize: '0.875rem', marginRight: '4px', animation: 'spin 1s linear infinite' }} />
-              Syncing...
-            </> : <>
-              <FaSyncAlt style={{ fontSize: '0.875rem', marginRight: '4px' }} />
-              Sync Now
-            </>}
-          </button>
-        </div>
-      </div>
-
-      {/* Add Item Panel */}
-      {showAddForm && (
-        <AddItemPanel onAdd={handleAddItem} status={addStatus} />
-      )}
-
-      {/* Items Table */}
-      {itemsLoading ? (
-        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>Loading watchlist...</div>
-      ) : (
-        <WatchlistTable 
-          items={items} 
-          onToggleWatch={handleToggleWatch}
-        />
-      )}
-
-      {/* News Feed */}
       <NewsFeed items={feedItems} isLoading={feedLoading} />
-
-      {fallbackInfo && (
-        <FallbackToast
-          failureReason={fallbackInfo.failureReason}
-          attemptedProvider={fallbackInfo.attemptedProvider}
-          onApprove={() => {
-            setFallbackInfo(null);
-            handleSync("steam");
-          }}
-          onDismiss={() => setFallbackInfo(null)}
-        />
-      )}
     </div>
   );
 }

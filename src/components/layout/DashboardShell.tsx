@@ -15,7 +15,7 @@ import { useSession, signOut } from "next-auth/react";
 import {
     FaChartPie,
     FaWallet,
-    FaBoxOpen,
+    FaEye,
     FaRobot,
     FaCog,
     FaSteam,
@@ -26,6 +26,7 @@ import styles from './DashboardShell.module.css';
 
 const NAV_ITEMS = [
     { href: "/", label: "Market Overview", icon: <FaChartPie /> },
+    { href: "/watchlist", label: "Watchlist", icon: <FaEye /> },
     { href: "/portfolio", label: "Portfolio", icon: <FaWallet /> },
 ] as const;
 
@@ -36,6 +37,7 @@ const NAV_TOOLS = [
 
 const PAGE_TITLES: Record<string, string> = {
     "/": "Market Overview",
+    "/watchlist": "Watchlist",
     "/portfolio": "Portfolio",
     "/chat": "AI Insight",
     "/settings": "Settings",
@@ -74,7 +76,7 @@ export default function DashboardShell({
             <aside className={`${styles.sidebar}${sidebarOpen ? ` ${styles.open}` : ""}`}>
                 <div className={styles.sidebarBrand}>
                     <h1>CS2Vault</h1>
-                    <span className={styles.version}>v0.1</span>
+                    <span className={styles.version}>v0.3</span>
                 </div>
 
                 <nav className={styles.sidebarNav}>

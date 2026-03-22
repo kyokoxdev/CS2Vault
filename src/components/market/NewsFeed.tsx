@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { FaNewspaper, FaArrowUp, FaArrowDown } from "react-icons/fa";
+import { FaNewspaper, FaArrowUp, FaArrowDown, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import styles from "./NewsFeed.module.css";
 
 export interface FeedItem {
@@ -23,6 +24,7 @@ export interface FeedItem {
 interface NewsFeedProps {
   items: FeedItem[];
   isLoading?: boolean;
+  pageSize?: number;
 }
 
 function formatRelativeTime(timestamp: string): string {
@@ -36,7 +38,21 @@ function formatRelativeTime(timestamp: string): string {
   return `${days}d ago`;
 }
 
-export function NewsFeed({ items, isLoading }: NewsFeedProps) {
+export function NewsFeed({ items, isLoading, pageSize = 5 }: NewsFeedProps) {
+  const [currentPage, setCurrentPage] = useState(0);
+  
+  const totalPages = Math.ceil(items.length / pageSize);
+  const startIndex = currentPage * pageSize;
+  const visibleItems = items.slice(startIndex, startIndex + pageSize);
+
+  const handlePrevPage = () => {
+    setCurrentPage((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1));
+  };
+
   if (isLoading) {
     return (
       <section className={styles.container}>
@@ -45,8 +61,8 @@ export function NewsFeed({ items, isLoading }: NewsFeedProps) {
           <p className={styles.description}>Latest news and price movements</p>
         </div>
         <div className={styles.list}>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className={styles.skeleton} />
+          {Array.from({ length: pageSize }).map((_, i) => (
+            <div key={`skeleton-${i}`} className={styles.skeleton} />
           ))}
         </div>
       </section>
@@ -68,11 +84,38 @@ export function NewsFeed({ items, isLoading }: NewsFeedProps) {
   return (
     <section className={styles.container}>
       <div className={styles.header}>
-        <h2 className={styles.title}>Market Activity</h2>
-        <p className={styles.description}>Latest news and price movements</p>
+        <div className={styles.headerLeft}>
+          <h2 className={styles.title}>Market Activity</h2>
+          <p className={styles.description}>Latest news and price movements</p>
+        </div>
+        {totalPages > 1 && (
+          <div className={styles.pagination}>
+            <button
+              type="button"
+              className={styles.paginationButton}
+              onClick={handlePrevPage}
+              disabled={currentPage === 0}
+              aria-label="Previous page"
+            >
+              <FaChevronLeft />
+            </button>
+            <span className={styles.paginationInfo}>
+              {currentPage + 1} / {totalPages}
+            </span>
+            <button
+              type="button"
+              className={styles.paginationButton}
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages - 1}
+              aria-label="Next page"
+            >
+              <FaChevronRight />
+            </button>
+          </div>
+        )}
       </div>
       <ul className={styles.list}>
-        {items.map((item) => {
+        {visibleItems.map((item) => {
           const isNews = item.type === "news";
           const isPositive =
             item.type === "price_alert" && (item.meta?.priceChange ?? 0) > 0;

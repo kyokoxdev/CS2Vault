@@ -90,6 +90,23 @@
   margin-bottom: 24px;
 }
 
+.sectionEmptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: var(--text-secondary-60);
+  font-size: 12px;
+  text-align: center;
+}
+
+.emptyIcon {
+  font-size: 24px;
+  opacity: 0.4;
+}
+
 .fallbackNotice {
   color: var(--text-secondary-60);
   font-size: 12px;

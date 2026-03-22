@@ -8,9 +8,17 @@
 }
 
 .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   padding: 16px;
   border-bottom: 1px solid var(--border-primary);
   background: var(--surface-2);
+}
+
+.headerLeft {
+  display: flex;
+  flex-direction: column;
 }
 
 .title {
@@ -142,6 +150,46 @@
   padding: 40px;
   color: var(--text-secondary-60);
   font-size: 12px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.paginationButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  color: var(--text-secondary-60);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 10px;
+}
+
+.paginationButton:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary-90);
+  border-color: var(--border-secondary);
+}
+
+.paginationButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.paginationInfo {
+  font-size: 11px;
+  color: var(--text-secondary-60);
+  font-family: var(--font-mono);
+  min-width: 40px;
+  text-align: center;
 }
 
 @media (max-width: 480px) {
