@@ -115,18 +115,19 @@ model MarketCapSnapshot {
 }
 
 model AppSettings {
-  id                 String    @id @default("singleton")
-  activeMarketSource String    @default("csfloat")
-  csgotraderSubProvider String @default("csfloat")
-  activeAIProvider   String    @default("gemini-pro")
-  openAiApiKey       String?
-  geminiApiKey       String?
-  csfloatApiKey      String?
-  syncIntervalMin    Int       @default(5)
-  watchlistOnly      Boolean   @default(true)
-  googleAccessToken  String?
-  googleRefreshToken String?
-  googleTokenExpiry  DateTime?
+  id                      String    @id @default("singleton")
+  activeMarketSource      String    @default("csfloat")
+  csgotraderSubProvider   String    @default("csfloat")
+  activeAIProvider        String    @default("gemini-pro")
+  openAiApiKey            String?
+  geminiApiKey            String?
+  csfloatApiKey           String?
+  syncIntervalMin         Int       @default(5)
+  priceRefreshIntervalMin Int       @default(15)
+  watchlistOnly           Boolean   @default(true)
+  googleAccessToken       String?
+  googleRefreshToken      String?
+  googleTokenExpiry       DateTime?
 }
 
 model TopMoversCache {

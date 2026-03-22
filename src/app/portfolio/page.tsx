@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import styles from "./Portfolio.module.css";
 import { PortfolioFilters } from "@/components/portfolio/PortfolioFilters";
 import { StatCard } from "@/components/ui/StatCard";
@@ -89,8 +89,7 @@ export default function PortfolioPage() {
     attemptedProvider: string;
     source: "sync" | "prices";
   } | null>(null);
-
-  const initialSyncRef = useRef(false);
+  const [priceRefreshIntervalMin, setPriceRefreshIntervalMin] = useState(15);
 
   const fetchPortfolio = useCallback(async () => {
     try {
@@ -148,12 +147,6 @@ export default function PortfolioPage() {
     setSyncing(false);
   }, [fetchPortfolio]);
 
-  useEffect(() => {
-    if (initialSyncRef.current) return;
-    initialSyncRef.current = true;
-    void handleSync();
-  }, [handleSync]);
-
   const handleRefreshPrices = useCallback(async (fallback?: string) => {
     setRefreshingPrices(true);
     setSyncStatus("Refreshing prices...");
@@ -184,17 +177,26 @@ export default function PortfolioPage() {
   }, [fetchPortfolio]);
 
   useEffect(() => {
-    const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
-    const intervalMin = rawInterval ? Number.parseInt(rawInterval, 10) : 5;
-    if (!Number.isFinite(intervalMin) || intervalMin <= 0) return;
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.priceRefreshIntervalMin) {
+          setPriceRefreshIntervalMin(data.priceRefreshIntervalMin);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
-    const intervalMs = intervalMin * 60 * 1000;
+  useEffect(() => {
+    if (priceRefreshIntervalMin <= 0) return;
+
+    const intervalMs = priceRefreshIntervalMin * 60 * 1000;
     const timer = setInterval(() => {
       handleRefreshPrices();
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [handleRefreshPrices]);
+  }, [handleRefreshPrices, priceRefreshIntervalMin]);
 
   const handleUpdatePrice = useCallback(async (itemId: string) => {
     const price = parseFloat(editPrice);

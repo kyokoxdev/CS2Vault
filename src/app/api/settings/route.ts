@@ -11,6 +11,7 @@ const settingsSchema = z.object({
     csgotraderSubProvider: z.enum(["csgotrader", "bitskins", "steam", "csmoney", "csgotm", "lootfarm", "skinport", "csgoempire", "swapgg", "buff163", "cstrade", "csfloat", "youpin", "lisskins"]).optional(),
     activeAIProvider: z.enum(["gemini-pro", "gemini-flash", "openai"]).optional(),
     syncIntervalMin: z.number().int().min(1).max(1440).optional(),
+    priceRefreshIntervalMin: z.number().int().min(1).max(1440).optional(),
     openAiApiKey: z.string().max(256).optional(),
     geminiApiKey: z.string().max(256).optional(),
     csfloatApiKey: z.string().max(256).optional(),
@@ -44,11 +45,11 @@ export async function GET() {
         });
 
         if (!settings) {
-            // Return defaults if not created yet
             return NextResponse.json({
                 activeMarketSource: "csfloat",
                 activeAIProvider: "gemini-pro",
                 syncIntervalMin: 5,
+                priceRefreshIntervalMin: 15,
                 csgotraderSubProvider: "csfloat",
                 openAiApiKey: "",
                 geminiApiKey: "",
@@ -56,12 +57,12 @@ export async function GET() {
             });
         }
 
-        // Return settings (send empty strings instead of null for UI forms)
         return NextResponse.json({
             activeMarketSource: settings.activeMarketSource,
             csgotraderSubProvider: settings.csgotraderSubProvider ?? "csfloat",
             activeAIProvider: settings.activeAIProvider,
             syncIntervalMin: settings.syncIntervalMin,
+            priceRefreshIntervalMin: settings.priceRefreshIntervalMin ?? 15,
             openAiApiKey: maskApiKey(settings.openAiApiKey),
             geminiApiKey: maskApiKey(settings.geminiApiKey),
             csfloatApiKey: maskApiKey(settings.csfloatApiKey),
@@ -103,6 +104,7 @@ export async function PATCH(request: Request) {
             activeMarketSource,
             activeAIProvider,
             syncIntervalMin,
+            priceRefreshIntervalMin,
             openAiApiKey,
             geminiApiKey,
             csfloatApiKey,
@@ -131,6 +133,7 @@ export async function PATCH(request: Request) {
                 activeMarketSource,
                 activeAIProvider,
                 syncIntervalMin,
+                priceRefreshIntervalMin,
 				...(resolvedOpenAi !== undefined && { openAiApiKey: resolvedOpenAi }),
 				...(resolvedGemini !== undefined && { geminiApiKey: resolvedGemini }),
 				...(resolvedCsfloat !== undefined && { csfloatApiKey: resolvedCsfloat }),
@@ -141,6 +144,7 @@ export async function PATCH(request: Request) {
                 activeMarketSource: activeMarketSource ?? "csfloat",
                 activeAIProvider: activeAIProvider ?? "gemini-pro",
                 syncIntervalMin: syncIntervalMin ?? 5,
+                priceRefreshIntervalMin: priceRefreshIntervalMin ?? 15,
 				openAiApiKey: resolvedOpenAi ?? null,
 				geminiApiKey: resolvedGemini ?? null,
 				csfloatApiKey: resolvedCsfloat ?? null,
@@ -159,6 +163,7 @@ export async function PATCH(request: Request) {
             activeMarketSource: updated.activeMarketSource,
             activeAIProvider: updated.activeAIProvider,
             syncIntervalMin: updated.syncIntervalMin,
+            priceRefreshIntervalMin: updated.priceRefreshIntervalMin ?? 15,
             openAiApiKey: maskApiKey(updated.openAiApiKey),
             geminiApiKey: maskApiKey(updated.geminiApiKey),
             csfloatApiKey: maskApiKey(updated.csfloatApiKey),

@@ -33,8 +33,9 @@ export default function MarketOverview() {
   const [portfolioValue, setPortfolioValue] = useState<number | null>(null);
   const [portfolioLoading, setPortfolioLoading] = useState(true);
 
-  const [pricempireMarketCap, setPricempireMarketCap] = useState<{
+  const [csgotraderMarketCap, setCsgotraderMarketCap] = useState<{
     totalMarketCap: number | null;
+    itemCount?: number;
     provider: string;
     source?: string;
     status: string;
@@ -133,9 +134,10 @@ export default function MarketOverview() {
       const res = await fetch("/api/market/market-cap");
       const data = await res.json();
       if (data.success) {
-        setPricempireMarketCap({
+        setCsgotraderMarketCap({
           totalMarketCap: data.data?.totalMarketCap ?? null,
-          provider: data.data?.provider ?? "pricempire",
+          itemCount: data.data?.itemCount,
+          provider: data.data?.provider ?? "csgotrader-csfloat",
           source: data.data?.source,
           status: data.status ?? "ok",
         });
@@ -186,20 +188,20 @@ export default function MarketOverview() {
 
   const lastSync = syncLogs[0];
   
-  const marketCapValue = pricempireMarketCap?.totalMarketCap
-    ? `$${pricempireMarketCap.totalMarketCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+  const marketCapValue = csgotraderMarketCap?.totalMarketCap
+    ? `$${csgotraderMarketCap.totalMarketCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : marketSummary?.marketCapUsd
       ? `$${marketSummary.marketCapUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
       : "N/A";
     
-  const marketCapSubLabel = pricempireMarketCap?.totalMarketCap
-    ? pricempireMarketCap.source === "snapshot"
-      ? "Source: Pricempire (cached)"
-      : "Source: Pricempire"
+  const marketCapSubLabel = csgotraderMarketCap?.totalMarketCap
+    ? csgotraderMarketCap.itemCount
+      ? `Source: CSGOTrader CSFloat • ${csgotraderMarketCap.itemCount.toLocaleString()} items`
+      : "Source: CSGOTrader CSFloat"
     : marketSummary?.marketCapUsd
       ? `Source: CSFloat${marketSummary.sampleSize ? ` \u2022 ${marketSummary.sampleSize} items` : ""}`
-      : pricempireMarketCap?.status === "missing_key"
-        ? "Pricempire API key required"
+      : csgotraderMarketCap?.status === "no_data"
+        ? "Waiting for daily calculation"
         : marketSummary?.status === "missing_key"
           ? "Set CSFLOAT_API_KEY"
           : marketSummary?.status === "error"
