@@ -4,6 +4,150 @@ const CSGOTRADER_CSFLOAT_URL = "https://prices.csgotrader.app/latest/csfloat.jso
 const PROVIDER_NAME = "csgotrader-csfloat";
 const CACHE_MAX_AGE_HOURS = 25;
 
+/**
+ * Hidden value factor applied to final market cap calculation.
+ * Accounts for items not captured in primary data sources.
+ */
+const HIDDEN_VALUE_FACTOR = 1.22;
+
+/**
+ * Weighted multipliers by item rarity/grade.
+ * Formula: market_cap = sum(price × weight) × HIDDEN_VALUE_FACTOR
+ */
+
+// Weapon/Skin rarity weights
+const WEAPON_RARITY_WEIGHTS: Record<string, number> = {
+    "consumer grade": 5_000_000,
+    "industrial grade": 1_200_000,
+    "mil-spec": 700_000,
+    "milspec": 700_000,
+    "mil-spec grade": 700_000,
+    "restricted": 140_000,
+    "classified": 28_000,
+    "covert": 4_800,
+    "extraordinary": 1_350,
+    "contraband": 2_900,
+};
+
+// Sticker rarity weights
+const STICKER_RARITY_WEIGHTS: Record<string, number> = {
+    "high grade": 8_000_000,
+    "remarkable": 1_500_000,
+    "exotic": 400_000,
+    "extraordinary": 80_000,
+};
+
+// Case category weights
+const CASE_WEIGHTS = {
+    ACTIVE_DROP: 45_000_000,
+    RARE_DROP: 1_500_000,
+    OPERATION: 800_000,
+    ARMORY: 8_000_000,
+};
+
+// Active dropping cases (current drop pool)
+const ACTIVE_DROP_CASES = new Set([
+    "sealed dead hand terminal",
+    "sealed genesis terminal",
+    "kilowatt case",
+    "revolution case",
+    "dreams & nightmares case",
+]);
+
+// Armory cases
+const ARMORY_CASES = new Set([
+    "fever case",
+    "gallery case",
+]);
+
+type ItemCategory = "weapon" | "sticker" | "case" | "other";
+type CaseType = "active" | "armory" | "operation" | "rare";
+
+interface ItemClassification {
+    category: ItemCategory;
+    rarity: string | null;
+    caseType: CaseType | null;
+}
+
+function classifyItem(marketHashName: string): ItemClassification {
+    const name = marketHashName.toLowerCase();
+    
+    if (name.includes("sticker |")) {
+        const rarity = detectStickerRarity(name);
+        return { category: "sticker", rarity, caseType: null };
+    }
+    
+    if (name.includes("case") || name.includes("terminal")) {
+        const caseType = classifyCase(name);
+        return { category: "case", rarity: null, caseType };
+    }
+    
+    const rarity = detectWeaponRarity(name);
+    return { category: "weapon", rarity, caseType: null };
+}
+
+function detectWeaponRarity(name: string): string | null {
+    if (name.includes("consumer grade")) return "consumer grade";
+    if (name.includes("industrial grade")) return "industrial grade";
+    if (name.includes("mil-spec") || name.includes("milspec")) return "mil-spec";
+    if (name.includes("restricted")) return "restricted";
+    if (name.includes("classified")) return "classified";
+    if (name.includes("covert")) return "covert";
+    if (name.includes("contraband")) return "contraband";
+    if (name.includes("extraordinary")) return "extraordinary";
+    
+    if (name.includes("(factory new)") || name.includes("(minimal wear)") ||
+        name.includes("(field-tested)") || name.includes("(well-worn)") ||
+        name.includes("(battle-scarred)")) {
+        return "mil-spec";
+    }
+    
+    return null;
+}
+
+function detectStickerRarity(name: string): string | null {
+    if (name.includes("(holo)") || name.includes("(foil)") || name.includes("(gold)")) {
+        return "extraordinary";
+    }
+    if (name.includes("(glitter)")) {
+        return "exotic";
+    }
+    if (name.includes("(lenticular)")) {
+        return "remarkable";
+    }
+    return "high grade";
+}
+
+function classifyCase(name: string): CaseType {
+    if (ACTIVE_DROP_CASES.has(name)) return "active";
+    if (ARMORY_CASES.has(name)) return "armory";
+    if (name.includes("operation")) return "operation";
+    return "rare";
+}
+
+function getWeightForItem(classification: ItemClassification): number {
+    const { category, rarity, caseType } = classification;
+    
+    switch (category) {
+        case "sticker":
+            return rarity ? (STICKER_RARITY_WEIGHTS[rarity] ?? STICKER_RARITY_WEIGHTS["high grade"]) : STICKER_RARITY_WEIGHTS["high grade"];
+        
+        case "case":
+            switch (caseType) {
+                case "active": return CASE_WEIGHTS.ACTIVE_DROP;
+                case "armory": return CASE_WEIGHTS.ARMORY;
+                case "operation": return CASE_WEIGHTS.OPERATION;
+                default: return CASE_WEIGHTS.RARE_DROP;
+            }
+        
+        case "weapon":
+            return rarity ? (WEAPON_RARITY_WEIGHTS[rarity] ?? WEAPON_RARITY_WEIGHTS["mil-spec"]) : WEAPON_RARITY_WEIGHTS["mil-spec"];
+        
+        default:
+            return WEAPON_RARITY_WEIGHTS["mil-spec"];
+    }
+}
+
 export interface MarketCapData {
     totalMarketCap: number;
     itemCount: number;
@@ -65,11 +209,12 @@ export async function getMarketCap(): Promise<MarketCapResult> {
 }
 
 /**
- * Calculate market cap from CSGOTrader csfloat.json.
+ * Calculate market cap from CSGOTrader csfloat.json using weighted formula.
+ * Formula: market_cap = sum(price × weight) × HIDDEN_VALUE_FACTOR
  * ONLY called by cron job - loads full 10MB JSON which is acceptable in isolated cron execution.
  */
 export async function calculateAndStoreMarketCap(): Promise<MarketCapResult> {
-    console.info("[Market Cap Cron] Starting calculation from CSGOTrader csfloat.json");
+    console.info("[Market Cap Cron] Starting weighted calculation from CSGOTrader csfloat.json");
     const startTime = Date.now();
 
     try {
@@ -84,20 +229,27 @@ export async function calculateAndStoreMarketCap(): Promise<MarketCapResult> {
 
         const data: Record<string, { price: number | null }> = await response.json();
 
-        let totalMarketCap = 0;
+        let weightedSum = 0;
         let itemCount = 0;
 
-        for (const entry of Object.values(data)) {
+        for (const [marketHashName, entry] of Object.entries(data)) {
             const price = entry?.price;
-            if (typeof price === "number" && Number.isFinite(price) && price > 0) {
-                totalMarketCap += price;
-                itemCount++;
+            if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
+                continue;
             }
+            
+            const classification = classifyItem(marketHashName);
+            const weight = getWeightForItem(classification);
+            
+            weightedSum += price * weight;
+            itemCount++;
         }
+
+        const totalMarketCap = weightedSum * HIDDEN_VALUE_FACTOR;
 
         const duration = Date.now() - startTime;
         console.info(
-            `[Market Cap Cron] Calculated: $${totalMarketCap.toLocaleString()} from ${itemCount} items in ${duration}ms`
+            `[Market Cap Cron] Calculated: $${totalMarketCap.toLocaleString()} from ${itemCount} items (weighted × ${HIDDEN_VALUE_FACTOR}) in ${duration}ms`
         );
 
         const snapshot = await prisma.marketCapSnapshot.create({
