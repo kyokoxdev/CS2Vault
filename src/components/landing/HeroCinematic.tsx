@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useCallback, useState, useEffect } from "react";
-import { gsap, useGSAP } from "@/lib/gsap";
+import { useRef, useState, useEffect, useLayoutEffect } from "react";
+import gsap from "gsap";
 import styles from "@/app/startup/Landing.module.css";
 import ParallaxSection from "./ParallaxSection";
 import DataReveal from "./DataReveal";
@@ -26,8 +26,9 @@ export default function HeroCinematic() {
     const statsRef = useRef<HTMLDivElement>(null);
     const subtitleRef = useRef<HTMLParagraphElement>(null);
     const ctaRef = useRef<HTMLDivElement>(null);
+    const hasAnimatedRef = useRef(false);
     const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-    const [hasAnimated, setHasAnimated] = useState(false);
+    const [animationComplete, setAnimationComplete] = useState(false);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -39,59 +40,51 @@ export default function HeroCinematic() {
         return () => mq.removeEventListener("change", handler);
     }, []);
 
-    const animateHero = useCallback((ctx: gsap.Context) => {
-        if (prefersReducedMotion || hasAnimated) return;
+    // Animation runs once, no cleanup to prevent ctx.revert() from hiding animated elements
+    useLayoutEffect(() => {
+        if (typeof window === "undefined") return;
+        if (prefersReducedMotion || hasAnimatedRef.current) return;
         
-        const tl = gsap.timeline({
-            onComplete: () => setHasAnimated(true),
-        });
+        hasAnimatedRef.current = true;
+        
+        const ctx = gsap.context(() => {
+            const tl = gsap.timeline({
+                onComplete: () => setAnimationComplete(true),
+            });
 
-        // Beat 1 (0-1s): Title fade in with slight translate
-        tl.fromTo(
-            titleRef.current,
-            { opacity: 0, y: 40 },
-            { opacity: 1, y: 0, duration: 1, ease: "power3.out" },
-            0
-        );
+            tl.fromTo(
+                titleRef.current,
+                { opacity: 0, y: 40 },
+                { opacity: 1, y: 0, duration: 1, ease: "power3.out" },
+                0
+            );
 
-        // Beat 2 (1-2.5s): Data points reveal (staggered)
-        tl.fromTo(
-            ".hero-stat-item",
-            { opacity: 0, y: 30 },
-            { opacity: 1, y: 0, duration: 0.6, stagger: 0.25, ease: "power2.out" },
-            1
-        );
+            tl.fromTo(
+                ".hero-stat-item",
+                { opacity: 0, y: 30 },
+                { opacity: 1, y: 0, duration: 0.6, stagger: 0.25, ease: "power2.out" },
+                1
+            );
 
-        // Beat 3 (2.5-4s): Subtitle and value proposition appear
-        tl.fromTo(
-            subtitleRef.current,
-            { opacity: 0, y: 20 },
-            { opacity: 1, y: 0, duration: 1, ease: "power2.out" },
-            2.5
-        );
+            tl.fromTo(
+                subtitleRef.current,
+                { opacity: 0, y: 20 },
+                { opacity: 1, y: 0, duration: 1, ease: "power2.out" },
+                2.5
+            );
 
-        // Beat 4 (4-5s): CTA button emerges with emphasis
-        tl.fromTo(
-            ctaRef.current,
-            { opacity: 0, scale: 0.9 },
-            { opacity: 1, scale: 1, duration: 0.8, ease: "back.out(1.4)" },
-            4
-        );
+            tl.fromTo(
+                ctaRef.current,
+                { opacity: 0, scale: 0.9 },
+                { opacity: 1, scale: 1, duration: 0.8, ease: "back.out(1.4)" },
+                4
+            );
+        }, containerRef);
+    }, [prefersReducedMotion]);
 
-        return tl;
-    }, [prefersReducedMotion, hasAnimated]);
-
-    useGSAP(
-        (ctx) => {
-            if (prefersReducedMotion || hasAnimated) return;
-            animateHero(ctx);
-        },
-        [prefersReducedMotion, hasAnimated],
-        containerRef
-    );
-
-    // Prevent ctx.revert() from hiding elements after animation completes
-    const staticVisible = (prefersReducedMotion || hasAnimated) ? { opacity: 1, transform: "none", visibility: "visible" as const } : { opacity: 0 };
+    const staticVisible = (prefersReducedMotion || animationComplete) 
+        ? { opacity: 1, transform: "none" } 
+        : undefined;
 
     const backgroundLayers = [
         {
@@ -114,7 +107,6 @@ export default function HeroCinematic() {
                 data-testid="hero-cinematic"
             >
                 <div className={styles.heroCinematicContent}>
-                    {/* Beat 1: Title */}
                     <h1
                         ref={titleRef}
                         className={styles.heroCinematicTitle}
@@ -125,7 +117,6 @@ export default function HeroCinematic() {
                         <span className={styles.heroCinematicTitleAccent}>Intelligence Hub</span>
                     </h1>
 
-                    {/* Beat 2: Stats */}
                     <div
                         ref={statsRef}
                         className={styles.heroCinematicStats}
@@ -153,7 +144,6 @@ export default function HeroCinematic() {
                         ))}
                     </div>
 
-                    {/* Beat 3: Subtitle */}
                     <p
                         ref={subtitleRef}
                         className={styles.heroCinematicSubtitle}
@@ -162,7 +152,6 @@ export default function HeroCinematic() {
                         Stop guessing. Start knowing exactly what your skins are worth—and when to trade them.
                     </p>
 
-                    {/* Beat 4: CTA */}
                     <div
                         ref={ctaRef}
                         className={styles.heroCinematicCta}

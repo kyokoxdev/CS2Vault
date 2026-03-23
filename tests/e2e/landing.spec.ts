@@ -83,6 +83,28 @@ test.describe('Landing Page E2E Tests', () => {
         });
     });
 
+    test('hero content should remain visible after animation completes', async ({ page }) => {
+        const heroCta = page.locator('[data-testid="hero-cta"]');
+        await expect(heroCta).toBeVisible({ timeout: 6000 });
+
+        await page.waitForTimeout(2000);
+
+        const heroTitle = page.locator('[data-testid="hero-cinematic"] h1');
+        await expect(heroTitle).toBeVisible();
+        
+        const heroStats = page.locator('[data-testid="hero-stats"]');
+        await expect(heroStats).toBeVisible();
+        
+        await expect(heroCta).toBeVisible();
+        
+        const steamButton = page.locator('[data-testid="steam-login-button"]').first();
+        await expect(steamButton).toBeVisible();
+
+        await page.screenshot({ 
+            path: path.join(EVIDENCE_DIR, 'hero-content-persists.png') 
+        });
+    });
+
     test.describe('Responsive Behavior', () => {
         test('should render correctly on mobile (375px)', async ({ page }) => {
             await page.setViewportSize(VIEWPORTS.mobile);
