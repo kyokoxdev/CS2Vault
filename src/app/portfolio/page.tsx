@@ -180,7 +180,7 @@ export default function PortfolioPage() {
     fetch("/api/settings")
       .then((res) => res.json())
       .then((data) => {
-        if (data.priceRefreshIntervalMin) {
+        if (data.success && data.priceRefreshIntervalMin) {
           setPriceRefreshIntervalMin(data.priceRefreshIntervalMin);
         }
       })
@@ -481,17 +481,17 @@ export default function PortfolioPage() {
           <div className={styles.summaryRow}>
             <StatCard
               label="Total Value"
-              value={`$${totals!.totalCurrentValue.toFixed(2)}`}
+              value={`$${totals?.totalCurrentValue?.toFixed(2) ?? '0.00'}`}
               prefix=""
             />
             <StatCard
               label="Cost Basis"
-              value={totals!.totalAcquiredValue > 0 ? `$${totals!.totalAcquiredValue.toFixed(2)}` : "—"}
+              value={(totals?.totalAcquiredValue ?? 0) > 0 ? `$${totals?.totalAcquiredValue?.toFixed(2) ?? '0.00'}` : "—"}
             />
             <StatCard
               label="Unrealized P&L"
-              value={totals!.totalAcquiredValue > 0 ? `${totals!.unrealizedPnL >= 0 ? "+" : ""}$${totals!.unrealizedPnL.toFixed(2)}` : "—"}
-              change={totals!.unrealizedPnLPercent}
+              value={(totals?.totalAcquiredValue ?? 0) > 0 ? `${(totals?.unrealizedPnL ?? 0) >= 0 ? "+" : ""}$${totals?.unrealizedPnL?.toFixed(2) ?? '0.00'}` : "—"}
+              change={totals?.unrealizedPnLPercent ?? 0}
               prefix=""
             />
             <StatCard

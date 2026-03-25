@@ -18,7 +18,6 @@ export interface FallbackToastProps {
 
 export function FallbackToast({
   failureReason,
-  attemptedProvider,
   onApprove,
   onDismiss,
   autoCloseMs = 15000,

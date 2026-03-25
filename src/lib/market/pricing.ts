@@ -76,14 +76,6 @@ async function getPreferredMarketSource(
     return preferred;
 }
 
-async function resolveMarketProvider(
-    overrideSource?: MarketSource
-): Promise<MarketDataProvider> {
-    const preferred = await getPreferredMarketSource(overrideSource);
-
-    return getMarketProvider(preferred);
-}
-
 function getProviderLabel(provider: MarketSource): string {
     switch (provider) {
         case "csfloat":

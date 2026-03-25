@@ -34,7 +34,7 @@ export function WatchlistTable({
   let router: ReturnType<typeof useRouter> | null = null;
   try {
     router = useRouter();
-  } catch (e) {
+  } catch {
     // router is undefined in tests without context
   }
 

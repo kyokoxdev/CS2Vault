@@ -255,7 +255,7 @@ export default function MarketOverview() {
                   : "Never"}
             </div>
             <div className={styles.statSubtext}>
-               {lastSync ? `${lastSync.itemCount} items • ${lastSync.duration}ms` : ""}
+               {lastSync ? `${lastSync.itemCount} items • ${lastSync.duration != null ? lastSync.duration + 'ms' : '—'}` : ""}
             </div>
           </div>
         </Card>

@@ -54,8 +54,7 @@ export default function DashboardShell({
 
     const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
-    // Don't wrap the /test page in the shell
-    if (pathname === "/test" || pathname === "/startup") return <>{children}</>;
+    if (pathname === "/startup") return <>{children}</>;
 
     const pageTitle = PAGE_TITLES[pathname] ?? "CS2Vault";
     const isLoading = status === "loading";

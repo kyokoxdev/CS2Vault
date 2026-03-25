@@ -13,6 +13,8 @@ export default function SteamLoginButton() {
             <img
                 src="https://steamcommunity-a.akamaihd.net/public/images/signinthroughsteam/sits_01.png"
                 alt="Sign in through Steam"
+                width={180}
+                height={35}
                 className={styles.steamImage}
                 data-testid="steam-login-image"
             />
