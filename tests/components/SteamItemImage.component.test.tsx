@@ -48,7 +48,7 @@ describe('SteamItemImage', () => {
         img.dispatchEvent(new Event('error'));
 
         await waitFor(() => {
-            expect(screen.getByText('Image unavailable')).toBeDefined();
+            expect(screen.getByText('BI')).toBeDefined();
         });
     });
 

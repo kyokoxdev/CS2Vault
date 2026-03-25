@@ -4,13 +4,19 @@ import path from "path";
 export default defineConfig({
     test: {
         globals: true,
-        environment: "node",
+        environment: "jsdom",
+        setupFiles: ["./tests/setup-component.ts"],
         exclude: [
             "**/node_modules/**",
             "**/dist/**",
             "**/e2e/**",
             "**/*.spec.ts",
         ],
+        css: {
+            modules: {
+                classNameStrategy: "non-scoped",
+            },
+        },
     },
     resolve: {
         alias: {

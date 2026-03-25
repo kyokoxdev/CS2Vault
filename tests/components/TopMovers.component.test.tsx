@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { TopMovers, TopMover } from '../../src/components/market/TopMovers';
 import '../setup-component';
@@ -9,14 +9,6 @@ import '../setup-component';
 // Mock SparklineChart
 vi.mock('@/components/charts/SparklineChart', () => ({
   default: () => <div data-testid="sparkline" />,
-}));
-
-// Mock next/navigation
-const mockPush = vi.fn();
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
 }));
 
 describe('TopMovers Component', () => {
@@ -71,7 +63,7 @@ describe('TopMovers Component', () => {
 
   it('shows empty state when both arrays are empty and not loading', () => {
     render(<TopMovers gainers={[]} losers={[]} isLoading={false} />);
-    expect(screen.getByText(/No market data available/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/No significant movement/i)).toHaveLength(2);
   });
 
   it('renders sparkline for each card', () => {
@@ -82,12 +74,8 @@ describe('TopMovers Component', () => {
 
   it('navigates to item page on click', () => {
     render(<TopMovers gainers={mockGainers} losers={mockLosers} />);
-    const card = screen.getByText('AK-47 | Redline').closest('button');
-    if (card) {
-      fireEvent.click(card);
-      expect(mockPush).toHaveBeenCalledWith('/item/g1');
-    } else {
-      throw new Error('Card not found');
-    }
+    const card = screen.getByText('AK-47 | Redline').closest('a');
+    expect(card).toBeInTheDocument();
+    expect(card).toHaveAttribute('href', '/item/g1');
   });
 });

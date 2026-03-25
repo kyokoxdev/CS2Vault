@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextResponse } from "next/server";
 
 // Mock Prisma
 vi.mock("@/lib/db", () => ({
@@ -18,9 +19,8 @@ vi.mock("@/lib/db", () => ({
     },
 }));
 
-// Mock auth
-vi.mock("@/lib/auth/auth", () => ({
-    auth: vi.fn(),
+vi.mock("@/lib/auth/guard", () => ({
+    requireAuth: vi.fn(),
 }));
 
 // Mock revalidatePath
@@ -29,7 +29,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import { prisma } from "@/lib/db";
-import { auth } from "@/lib/auth/auth";
+import { requireAuth } from "@/lib/auth/guard";
 import { GET, PATCH } from "@/app/api/settings/route";
 
 // Helper to create mock settings with all required fields
@@ -60,32 +60,34 @@ const createMockSettings = (overrides: Partial<{
 
 // Helper to create mock session
 const createMockSession = (userId: string) => ({
-    user: { id: userId },
+    user: { id: userId, steamId: "76561198000000000", name: "Test User" },
     expires: new Date(Date.now() + 86400000).toISOString(),
+});
+
+const createUnauthResult = () => ({
+    session: null,
+    error: NextResponse.json(
+        { success: false, error: "Authentication required" },
+        { status: 401 }
+    ),
 });
 
 describe("Settings API", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         // Default: no session (unauthenticated)
-        vi.mocked(auth).mockResolvedValue(null as unknown as ReturnType<typeof auth>);
+        vi.mocked(requireAuth).mockResolvedValue(createUnauthResult());
     });
 
     describe("Auth Guard", () => {
         it("GET returns 401 when not authenticated in production", async () => {
-            // Force production mode check by ensuring no dev fallback
-            vi.mocked(auth).mockResolvedValue(null as unknown as ReturnType<typeof auth>);
-            vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
-
-            // In test env, the dev fallback may kick in, but we can test the auth flow
+            vi.mocked(requireAuth).mockResolvedValue(createUnauthResult());
             const response = await GET();
-            // If no user found even in dev fallback, should get 401
             expect(response.status).toBe(401);
         });
 
         it("PATCH returns 401 when not authenticated", async () => {
-            vi.mocked(auth).mockResolvedValue(null as unknown as ReturnType<typeof auth>);
-            vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+            vi.mocked(requireAuth).mockResolvedValue(createUnauthResult());
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(null);
 
             const request = new Request("http://localhost/api/settings", {
@@ -99,7 +101,7 @@ describe("Settings API", () => {
         });
 
         it("GET allows authenticated users", async () => {
-            vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+            vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(null);
 
             const response = await GET();
@@ -112,7 +114,7 @@ describe("Settings API", () => {
 
     describe("API Key Masking", () => {
         it("masks API keys in GET response", async () => {
-            vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+            vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
@@ -134,7 +136,7 @@ describe("Settings API", () => {
         });
 
         it("masks API keys in PATCH response", async () => {
-            vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+            vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(null);
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -161,7 +163,7 @@ describe("Settings API", () => {
 
     describe("Zod Validation", () => {
         beforeEach(() => {
-            vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+            vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(null);
         });
 
@@ -287,7 +289,7 @@ describe("Settings API", () => {
 
     describe("Masked API Key Protection", () => {
         it("does not overwrite key when masked value is sent back", async () => {
-            vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+            vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
@@ -316,7 +318,7 @@ describe("Settings API", () => {
         });
 
         it("saves new key value when different from masked", async () => {
-            vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+            vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
@@ -345,7 +347,7 @@ describe("Settings API", () => {
         });
 
         it("clears key when empty string is sent", async () => {
-            vi.mocked(auth).mockResolvedValue(createMockSession("user-123") as unknown as ReturnType<typeof auth>);
+            vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(

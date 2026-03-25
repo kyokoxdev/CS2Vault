@@ -87,8 +87,8 @@ describe('Portfolio Value auth-dependent fetching', () => {
       const url = getFetchUrl(input);
       const method = init?.method ?? 'GET';
 
-      if (url === '/api/items?limit=100') {
-        return makeResponse({ success: true, data: { items: [] } });
+      if (url === '/api/items?limit=1') {
+        return makeResponse({ success: true, data: { items: [], total: 0 } });
       }
 
       if (url === '/api/sync' && method === 'GET') {
@@ -117,6 +117,14 @@ describe('Portfolio Value auth-dependent fetching', () => {
         return makeResponse({
           success: true,
           data: { items: [], updatedAt: new Date().toISOString() },
+        });
+      }
+
+      if (url === '/api/market/market-cap') {
+        return makeResponse({
+          success: true,
+          status: 'error',
+          data: null,
         });
       }
 
@@ -155,7 +163,7 @@ describe('Portfolio Value auth-dependent fetching', () => {
     expect(screen.getByText('Login required')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/items?limit=100');
+      expect(fetch).toHaveBeenCalledWith('/api/items?limit=1');
     });
 
     const calledPortfolio = vi
@@ -172,7 +180,7 @@ describe('Portfolio Value auth-dependent fetching', () => {
     expect(screen.getByText('Loading...')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/items?limit=100');
+      expect(fetch).toHaveBeenCalledWith('/api/items?limit=1');
     });
   });
 });
