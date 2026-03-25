@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/lib/auth/auth";
+import { requireAuth } from "@/lib/auth/guard";
 import { chatWithFallback } from "@/lib/ai/registry";
 import { initAIProviders } from "@/lib/ai/init";
 import { buildMarketContext } from "@/lib/ai/context";
@@ -21,19 +21,10 @@ initAIProviders();
 
 export async function POST(request: NextRequest) {
     try {
-        const session = await auth();
-        let userId: string | undefined;
+        const { session, error: authError } = await requireAuth();
+        if (authError) return authError;
 
-        if (session?.user?.id) {
-            userId = session.user.id;
-        } else if (process.env.NODE_ENV === "development") {
-            const firstUser = await prisma.user.findFirst();
-            if (firstUser) userId = firstUser.id;
-        }
-
-        if (!userId) {
-            return new Response("Unauthorized", { status: 401 });
-        }
+        const userId = session.user.id;
 
         const body = await request.json();
         const { messages, provider } = ChatRequestSchema.parse(body);
@@ -80,7 +71,7 @@ export async function POST(request: NextRequest) {
                     if (fullAssistantResponse.trim()) {
                         await prisma.chatMessage.create({
                             data: {
-                                userId: userId!,
+                                userId,
                                 role: "assistant",
                                 content: fullAssistantResponse,
                             }

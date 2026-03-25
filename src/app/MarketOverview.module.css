@@ -7,6 +7,45 @@
   overflow: hidden;
 }
 
+.errorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background-color: var(--surface-2);
+  border: 1px solid var(--bear);
+  border-radius: 8px;
+  animation: fadeSlideIn 0.25s ease forwards;
+}
+
+.errorMessage {
+  font-size: 12px;
+  color: var(--bear);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.errorRetryBtn {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary-90);
+  background-color: transparent;
+  border: 1px solid var(--bear);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.errorRetryBtn:hover {
+  background-color: var(--bear);
+  color: #fff;
+}
+
 .statsRow {
   display: flex;
   flex-wrap: wrap;

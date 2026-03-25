@@ -577,3 +577,7 @@ button {
     max-height: 100% !important;
   }
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
