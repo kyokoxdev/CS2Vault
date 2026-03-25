@@ -45,6 +45,11 @@
   cursor: pointer;
 }
 
+.clickable:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: -2px;
+}
+
 .emptyCell {
   text-align: center;
   padding: 40px 16px;

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { RARITY_VARIANTS } from "@/lib/market/rarity";
 import styles from "./WatchlistTable.module.css";
 
 export interface Item {
@@ -82,7 +83,7 @@ export function WatchlistTable({
       width: "140px",
       render: (val) =>
         val ? (
-          <Badge variant="success" size="sm">
+          <Badge variant={RARITY_VARIANTS[String(val)] ?? "neutral"} size="sm">
             {String(val)}
           </Badge>
         ) : (
@@ -144,6 +145,7 @@ export function WatchlistTable({
       render: (_, item) => (
         <div className={styles.actionsCell}>
           <button
+            type="button"
             className="btn btn-ghost btn-sm"
             onClick={(e) => {
               e.stopPropagation();

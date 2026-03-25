@@ -26,7 +26,7 @@ export function Card({
   const classes = `${styles.card} ${variantClass} ${paddingClass} ${interactiveClass} ${className || ''}`;
 
   const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if (onClick && e.key === 'Enter') {
+    if (onClick && (e.key === 'Enter' || e.key === ' ')) {
       onClick();
     }
   };

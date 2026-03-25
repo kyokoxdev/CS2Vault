@@ -136,9 +136,10 @@ export default function CandlestickChart({
         // Resize observer
         const ro = new ResizeObserver((entries) => {
             for (const entry of entries) {
-                if (chart) {
-                    chart.applyOptions({ width: entry.contentRect.width });
-                }
+                const currentChart = chartRef.current;
+                if (!currentChart) continue;
+
+                currentChart.applyOptions({ width: entry.contentRect.width });
             }
         });
         ro.observe(chartContainerRef.current);

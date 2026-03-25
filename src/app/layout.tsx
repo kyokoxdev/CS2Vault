@@ -36,6 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${jetbrains.variable}`}>
       <body>
+        <a href="#main-content" className="skip-link">Skip to content</a>
         <SessionProvider>
           <DashboardShell>{children}</DashboardShell>
         </SessionProvider>

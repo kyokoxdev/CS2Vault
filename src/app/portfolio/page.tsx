@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import styles from "./Portfolio.module.css";
 import { PortfolioFilters } from "@/components/portfolio/PortfolioFilters";
 import { StatCard } from "@/components/ui/StatCard";
@@ -90,6 +90,7 @@ export default function PortfolioPage() {
     source: "sync" | "prices";
   } | null>(null);
   const [priceRefreshIntervalMin, setPriceRefreshIntervalMin] = useState(15);
+  const refreshRef = useRef<((fallback?: string) => Promise<void>) | null>(null);
 
   const fetchPortfolio = useCallback(async () => {
     try {
@@ -176,6 +177,8 @@ export default function PortfolioPage() {
     setRefreshingPrices(false);
   }, [fetchPortfolio]);
 
+  refreshRef.current = handleRefreshPrices;
+
   useEffect(() => {
     fetch("/api/settings")
       .then((res) => res.json())
@@ -192,11 +195,11 @@ export default function PortfolioPage() {
 
     const intervalMs = priceRefreshIntervalMin * 60 * 1000;
     const timer = setInterval(() => {
-      handleRefreshPrices();
+      refreshRef.current?.();
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [handleRefreshPrices, priceRefreshIntervalMin]);
+  }, [priceRefreshIntervalMin]);
 
   const handleUpdatePrice = useCallback(async (itemId: string) => {
     const price = parseFloat(editPrice);

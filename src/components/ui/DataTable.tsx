@@ -3,7 +3,7 @@
  * Generic, typed data table with sticky headers, row hover, and loading states
  */
 
-import { ReactNode } from "react";
+import { type KeyboardEvent, ReactNode } from "react";
 import styles from "./DataTable.module.css";
 
 export interface Column<T> {
@@ -18,6 +18,7 @@ export interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
   onRowClick?: (row: T) => void;
+  getRowKey?: (row: T, index: number) => string | number;
   emptyMessage?: string;
   isLoading?: boolean;
 }
@@ -30,6 +31,7 @@ function SkeletonRows() {
   return (
     <>
       {Array.from({ length: 5 }).map((_, idx) => (
+        // eslint-disable-next-line react/no-array-index-key -- static skeleton placeholders, never reordered
         <tr key={`skeleton-${idx}`} className={styles.skeletonRow}>
           <td colSpan={9} className={styles.skeletonCell}>
             <div className={styles.shimmer}></div>
@@ -44,6 +46,7 @@ export function DataTable<T>({
   columns,
   data,
   onRowClick,
+  getRowKey,
   emptyMessage = "No data available",
   isLoading = false,
 }: DataTableProps<T>) {
@@ -78,9 +81,21 @@ export function DataTable<T>({
         ) : (
           data.map((row, idx) => (
             <tr
-              key={idx}
+              key={getRowKey ? getRowKey(row, idx) : idx}
               className={onRowClick ? styles.clickable : ""}
               onClick={() => onRowClick?.(row)}
+              {...(onRowClick
+                ? {
+                    tabIndex: 0,
+                    role: "button" as const,
+                    onKeyDown: (e: KeyboardEvent<HTMLTableRowElement>) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onRowClick(row);
+                      }
+                    },
+                  }
+                : {})}
             >
               {columns.map((col) => (
                 <td

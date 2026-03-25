@@ -153,7 +153,7 @@ export default function DashboardShell({
             </aside>
 
             {/* Main */}
-            <main className={styles.mainContent}>
+            <main id="main-content" className={styles.mainContent}>
                 <header className={styles.mainHeader}>
                     <button
                         type="button"

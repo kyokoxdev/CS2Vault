@@ -1,12 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import styles from "./TopMovers.module.css";
 import SparklineChart from "@/components/charts/SparklineChart";
 import { Badge } from "@/components/ui/Badge";
 import { useReducedMotion } from "@/hooks/useMediaQuery";
 import { FaChartLine } from "react-icons/fa";
+
+const MotionLink = motion(Link);
 
 export interface TopMover {
   id: string;
@@ -31,19 +33,7 @@ const itemVariants = {
 };
 
 export function TopMovers({ gainers, losers, isLoading = false, source, cached, updatedAt }: TopMoversProps) {
-  const router = useRouter();
   const reducedMotion = useReducedMotion();
-
-  const handleItemClick = (id: string) => {
-    router.push(`/item/${id}`);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent, id: string) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleItemClick(id);
-    }
-  };
 
   const formatUpdatedAt = (isoString: string) => {
     const date = new Date(isoString);
@@ -71,7 +61,6 @@ export function TopMovers({ gainers, losers, isLoading = false, source, cached, 
     const changeText = `${isPositive ? "+" : ""}${item.change24h.toFixed(2)}%`;
     const chartColor = type === 'gainer' ? "#00C076" : "#FF4D4F";
 
-    const CardWrapper = reducedMotion ? 'button' : motion.button;
     const motionProps = reducedMotion ? {} : {
       variants: itemVariants,
       initial: "hidden",
@@ -81,13 +70,33 @@ export function TopMovers({ gainers, losers, isLoading = false, source, cached, 
       whileTap: { scale: 0.99 },
     };
 
+    if (reducedMotion) {
+      return (
+        <Link
+          key={item.id}
+          href={`/item/${item.id}`}
+          className={styles.card}
+        >
+          <span className={styles.itemName} title={item.name}>{item.name}</span>
+          <span className={styles.itemPrice}>
+            ${item.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+          <Badge variant={badgeVariant} size="sm">{changeText}</Badge>
+          <SparklineChart 
+            data={item.sparkline} 
+            width={120} 
+            height={32} 
+            color={chartColor} 
+          />
+        </Link>
+      );
+    }
+
     return (
-      <CardWrapper
+      <MotionLink
         key={item.id}
-        type="button"
+        href={`/item/${item.id}`}
         className={styles.card}
-        onClick={() => handleItemClick(item.id)}
-        onKeyDown={(e: React.KeyboardEvent<HTMLButtonElement>) => handleKeyDown(e, item.id)}
         {...motionProps}
       >
         <span className={styles.itemName} title={item.name}>{item.name}</span>
@@ -101,7 +110,7 @@ export function TopMovers({ gainers, losers, isLoading = false, source, cached, 
           height={32} 
           color={chartColor} 
         />
-      </CardWrapper>
+      </MotionLink>
     );
   };
 

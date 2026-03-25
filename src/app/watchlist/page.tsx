@@ -19,7 +19,6 @@ export default function WatchlistPage() {
     attemptedProvider: string;
   } | null>(null);
   const initialSyncRef = useRef(false);
-  const dataFetchedRef = useRef(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -66,13 +65,6 @@ export default function WatchlistPage() {
       setTimeout(() => setSyncStatus(""), 5000);
     }
     setSyncing(false);
-  }, [fetchData]);
-
-  useEffect(() => {
-    if (!dataFetchedRef.current) {
-      dataFetchedRef.current = true;
-      fetchData();
-    }
   }, [fetchData]);
 
   useEffect(() => {
