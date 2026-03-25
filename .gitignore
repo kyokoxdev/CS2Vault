@@ -48,6 +48,7 @@ dev.db
 
 # internal dev tooling
 .sisyphus/
+session-ses_*.md
 
 # generated
 /src/generated/prisma
