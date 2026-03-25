@@ -60,10 +60,20 @@ export async function exchangeGoogleCode(
 
     const data = await res.json();
 
+    if (!data.refresh_token) {
+        throw new Error(
+            "Google did not return a refresh_token. " +
+            "Revoke app access at https://myaccount.google.com/permissions and reconnect."
+        );
+    }
+    if (!data.access_token) {
+        throw new Error("Google did not return an access_token.");
+    }
+
     return {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresAt: new Date(Date.now() + data.expires_in * 1000),
+        accessToken: data.access_token as string,
+        refreshToken: data.refresh_token as string,
+        expiresAt: new Date(Date.now() + (data.expires_in as number) * 1000),
     };
 }
 

@@ -21,15 +21,19 @@ export default function AIChat() {
     const [attachedImage, setAttachedImage] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
     const [historyLoading, setHistoryLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     // Initial load history
     useEffect(() => {
+        let active = true;
+        const controller = new AbortController();
         setHistoryLoading(true);
-        fetch("/api/chat/history")
+        fetch("/api/chat/history", { signal: controller.signal })
             .then(res => res.json())
             .then(data => {
+                if (!active) return;
                 if (data.success && data.data && data.data.length > 0) {
                     setMessages(data.data.map((m: { role: string; content: string }) => ({
                         role: m.role as "user" | "assistant",
@@ -43,14 +47,16 @@ export default function AIChat() {
                     }]);
                 }
             })
-            .catch(() => {
+            .catch((err) => {
+                if (!active || (err instanceof Error && err.name === "AbortError")) return;
                 // Show friendly error instead of technical details
                 setMessages([{
                     role: "assistant",
                     content: "Hello! I am your CS2 Market Agent.\nNote: Could not load chat history. You can still start a new conversation."
                 }]);
             })
-            .finally(() => setHistoryLoading(false));
+            .finally(() => { if (active) setHistoryLoading(false); });
+        return () => { active = false; controller.abort(); };
     }, []);
 
     const scrollToBottom = () => {
@@ -78,11 +84,18 @@ export default function AIChat() {
         // Placeholder for assistant message while streaming
         setMessages(prev => [...prev, { role: "assistant", content: "" }]);
 
+        // Cancel any in-flight request from a previous message
+        abortControllerRef.current?.abort();
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+        let mounted = true;
+
         try {
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ messages: [...messages, userMsg], provider }) // Send full context + override
+                body: JSON.stringify({ messages: [...messages, userMsg], provider }), // Send full context + override
+                signal: controller.signal,
             });
 
             if (!res.ok) throw new Error("API Error");
@@ -96,25 +109,36 @@ export default function AIChat() {
                 if (done) break;
 
                 const chunk = decoder.decode(value, { stream: true });
+                if (mounted) {
+                    setMessages(prev => {
+                        const next = [...prev];
+                        const lastIndex = next.length - 1;
+                        const lastMsg = next[lastIndex];
+                        if (lastMsg.role === "assistant") {
+                            next[lastIndex] = { ...lastMsg, content: lastMsg.content + chunk };
+                        }
+                        return next;
+                    });
+                }
+            }
+        } catch (error) {
+            // Ignore AbortError — user navigated away or sent a new message
+            if (error instanceof Error && error.name === 'AbortError') {
+                mounted = false;
+                setIsLoading(false);
+                return;
+            }
+            console.error("Chat error:", error);
+            if (mounted) {
                 setMessages(prev => {
                     const next = [...prev];
                     const lastIndex = next.length - 1;
-                    const lastMsg = next[lastIndex];
-                    if (lastMsg.role === "assistant") {
-                        next[lastIndex] = { ...lastMsg, content: lastMsg.content + chunk };
-                    }
+                    next[lastIndex] = { role: "assistant", content: "Sorry, I encountered an error while processing your request. Please check your AI provider settings and try again." };
                     return next;
                 });
             }
-        } catch (error) {
-            console.error("Chat error:", error);
-            setMessages(prev => {
-                const next = [...prev];
-                const lastIndex = next.length - 1;
-                next[lastIndex] = { role: "assistant", content: "Sorry, I encountered an error while processing your request. Please check your AI provider settings and try again." };
-                return next;
-            });
         } finally {
+            mounted = false;
             setIsLoading(false);
         }
     };

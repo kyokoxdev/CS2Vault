@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { requireAuth } from "@/lib/auth/guard";
 
 const UpdateSchema = z.object({
     acquiredPrice: z.number().min(0).optional(),
@@ -17,6 +18,9 @@ export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const { session: _s, error: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
         const { id } = await params;
         const body = await request.json();
@@ -61,6 +65,9 @@ export async function DELETE(
     _request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const { session: _s, error: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
         const { id } = await params;
 

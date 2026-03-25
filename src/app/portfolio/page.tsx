@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import styles from "./Portfolio.module.css";
 import { PortfolioFilters } from "@/components/portfolio/PortfolioFilters";
 import { StatCard } from "@/components/ui/StatCard";
@@ -90,6 +90,8 @@ export default function PortfolioPage() {
     source: "sync" | "prices";
   } | null>(null);
   const [priceRefreshIntervalMin, setPriceRefreshIntervalMin] = useState(15);
+  // Stable ref so the auto-refresh interval is never torn down by filter changes
+  const handleRefreshPricesRef = useRef<(() => void) | null>(null);
 
   const fetchPortfolio = useCallback(async () => {
     try {
@@ -175,6 +177,8 @@ export default function PortfolioPage() {
     }
     setRefreshingPrices(false);
   }, [fetchPortfolio]);
+  // Keep ref in sync so the interval always calls the latest version
+  handleRefreshPricesRef.current = () => handleRefreshPrices();
 
   useEffect(() => {
     fetch("/api/settings")
@@ -191,12 +195,14 @@ export default function PortfolioPage() {
     if (priceRefreshIntervalMin <= 0) return;
 
     const intervalMs = priceRefreshIntervalMin * 60 * 1000;
+    // Use ref so changing filters does not restart the timer
     const timer = setInterval(() => {
-      handleRefreshPrices();
+      handleRefreshPricesRef.current?.();
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [handleRefreshPrices, priceRefreshIntervalMin]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priceRefreshIntervalMin]);
 
   const handleUpdatePrice = useCallback(async (itemId: string) => {
     const price = parseFloat(editPrice);

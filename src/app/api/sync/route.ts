@@ -5,10 +5,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { triggerManualSync } from "@/lib/market/scheduler";
+import { requireAuth } from "@/lib/auth/guard";
 import { calculateAndStoreMarketCap, shouldRecalculate } from "@/lib/market/market-cap";
 import { getRecentSyncLogs } from "@/lib/market/sync";
 
 export async function POST(request: NextRequest) {
+    const { session: _s, error: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
         const fallbackParam = request.nextUrl.searchParams.get("fallback");
         const overrideSource = fallbackParam === "steam" ? "steam" as const : undefined;

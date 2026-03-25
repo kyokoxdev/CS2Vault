@@ -20,6 +20,14 @@ function getKey(): Buffer {
             "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
         );
     }
+    // AES-256-GCM requires exactly 32 bytes = 64 hex characters.
+    if (!/^[0-9a-fA-F]{64}$/.test(key)) {
+        throw new Error(
+            `TOKEN_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes). ` +
+            `Current length: ${key.length} characters. ` +
+            `Generate a valid key: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+        );
+    }
     return Buffer.from(key, "hex");
 }
 

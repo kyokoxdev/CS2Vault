@@ -31,12 +31,7 @@ export function WatchlistTable({
   onToggleWatch,
   onRowClick,
 }: WatchlistTableProps) {
-  let router: ReturnType<typeof useRouter> | null = null;
-  try {
-    router = useRouter();
-  } catch (e) {
-    // router is undefined in tests without context
-  }
+  const router = useRouter();
 
   const columns: Column<Item>[] = [
     {

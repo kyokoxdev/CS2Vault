@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { normalizeItemType, normalizeRarity } from "@/lib/market/rarity";
 import { z } from "zod";
+import { requireAuth } from "@/lib/auth/guard";
 
 const ItemQuerySchema = z.object({
     watched: z.enum(["true", "false", "all"]).optional(),
@@ -104,6 +105,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+    const { session: _s, error: authError } = await requireAuth();
+    if (authError) return authError;
+
     try {
         const body = await request.json();
         const data = AddItemSchema.parse(body);
