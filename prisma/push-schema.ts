@@ -1,13 +1,8 @@
-/**
- * Prisma CLI doesn't support libsql:// URLs — this script generates SQL via
- * `prisma migrate diff` and executes it against Turso via @libsql/client.
- *
- * Usage: npx tsx prisma/push-schema.ts
- */
-
 import dotenv from "dotenv";
-import { execSync } from "child_process";
+import { execSync, spawnSync } from "child_process";
 import { createClient } from "@libsql/client";
+import fs from "fs";
+import path from "path";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
@@ -25,16 +20,51 @@ async function main() {
     }
 
     console.log(`📡 Target: ${tursoUrl}`);
-    console.log("🔧 Generating SQL from Prisma schema...");
+    const client = createClient({ url: tursoUrl, authToken: tursoToken });
 
-    const sql = execSync(
-        "npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script",
-        { encoding: "utf-8", timeout: 30_000 }
-    ).trim();
+    const tempDbPath = path.join(process.cwd(), "prisma", ".turso-shadow.db");
+    if (fs.existsSync(tempDbPath)) fs.unlinkSync(tempDbPath);
 
-    if (!sql) {
-        console.error("❌ No SQL generated from prisma migrate diff");
+    console.log("📥 Dumping current Turso schema to shadow DB...");
+    const tables = await client.execute(
+        "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_%'"
+    );
+    const indexes = await client.execute(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND sql IS NOT NULL"
+    );
+
+    const shadowClient = createClient({ url: `file:${tempDbPath}` });
+    for (const row of tables.rows) {
+        if (row.sql) await shadowClient.execute(row.sql as string);
+    }
+    for (const row of indexes.rows) {
+        if (row.sql) {
+            try { await shadowClient.execute(row.sql as string); } catch { /* ignore */ }
+        }
+    }
+    shadowClient.close();
+
+    console.log("🔧 Generating migration diff...");
+    const diffResult = spawnSync(
+        "npx",
+        ["prisma", "migrate", "diff", "--from-url", `file:${tempDbPath}`, "--to-schema", "prisma/schema.prisma", "--script"],
+        { encoding: "utf-8", timeout: 30_000, shell: true }
+    );
+
+    if (diffResult.error) {
+        console.error("❌ Failed to run prisma migrate diff:", diffResult.error);
         process.exit(1);
+    }
+
+    const sql = (diffResult.stdout || "").trim();
+    
+    try { fs.unlinkSync(tempDbPath); } catch { /* Windows file lock - ignore */ }
+    try { fs.unlinkSync(tempDbPath + "-journal"); } catch { /* may not exist */ }
+
+    if (!sql || sql === "-- This is an empty migration.") {
+        console.log("\n✅ Schema already in sync — nothing to do.");
+        client.close();
+        return;
     }
 
     const sqlNoComments = sql.replace(/^--.*$/gm, "");
@@ -45,22 +75,21 @@ async function main() {
 
     console.log(`📝 ${statements.length} statements to execute`);
 
-    const client = createClient({ url: tursoUrl, authToken: tursoToken });
-    let created = 0;
+    let applied = 0;
     let skipped = 0;
 
     for (const stmt of statements) {
         try {
             await client.execute(stmt);
-            created++;
-            const match = stmt.match(/(?:TABLE|INDEX)\s+"?(\w+)"?/i);
-            if (match) console.log(`  ✅ ${match[1]}`);
+            applied++;
+            const match = stmt.match(/(?:TABLE|INDEX|COLUMN)\s+"?(\w+)"?/i);
+            console.log(`  ✅ ${match?.[1] || stmt.slice(0, 50)}`);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
-            if (msg.includes("already exists")) {
+            if (msg.includes("already exists") || msg.includes("duplicate column")) {
                 skipped++;
-                const match = stmt.match(/(?:TABLE|INDEX)\s+"?(\w+)"?/i);
-                if (match) console.log(`  ⏭️  ${match[1]} (already exists)`);
+                const match = stmt.match(/(?:TABLE|INDEX|COLUMN)\s+"?(\w+)"?/i);
+                console.log(`  ⏭️  ${match?.[1] || "statement"} (already exists)`);
             } else {
                 console.error(`  ❌ Failed: ${stmt.slice(0, 80)}...`);
                 console.error(`     ${msg}`);
@@ -70,7 +99,7 @@ async function main() {
     }
 
     client.close();
-    console.log(`\n✅ Schema push complete — ${created} created, ${skipped} skipped (already exist)`);
+    console.log(`\n✅ Schema push complete — ${applied} applied, ${skipped} skipped`);
 }
 
 main().catch((err) => {

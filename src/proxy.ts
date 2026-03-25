@@ -20,6 +20,26 @@ const PUBLIC_PREFIXES = [
     "/test",            // Smoke test page
 ];
 
+const CRON_AUTHORIZED_PATHS = new Set(["/api/sync", "/api/market/market-cap-sync"]);
+
+function isAuthorizedCronRequest(request: NextRequest): boolean {
+    if (request.method !== "GET") {
+        return false;
+    }
+
+    if (!CRON_AUTHORIZED_PATHS.has(request.nextUrl.pathname)) {
+        return false;
+    }
+
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+        return false;
+    }
+
+    const authHeader = request.headers.get("authorization");
+    return authHeader === `Bearer ${cronSecret}`;
+}
+
 export function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
@@ -32,6 +52,10 @@ export function proxy(request: NextRequest) {
     // For /api/* routes, check for the NextAuth session cookie
     if (pathname.startsWith("/api/")) {
         if (PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+            return NextResponse.next();
+        }
+
+        if (isAuthorizedCronRequest(request)) {
             return NextResponse.next();
         }
 

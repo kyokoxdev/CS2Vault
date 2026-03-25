@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { triggerManualSync } from "@/lib/market/scheduler";
+import { calculateAndStoreMarketCap, shouldRecalculate } from "@/lib/market/market-cap";
 import { getRecentSyncLogs } from "@/lib/market/sync";
 
 export async function POST(request: NextRequest) {
@@ -37,9 +38,40 @@ export async function GET(request: NextRequest) {
         const cronSecret = process.env.CRON_SECRET;
 
         if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
-            // Triggered by Vercel Cron — run sync
-            const result = await triggerManualSync();
-            return NextResponse.json({ success: true, data: result });
+            const syncResult = await triggerManualSync();
+
+            const needsRecalculation = await shouldRecalculate();
+            let marketCapResult: {
+                attempted: boolean;
+                status: "ok" | "error" | "skipped";
+                message?: string;
+            } = {
+                attempted: false,
+                status: "skipped",
+                message: "Recent market cap snapshot exists",
+            };
+
+            if (needsRecalculation) {
+                const recalculation = await calculateAndStoreMarketCap();
+                marketCapResult = {
+                    attempted: true,
+                    status: recalculation.status === "error" ? "error" : "ok",
+                    message: recalculation.message,
+                };
+            }
+
+            const hasFailure = syncResult.status === "failed" || marketCapResult.status === "error";
+
+            return NextResponse.json(
+                {
+                    success: !hasFailure,
+                    data: {
+                        sync: syncResult,
+                        marketCap: marketCapResult,
+                    },
+                },
+                { status: hasFailure ? 500 : 200 }
+            );
         }
 
         // Normal GET — return sync logs

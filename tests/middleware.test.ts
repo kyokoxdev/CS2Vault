@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "./setup-component";
 
 import type { NextRequest } from "next/server";
@@ -10,7 +10,7 @@ type Cookies = {
     get: (name: string) => { value: string } | undefined;
 };
 
-function makeRequest(pathname: string, hasSession: boolean): NextRequest {
+function makeRequest(pathname: string, hasSession: boolean, init?: { method?: string; authHeader?: string }): NextRequest {
     const nextUrl = new URL(`http://localhost${pathname}`);
     const cookies: Cookies = {
         get: (name: string) =>
@@ -18,12 +18,36 @@ function makeRequest(pathname: string, hasSession: boolean): NextRequest {
                 ? { value: "fake-token" }
                 : undefined,
     };
-    return { nextUrl, cookies } as unknown as NextRequest;
+    return {
+        method: init?.method ?? "GET",
+        nextUrl,
+        cookies,
+        headers: {
+            get: (name: string) => {
+                if (name.toLowerCase() === "authorization") {
+                    return init?.authHeader ?? null;
+                }
+
+                return null;
+            },
+        },
+    } as unknown as NextRequest;
 }
 
 describe("proxy", () => {
+    const originalCronSecret = process.env.CRON_SECRET;
+
     beforeEach(() => {
         vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        if (originalCronSecret === undefined) {
+            delete process.env.CRON_SECRET;
+            return;
+        }
+
+        process.env.CRON_SECRET = originalCronSecret;
     });
 
     it("redirects unauthenticated user on / to /startup", async () => {
@@ -65,5 +89,41 @@ describe("proxy", () => {
         const res = proxy(makeRequest("/api/auth/signin", false));
         if (!res) throw new Error("Expected middleware to return a Response");
         expect(res.headers.get("x-middleware-next")).toBe("1");
+    });
+
+    it("allows cron-authenticated GET /api/sync without session", async () => {
+        process.env.CRON_SECRET = "test-secret";
+        const res = proxy(
+            makeRequest("/api/sync", false, {
+                method: "GET",
+                authHeader: "Bearer test-secret",
+            })
+        );
+        if (!res) throw new Error("Expected middleware to return a Response");
+        expect(res.headers.get("x-middleware-next")).toBe("1");
+    });
+
+    it("allows cron-authenticated GET /api/market/market-cap-sync without session", async () => {
+        process.env.CRON_SECRET = "test-secret";
+        const res = proxy(
+            makeRequest("/api/market/market-cap-sync", false, {
+                method: "GET",
+                authHeader: "Bearer test-secret",
+            })
+        );
+        if (!res) throw new Error("Expected middleware to return a Response");
+        expect(res.headers.get("x-middleware-next")).toBe("1");
+    });
+
+    it("still blocks unauthenticated POST /api/sync", async () => {
+        process.env.CRON_SECRET = "test-secret";
+        const res = proxy(
+            makeRequest("/api/sync", false, {
+                method: "POST",
+                authHeader: "Bearer test-secret",
+            })
+        );
+        if (!res) throw new Error("Expected middleware to return a Response");
+        expect(res.status).toBe(401);
     });
 });

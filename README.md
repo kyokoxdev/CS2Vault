@@ -177,9 +177,9 @@ npm run db:push:turso
 </details>
 
 <details>
-<summary><strong>4. Cron (automatic price sync)</strong></summary>
+<summary><strong>4. Cron (automatic daily sync)</strong></summary>
 
-The `vercel.json` configures a cron job that hits `GET /api/sync` every 5 minutes. It uses the `CRON_SECRET` env var for authentication. Make sure to set `CRON_SECRET` in Vercel.
+The `vercel.json` configures a cron job that hits `GET /api/sync` once per day (`0 0 * * *`). On cron-authenticated requests, this endpoint runs both the regular sync pipeline and market-cap recalculation (when stale). Set `CRON_SECRET` in Vercel so the cron request is authorized.
 
 </details>
 

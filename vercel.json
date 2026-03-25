@@ -4,10 +4,6 @@
     {
       "path": "/api/sync",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/market/market-cap-sync",
-      "schedule": "0 1 * * *"
     }
   ]
 }
