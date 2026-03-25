@@ -24,6 +24,7 @@ vi.mock("next/link", () => {
     }: {
       children: React.ReactNode;
       href: string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onClick?: (e: any) => void;
       className?: string;
     }) => (

@@ -12,6 +12,7 @@ vi.mock("@/components/ui/ItemSearch", () => ({
     onSelect,
     placeholder,
   }: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onSelect: (selected: any) => void;
     placeholder: string;
   }) => (

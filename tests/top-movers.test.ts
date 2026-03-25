@@ -188,7 +188,7 @@ describe("GET /api/market/top-movers", () => {
         // Last 5 are losers (-10, -20, ..., -50)
         mockSnapshotFindMany.mockImplementation(((args: { where: { itemId: string } }) => {
             const idx = parseInt(args.where.itemId.replace("item", ""));
-            let start = 100;
+            const start = 100;
             let end: number;
             if (idx < 7) {
                 end = 100 + (idx + 1) * 10; // +10% to +70%

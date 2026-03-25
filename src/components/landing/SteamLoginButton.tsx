@@ -4,6 +4,7 @@ import styles from "./SteamLoginButton.module.css";
 
 export default function SteamLoginButton() {
     return (
+        // eslint-disable-next-line @next/next/no-html-link-for-pages
         <a
             href="/api/auth/steam/login"
             className={styles.steamButton}

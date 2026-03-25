@@ -49,7 +49,9 @@ function createMockProvider(name: string, prices: Map<string, { price: number; v
 describe("Sync Integration", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockSnapshotCreate.mockResolvedValue({} as any);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockSyncLogCreate.mockResolvedValue({} as any);
     });
 

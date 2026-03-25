@@ -77,7 +77,7 @@
 }
 
 .resultItem.active {
-    background: var(--bg-hover);
+    background: var(--surface-hover);
 }
 
 .itemImage {

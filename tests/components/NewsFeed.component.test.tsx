@@ -8,6 +8,7 @@ import { vi, describe, it, expect } from "vitest";
 
 // mock next/link
 vi.mock("next/link", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   default: ({ href, children, ...props }: any) => (
     <a href={href} {...props}>
       {children}

@@ -2,6 +2,7 @@
  * Unit Tests: Settings API
  * Tests auth guard, API key masking, and Zod validation
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextResponse } from "next/server";
@@ -116,7 +117,6 @@ describe("Settings API", () => {
         it("masks API keys in GET response", async () => {
             vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
                 createMockSettings({
                     openAiApiKey: "sk-1234567890abcdef1234567890abcdef",
@@ -139,7 +139,6 @@ describe("Settings API", () => {
             vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(null);
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
                     activeAIProvider: "openai",
@@ -224,7 +223,6 @@ describe("Settings API", () => {
         });
 
         it("accepts valid settings", async () => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
                     activeMarketSource: "csfloat",
@@ -253,7 +251,6 @@ describe("Settings API", () => {
         });
 
         it("accepts csgotrader as valid market source with sub-provider", async () => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
                     activeMarketSource: "csgotrader",
@@ -291,13 +288,11 @@ describe("Settings API", () => {
         it("does not overwrite key when masked value is sent back", async () => {
             vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
                 createMockSettings({
                     openAiApiKey: "sk-1234567890abcdef1234567890abcdef",
                 }) as any
             );
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
                     openAiApiKey: "sk-1234567890abcdef1234567890abcdef",
@@ -320,13 +315,11 @@ describe("Settings API", () => {
         it("saves new key value when different from masked", async () => {
             vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
                 createMockSettings({
                     openAiApiKey: "sk-oldkey1234567890abcdef1234",
                 }) as any
             );
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
                     openAiApiKey: "sk-newkey9876543210fedcba9876",
@@ -349,13 +342,11 @@ describe("Settings API", () => {
         it("clears key when empty string is sent", async () => {
             vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
                 createMockSettings({
                     geminiApiKey: "AIzaSyAbCdEfGhIjKlMnOpQrStUvWxYz",
                 }) as any
             );
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
                     geminiApiKey: null,
