@@ -50,5 +50,16 @@ dev.db
 .sisyphus/
 session-ses_*.md
 
+# junk / dev session artifacts
+*.log
+lint.json
+session-ses_*.md
+searchout*.json
+testout.json
+output.txt
+temp_*.txt
+temp_*.config.ts
+NUL
+
 # generated
 /src/generated/prisma

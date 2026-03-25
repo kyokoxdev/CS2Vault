@@ -54,12 +54,10 @@ export async function runSync(overrideSource?: MarketSource): Promise<SyncResult
         // Fetch prices from active provider
         await initializeMarketProviders();
         let provider: ReturnType<typeof getMarketProvider>;
-        let providerFailed = false;
         let failureReason: string | undefined;
         try {
             provider = getMarketProvider(source);
         } catch {
-            providerFailed = true;
             failureReason = `Provider "${source}" not registered`;
             console.warn(`[Sync] ${failureReason} — skipping sync cycle`);
 
@@ -81,7 +79,6 @@ export async function runSync(overrideSource?: MarketSource): Promise<SyncResult
         try {
             prices = await provider.fetchBulkPrices(hashNames);
         } catch (error) {
-            providerFailed = true;
             failureReason = `Provider "${provider.name}" failed: ${error instanceof Error ? error.message : "Unknown error"}`;
             console.warn(`[Sync] ${failureReason} — skipping sync cycle`);
 

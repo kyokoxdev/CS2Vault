@@ -44,6 +44,8 @@ export default function MarketOverview() {
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
 
+  const [error, setError] = useState<string | null>(null);
+
   const fetchWatchedCount = useCallback(async () => {
     try {
       const res = await fetch("/api/items?limit=1");
@@ -77,6 +79,7 @@ export default function MarketOverview() {
       }
     } catch (err) {
       console.warn("Market summary fetch error:", err);
+      setError("Failed to load market data. Check your connection and try again.");
     }
   }, []);
 
@@ -95,6 +98,7 @@ export default function MarketOverview() {
       }
     } catch (err) {
       console.warn('Top movers fetch error:', err);
+      setError("Failed to load top movers. Check your connection and try again.");
     } finally {
       setTopMoversLoading(false);
     }
@@ -124,6 +128,7 @@ export default function MarketOverview() {
       }
     } catch (err) {
       console.warn("News feed fetch error:", err);
+      setError("Failed to load news feed. Check your connection and try again.");
     } finally {
       setFeedLoading(false);
     }
@@ -146,6 +151,14 @@ export default function MarketOverview() {
       console.warn("Market cap fetch error:", err);
     }
   }, []);
+
+  const retryFetches = useCallback(() => {
+    setError(null);
+    fetchMarketSummary();
+    fetchTopMovers();
+    fetchNewsFeed();
+    fetchMarketCap();
+  }, [fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
   const { status: authStatus } = useSession();
 
@@ -210,14 +223,24 @@ export default function MarketOverview() {
 
   return (
     <div className={styles.page}>
+      {error && (
+        <div className={styles.errorBanner}>
+          <span className={styles.errorMessage}>{error}</span>
+          <button type="button" className={styles.errorRetryBtn} onClick={retryFetches}>
+            Retry
+          </button>
+        </div>
+      )}
       <div className={styles.statsRow}>
-        <Card padding="md">
-          <div className={styles.statCardContent}>
-            <div className={styles.statLabel}>Estimated Market Cap</div>
-            <div className={styles.statValue}>{marketCapValue}</div>
-            <div className={styles.statSubtext}>{marketCapSubLabel}</div>
-          </div>
-        </Card>
+        <StatCard
+          label="Estimated Market Cap"
+          value={
+            <>
+              {marketCapValue}
+              <div className={styles.statSubtext}>{marketCapSubLabel}</div>
+            </>
+          }
+        />
         
         <StatCard
           label="Watched"
@@ -255,7 +278,7 @@ export default function MarketOverview() {
                   : "Never"}
             </div>
             <div className={styles.statSubtext}>
-               {lastSync ? `${lastSync.itemCount} items • ${lastSync.duration}ms` : ""}
+               {lastSync ? `${lastSync.itemCount} items • ${lastSync.duration != null ? lastSync.duration + 'ms' : '—'}` : ""}
             </div>
           </div>
         </Card>

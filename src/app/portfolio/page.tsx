@@ -90,8 +90,7 @@ export default function PortfolioPage() {
     source: "sync" | "prices";
   } | null>(null);
   const [priceRefreshIntervalMin, setPriceRefreshIntervalMin] = useState(15);
-  // Stable ref so the auto-refresh interval is never torn down by filter changes
-  const handleRefreshPricesRef = useRef<(() => void) | null>(null);
+  const refreshRef = useRef<((fallback?: string) => Promise<void>) | null>(null);
 
   const fetchPortfolio = useCallback(async () => {
     try {
@@ -177,14 +176,14 @@ export default function PortfolioPage() {
     }
     setRefreshingPrices(false);
   }, [fetchPortfolio]);
-  // Keep ref in sync so the interval always calls the latest version
-  handleRefreshPricesRef.current = () => handleRefreshPrices();
+
+  refreshRef.current = handleRefreshPrices;
 
   useEffect(() => {
     fetch("/api/settings")
       .then((res) => res.json())
       .then((data) => {
-        if (data.priceRefreshIntervalMin) {
+        if (data.success && data.priceRefreshIntervalMin) {
           setPriceRefreshIntervalMin(data.priceRefreshIntervalMin);
         }
       })
@@ -195,13 +194,11 @@ export default function PortfolioPage() {
     if (priceRefreshIntervalMin <= 0) return;
 
     const intervalMs = priceRefreshIntervalMin * 60 * 1000;
-    // Use ref so changing filters does not restart the timer
     const timer = setInterval(() => {
-      handleRefreshPricesRef.current?.();
+      refreshRef.current?.();
     }, intervalMs);
 
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priceRefreshIntervalMin]);
 
   const handleUpdatePrice = useCallback(async (itemId: string) => {
@@ -260,6 +257,9 @@ export default function PortfolioPage() {
               src={item.imageUrl}
               alt={item.name}
               className={styles.itemImage}
+              loading="lazy"
+              width={64}
+              height={48}
             />
           )}
           <div>
@@ -356,6 +356,7 @@ export default function PortfolioPage() {
                 type="button"
                 onClick={() => handleUpdatePrice(item.id)}
                 className={styles.editButton}
+                aria-label="Confirm price"
               >
                 ✓
               </button>
@@ -487,17 +488,17 @@ export default function PortfolioPage() {
           <div className={styles.summaryRow}>
             <StatCard
               label="Total Value"
-              value={`$${totals!.totalCurrentValue.toFixed(2)}`}
+              value={`$${totals?.totalCurrentValue?.toFixed(2) ?? '0.00'}`}
               prefix=""
             />
             <StatCard
               label="Cost Basis"
-              value={totals!.totalAcquiredValue > 0 ? `$${totals!.totalAcquiredValue.toFixed(2)}` : "—"}
+              value={(totals?.totalAcquiredValue ?? 0) > 0 ? `$${totals?.totalAcquiredValue?.toFixed(2) ?? '0.00'}` : "—"}
             />
             <StatCard
               label="Unrealized P&L"
-              value={totals!.totalAcquiredValue > 0 ? `${totals!.unrealizedPnL >= 0 ? "+" : ""}$${totals!.unrealizedPnL.toFixed(2)}` : "—"}
-              change={totals!.unrealizedPnLPercent}
+              value={(totals?.totalAcquiredValue ?? 0) > 0 ? `${(totals?.unrealizedPnL ?? 0) >= 0 ? "+" : ""}$${totals?.unrealizedPnL?.toFixed(2) ?? '0.00'}` : "—"}
+              change={totals?.unrealizedPnLPercent ?? 0}
               prefix=""
             />
             <StatCard

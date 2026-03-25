@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import styles from "./ItemSearch.module.css";
 
 interface SearchResult {
     hashName: string;
@@ -158,8 +159,8 @@ export default function ItemSearch({
     };
 
     return (
-        <div style={{ position: "relative", width: "100%" }}>
-            <div style={{ position: "relative" }}>
+        <div className={styles.wrapper}>
+            <div className={styles.inputWrapper}>
                 <input
                     ref={inputRef}
                     type="text"
@@ -168,34 +169,10 @@ export default function ItemSearch({
                     onKeyDown={handleKeyDown}
                     onFocus={() => results.length > 0 && setShowDropdown(true)}
                     placeholder={placeholder}
-                    style={{
-                        width: "100%",
-                        padding: "10px 14px",
-                        paddingRight: loading ? 36 : 14,
-                        background: "var(--bg-tertiary)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "var(--radius-sm)",
-                        color: "var(--text-primary)",
-                        fontSize: 14,
-                        outline: "none",
-                        transition: "border-color var(--transition-fast)",
-                    }}
+                    className={`${styles.input}${loading ? ` ${styles.inputLoading}` : ""}`}
                 />
                 {loading && (
-                    <div
-                        style={{
-                            position: "absolute",
-                            right: 12,
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            width: 16,
-                            height: 16,
-                            border: "2px solid var(--border)",
-                            borderTopColor: "var(--accent-primary)",
-                            borderRadius: "50%",
-                            animation: "spin 0.6s linear infinite",
-                        }}
-                    />
+                    <div className={styles.spinner} />
                 )}
             </div>
 
@@ -203,19 +180,7 @@ export default function ItemSearch({
             {showDropdown && (
                 <div
                     ref={dropdownRef}
-                    style={{
-                        position: "absolute",
-                        top: "calc(100% + 4px)",
-                        left: 0,
-                        right: 0,
-                        maxHeight: 400,
-                        overflowY: "auto",
-                        background: "var(--bg-secondary)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "var(--radius-md)",
-                        boxShadow: "0 12px 48px rgba(0, 0, 0, 0.6)",
-                        zIndex: 9999,
-                    }}
+                    className={styles.dropdown}
                 >
                     {results.map((item, i) => (
                         <button
@@ -223,96 +188,34 @@ export default function ItemSearch({
                             type="button"
                             data-search-item
                             onClick={() => handleSelect(item)}
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 12,
-                                padding: "10px 14px",
-                                cursor: "pointer",
-                                background:
-                                    i === activeIndex ? "var(--bg-hover)" : "transparent",
-                                borderTop: "none",
-                                borderLeft: "none",
-                                borderRight: "none",
-                                borderBottom:
-                                    i < results.length - 1
-                                        ? "1px solid var(--border)"
-                                        : "none",
-                                transition: "background var(--transition-fast)",
-                                width: "100%",
-                                textAlign: "left",
-                                fontFamily: "inherit",
-                                color: "inherit",
-                            }}
+                            className={`${styles.resultItem}${i === activeIndex ? ` ${styles.active}` : ""}`}
                             onMouseEnter={() => setActiveIndex(i)}
                         >
                             {/* Item image */}
                             {item.imageUrl ? (
                                 <img
                                     src={item.imageUrl}
-                                    alt=""
-                                    style={{
-                                        width: 48,
-                                        height: 36,
-                                        objectFit: "contain",
-                                        borderRadius: 4,
-                                        background: "var(--bg-tertiary)",
-                                    }}
+                                    alt={item.name}
+                                    loading="lazy"
+                                    className={styles.itemImage}
                                 />
                             ) : (
-                                <div
-                                    style={{
-                                        width: 48,
-                                        height: 36,
-                                        background: "var(--bg-tertiary)",
-                                        borderRadius: 4,
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        fontSize: 18,
-                                    }}
-                                >
+                                <div className={styles.itemImagePlaceholder}>
                                     {categoryLabel(item.category)}
                                 </div>
                             )}
 
                             {/* Item info */}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div
-                                    style={{
-                                        fontSize: 13,
-                                        fontWeight: 500,
-                                        whiteSpace: "nowrap",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                    }}
-                                >
+                            <div className={styles.itemInfo}>
+                                <div className={styles.itemName}>
                                     {item.name}
                                 </div>
-                                <div
-                                    style={{
-                                        fontSize: 11,
-                                        color: "var(--text-muted)",
-                                        display: "flex",
-                                        gap: 6,
-                                        alignItems: "center",
-                                    }}
-                                >
-                                    <span style={{
-                                        background: "var(--bg-tertiary)",
-                                        padding: "1px 6px",
-                                        borderRadius: 3,
-                                        fontSize: 10,
-                                        textTransform: "capitalize",
-                                    }}>
+                                <div className={styles.itemMeta}>
+                                    <span className={styles.categoryBadge}>
                                         {item.category.replace("_", " ")}
                                     </span>
                                     {item.steamType && (
-                                        <span style={{
-                                            overflow: "hidden",
-                                            textOverflow: "ellipsis",
-                                            whiteSpace: "nowrap",
-                                        }}>
+                                        <span className={styles.steamType}>
                                             {item.steamType}
                                         </span>
                                     )}
@@ -320,20 +223,13 @@ export default function ItemSearch({
                             </div>
 
                             {/* Price */}
-                            <div style={{ textAlign: "right", flexShrink: 0 }}>
+                            <div className={styles.priceBlock}>
                                 {item.price && (
-                                    <div
-                                        style={{
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            fontFamily: "var(--font-mono)",
-                                            color: "var(--green)",
-                                        }}
-                                    >
+                                    <div className={styles.price}>
                                         {item.price}
                                     </div>
                                 )}
-                                <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                                <div className={styles.listings}>
                                     {item.listings.toLocaleString()} listings
                                 </div>
                             </div>
@@ -341,12 +237,6 @@ export default function ItemSearch({
                     ))}
                 </div>
             )}
-
-            <style>{`
-                @keyframes spin {
-                    to { transform: translateY(-50%) rotate(360deg); }
-                }
-            `}</style>
         </div>
     );
 }

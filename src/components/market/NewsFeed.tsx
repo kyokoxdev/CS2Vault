@@ -127,7 +127,7 @@ export function NewsFeed({ items, isLoading, pageSize = 5 }: NewsFeedProps) {
 
           return (
             <li key={item.id} className={styles.item}>
-              <span className={styles.icon} style={{ fontSize: '1rem' }}>{icon}</span>
+              <span className={styles.icon} style={{ fontSize: '1rem' }} aria-hidden="true">{icon}</span>
               <div className={styles.content}>
                 <h3 className={styles.itemTitle}>
                   {isNews && item.url ? (

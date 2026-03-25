@@ -20,6 +20,7 @@ vi.mock("next-auth/react", () => ({
 vi.mock("react-icons/fa", () => ({
     FaChartPie: () => <span data-testid="icon-chart">icon</span>,
     FaWallet: () => <span data-testid="icon-wallet">icon</span>,
+    FaEye: () => <span data-testid="icon-eye">icon</span>,
     FaBoxOpen: () => <span data-testid="icon-box">icon</span>,
     FaRobot: () => <span data-testid="icon-robot">icon</span>,
     FaCog: () => <span data-testid="icon-cog">icon</span>,
@@ -76,8 +77,8 @@ describe("DashboardShell", () => {
         expect(screen.getByText("Child Content")).toBeInTheDocument();
     });
 
-    it("does not render shell for /test route (just returns children)", () => {
-        vi.mocked(usePathname).mockReturnValue("/test");
+    it("does not render shell for /startup route (just returns children)", () => {
+        vi.mocked(usePathname).mockReturnValue("/startup");
         const { container } = render(
             <DashboardShell>
                 <div data-testid="child-content">Child Content</div>

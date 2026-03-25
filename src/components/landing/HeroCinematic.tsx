@@ -47,35 +47,36 @@ export default function HeroCinematic() {
         
         hasAnimatedRef.current = true;
         
-        const ctx = gsap.context(() => {
+        gsap.context(() => {
+            gsap.set(titleRef.current, { opacity: 0, y: 40 });
+            gsap.set(".hero-stat-item", { opacity: 0, y: 30 });
+            gsap.set(subtitleRef.current, { opacity: 0, y: 20 });
+            gsap.set(ctaRef.current, { opacity: 0, scale: 0.9 });
+
             const tl = gsap.timeline({
                 onComplete: () => setAnimationComplete(true),
             });
 
-            tl.fromTo(
+            tl.to(
                 titleRef.current,
-                { opacity: 0, y: 40 },
                 { opacity: 1, y: 0, duration: 1, ease: "power3.out" },
                 0
             );
 
-            tl.fromTo(
+            tl.to(
                 ".hero-stat-item",
-                { opacity: 0, y: 30 },
                 { opacity: 1, y: 0, duration: 0.6, stagger: 0.25, ease: "power2.out" },
                 1
             );
 
-            tl.fromTo(
+            tl.to(
                 subtitleRef.current,
-                { opacity: 0, y: 20 },
                 { opacity: 1, y: 0, duration: 1, ease: "power2.out" },
                 2.5
             );
 
-            tl.fromTo(
+            tl.to(
                 ctaRef.current,
-                { opacity: 0, scale: 0.9 },
                 { opacity: 1, scale: 1, duration: 0.8, ease: "back.out(1.4)" },
                 4
             );

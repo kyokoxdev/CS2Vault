@@ -4,34 +4,27 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/lib/auth/auth";
+import { requireAuth } from "@/lib/auth/guard";
 import { normalizeRarity, detectWearQuality, normalizeItemType } from "@/lib/market/rarity";
 
 const FILTER_OPTIONS = new Set(["all", "priced", "unpriced"]);
 
 export async function GET(request: NextRequest) {
     try {
+        const { session, error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const params = request.nextUrl.searchParams;
         const category = params.get("category") ?? undefined;
         const rarity = params.get("rarity") ?? undefined;
         const search = params.get("search") ?? undefined;
         const price = params.get("price") ?? undefined;
-
-        // Get user
-        const session = await auth();
-        let userId: string | undefined;
-
-        if (session?.user?.id) {
-            userId = session.user.id;
-        } else if (process.env.NODE_ENV === "development") {
-            const firstUser = await prisma.user.findFirst();
-            userId = firstUser?.id;
-        }
+        const userId = session.user.id;
 
         // Fetch inventory (unsold items only)
         const inventoryItems = await prisma.inventoryItem.findMany({
             where: {
-                ...(userId ? { userId } : {}),
+                userId,
                 soldAt: null,
             },
             include: {

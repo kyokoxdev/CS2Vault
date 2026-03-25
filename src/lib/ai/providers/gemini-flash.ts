@@ -99,7 +99,7 @@ Be concise and formatted in markdown.`;
                         const data = JSON.parse(dataStr);
                         const textChunk = data.candidates?.[0]?.content?.parts?.[0]?.text;
                         if (textChunk) yield textChunk;
-                    } catch (e) {
+                    } catch {
                         // ignore parse errors for partial lines
                     }
                 }

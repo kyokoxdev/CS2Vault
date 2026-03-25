@@ -7,14 +7,6 @@ import { AddItemPanel } from "@/components/market/AddItemPanel";
 import { FallbackToast } from "@/components/ui/FallbackToast";
 import styles from "./Watchlist.module.css";
 
-interface SyncLog {
-  id: number;
-  status: string;
-  itemCount: number;
-  duration: number | null;
-  timestamp: string;
-}
-
 export default function WatchlistPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -74,7 +66,6 @@ export default function WatchlistPage() {
     }
     setSyncing(false);
   }, [fetchData]);
-
 
   useEffect(() => {
     if (initialSyncRef.current) return;

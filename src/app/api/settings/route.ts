@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth/auth";
+import { requireAuth } from "@/lib/auth/guard";
 import { z } from "zod/v4";
 import { resetProviders } from "@/lib/market/init";
 
@@ -25,21 +25,14 @@ function maskApiKey(key: string | null | undefined): string {
 }
 
 export async function GET() {
-    const session = await auth();
     let userId: string | undefined;
 
-    if (session?.user?.id) {
-        userId = session.user.id;
-    } else if (process.env.NODE_ENV === "development") {
-        const firstUser = await prisma.user.findFirst();
-        if (firstUser) userId = firstUser.id;
-    }
-
-    if (!userId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     try {
+        const { session, error: authError } = await requireAuth();
+        if (authError) return authError;
+
+        userId = session.user.id;
+
         const settings = await prisma.appSettings.findUnique({
             where: { id: "singleton" },
         });
@@ -68,27 +61,20 @@ export async function GET() {
             csfloatApiKey: maskApiKey(settings.csfloatApiKey),
         });
     } catch (error) {
-        console.error("[Settings API GET Error]", error);
+        console.error("[Settings API GET Error]", { userId, error });
         return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
     }
 }
 
 export async function PATCH(request: Request) {
-    const session = await auth();
     let userId: string | undefined;
 
-    if (session?.user?.id) {
-        userId = session.user.id;
-    } else if (process.env.NODE_ENV === "development") {
-        const firstUser = await prisma.user.findFirst();
-        if (firstUser) userId = firstUser.id;
-    }
-
-    if (!userId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     try {
+        const { session, error: authError } = await requireAuth();
+        if (authError) return authError;
+
+        userId = session.user.id;
+
         const body = await request.json();
 
         // Validate request body with Zod
@@ -170,7 +156,7 @@ export async function PATCH(request: Request) {
             csgotraderSubProvider: updated.csgotraderSubProvider,
         });
     } catch (error) {
-        console.error("[Settings API PATCH Error]", error);
+        console.error("[Settings API PATCH Error]", { userId, error });
         return NextResponse.json({ error: "Failed to strictly update settings" }, { status: 500 });
     }
 }

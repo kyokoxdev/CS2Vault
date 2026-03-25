@@ -79,6 +79,25 @@ export function normalizeItemType(raw?: string | null): string | null {
 
 export const RARITY_LABELS = RARITY_RULES.map(([, label]) => label);
 
+export const RARITY_VARIANTS: Record<string, string> = {
+  "Contraband": "contraband",
+  "Covert": "covert",
+  "Classified": "classified",
+  "Restricted": "restricted",
+  "Mil-Spec": "milspec",
+  "Industrial Grade": "industrial",
+  "Consumer Grade": "consumer",
+  "Base Grade": "consumer",
+  "Distinguished": "milspec",
+  "Exceptional": "restricted",
+  "Superior": "classified",
+  "Master": "covert",
+  "High Grade": "milspec",
+  "Remarkable": "restricted",
+  "Exotic": "classified",
+  "Extraordinary": "covert",
+};
+
 export function detectWearQuality(exterior?: string | null): string | null {
     if (!exterior) return null;
     const normalized = exterior.toLowerCase();

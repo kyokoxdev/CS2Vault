@@ -10,6 +10,12 @@ const eslintConfig = defineConfig([
       "react-hooks/set-state-in-effect": "off",
     },
   },
+  {
+    files: ["src/components/ui/Select.tsx"],
+    rules: {
+      "jsx-a11y/no-noninteractive-element-to-interactive-role": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

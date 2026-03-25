@@ -54,8 +54,7 @@ export default function DashboardShell({
 
     const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
-    // Don't wrap the /test page in the shell
-    if (pathname === "/test" || pathname === "/startup") return <>{children}</>;
+    if (pathname === "/startup") return <>{children}</>;
 
     const pageTitle = PAGE_TITLES[pathname] ?? "CS2Vault";
     const isLoading = status === "loading";
@@ -116,13 +115,18 @@ export default function DashboardShell({
                         </div>
                     ) : isSignedIn ? (
                         <div className={styles.sidebarUser}>
-                            {session.user?.image && (
-                                <img
-                                    src={session.user.image}
-                                    alt={session.user.name ?? "User"}
-                                    className={styles.userAvatar}
-                                />
-                            )}
+                            <img
+                                src={session.user?.image || ""}
+                                alt={session.user?.name ?? "User"}
+                                className={styles.userAvatar}
+                                loading="lazy"
+                                width={32}
+                                height={32}
+                                onError={(e) => {
+                                    const target = e.currentTarget;
+                                    target.style.display = "none";
+                                }}
+                            />
                             <div className={styles.userInfo}>
                                 <div className={styles.userName}>
                                     {session.user?.name}
@@ -154,7 +158,7 @@ export default function DashboardShell({
             </aside>
 
             {/* Main */}
-            <main className={styles.mainContent}>
+            <main id="main-content" className={styles.mainContent}>
                 <header className={styles.mainHeader}>
                     <button
                         type="button"

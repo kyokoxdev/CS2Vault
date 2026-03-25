@@ -104,7 +104,7 @@ describe("calculateAndStoreMarketCap", () => {
         });
         vi.mocked(prisma.marketCapSnapshot.create).mockResolvedValueOnce({
             id: "new",
-            totalMarketCap: 8515.50,
+            totalMarketCap: 7_987_539,
             totalListings: 3,
             provider: "csgotrader-csfloat",
             topItems: null,
@@ -117,9 +117,10 @@ describe("calculateAndStoreMarketCap", () => {
         expect(result.status).toBe("ok");
         expect(result.data).not.toBeNull();
         expect(result.data?.itemCount).toBe(3);
+        expect(result.data?.totalMarketCap).toBe(7_987_539);
         expect(prisma.marketCapSnapshot.create).toHaveBeenCalledWith({
             data: expect.objectContaining({
-                totalMarketCap: 8515.50,
+                totalMarketCap: 7_987_539.000000001,
                 totalListings: 3,
                 provider: "csgotrader-csfloat",
             }),
@@ -135,7 +136,7 @@ describe("calculateAndStoreMarketCap", () => {
         });
         vi.mocked(prisma.marketCapSnapshot.create).mockResolvedValueOnce({
             id: "new",
-            totalMarketCap: 100,
+            totalMarketCap: 93_800,
             totalListings: 1,
             provider: "csgotrader-csfloat",
             topItems: null,
@@ -146,9 +147,10 @@ describe("calculateAndStoreMarketCap", () => {
         const result = await calculateAndStoreMarketCap();
 
         expect(result.data?.itemCount).toBe(1);
+        expect(result.data?.totalMarketCap).toBe(93_800);
         expect(prisma.marketCapSnapshot.create).toHaveBeenCalledWith({
             data: expect.objectContaining({
-                totalMarketCap: 100,
+                totalMarketCap: 93_800,
                 totalListings: 1,
             }),
         });

@@ -4,24 +4,19 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/lib/auth/auth";
+import { requireAuth } from "@/lib/auth/guard";
 import { writePriceSnapshotsForItems } from "@/lib/market/pricing";
 
 export async function POST(request: NextRequest) {
     try {
-        const session = await auth();
-        let userId: string | undefined;
+        const { session, error: authError } = await requireAuth();
+        if (authError) return authError;
 
-        if (session?.user?.id) {
-            userId = session.user.id;
-        } else if (process.env.NODE_ENV === "development") {
-            const firstUser = await prisma.user.findFirst();
-            userId = firstUser?.id;
-        }
+        const userId = session.user.id;
 
         const inventoryItems = await prisma.inventoryItem.findMany({
             where: {
-                ...(userId ? { userId } : {}),
+                userId,
                 soldAt: null,
             },
             include: {

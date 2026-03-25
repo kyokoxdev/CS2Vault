@@ -17,6 +17,7 @@ export function useGSAP(
     contextRef.current = ctx;
 
     return () => ctx.revert();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callback, scope, ...deps]);
 
   return contextRef;

@@ -300,7 +300,7 @@ describe("GET /api/market/news-feed", () => {
         author: "hltv",
         contents: "Major tournament announced",
         date: new Date(Date.now() - 3600000),
-        source: "hltv" as const,
+        source: "steamdb" as const,
       },
     ]);
 
@@ -423,7 +423,7 @@ describe("90-day date filtering", () => {
       author: "hltv",
       contents: "Old RSS content",
       date: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000), // 100 days ago
-      source: "hltv" as const,
+      source: "steam" as const,
     }]);
     const res = await GET(makeRequest());
     const body = await res.json();
@@ -451,7 +451,7 @@ describe("90-day date filtering", () => {
       author: "reddit",
       contents: "Ancient RSS content",
       date: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000), // 200 days ago
-      source: "reddit" as const,
+      source: "valve" as const,
     }]);
     const res = await GET(makeRequest());
     const body = await res.json();

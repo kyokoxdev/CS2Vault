@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { FaRobot, FaTimes, FaPlus, FaArrowRight } from "react-icons/fa";
 import styles from "./AIChat.module.css";
@@ -13,88 +13,101 @@ const MAX_MESSAGE_LENGTH = 4000; // characters
 const MAX_IMAGE_SIZE_MB = 5;
 const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 
+type ChatMessage = ChatMessageData & {
+    id: string;
+};
+
+function createChatMessage(message: ChatMessageData): ChatMessage {
+    return {
+        ...message,
+        id: crypto.randomUUID(),
+    };
+}
+
 export default function AIChat() {
-    const [messages, setMessages] = useState<ChatMessageData[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [provider, setProvider] = useState<AIProviderName>("gemini-pro");
     const [attachedImage, setAttachedImage] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const abortControllerRef = useRef<AbortController | null>(null);
+    const streamAbortControllerRef = useRef<AbortController | null>(null);
+    const isMountedRef = useRef(true);
     const [historyLoading, setHistoryLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     // Initial load history
     useEffect(() => {
-        let active = true;
-        const controller = new AbortController();
         setHistoryLoading(true);
-        fetch("/api/chat/history", { signal: controller.signal })
+        fetch("/api/chat/history")
             .then(res => res.json())
             .then(data => {
-                if (!active) return;
                 if (data.success && data.data && data.data.length > 0) {
-                    setMessages(data.data.map((m: { role: string; content: string }) => ({
+                    setMessages(data.data.map((m: { role: string; content: string }) => createChatMessage({
                         role: m.role as "user" | "assistant",
                         content: m.content
                     })));
                 } else {
                     // Default greeting
-                    setMessages([{
+                    setMessages([createChatMessage({
                         role: "assistant",
                         content: "Hello! I am your CS2 Market Agent.\nAsk me about your portfolio, market movers, or item prices."
-                    }]);
+                    })]);
                 }
             })
-            .catch((err) => {
-                if (!active || (err instanceof Error && err.name === "AbortError")) return;
+            .catch(() => {
                 // Show friendly error instead of technical details
-                setMessages([{
+                setMessages([createChatMessage({
                     role: "assistant",
                     content: "Hello! I am your CS2 Market Agent.\nNote: Could not load chat history. You can still start a new conversation."
-                }]);
+                })]);
             })
-            .finally(() => { if (active) setHistoryLoading(false); });
-        return () => { active = false; controller.abort(); };
+            .finally(() => setHistoryLoading(false));
     }, []);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+            streamAbortControllerRef.current?.abort();
+        };
+    }, []);
 
     useEffect(() => {
-        scrollToBottom();
+        if (messages.length > 0) {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
     }, [messages]);
 
     const handleSubmit = async (e?: React.FormEvent) => {
         e?.preventDefault();
         if ((!input.trim() && !attachedImage) || isLoading) return;
 
-        const userMsg: ChatMessageData = { role: "user" as const, content: input.trim() || "[Attached Image]" };
+        streamAbortControllerRef.current?.abort();
+        const controller = new AbortController();
+        streamAbortControllerRef.current = controller;
+
+        const userMessagePayload: ChatMessageData = { role: "user" as const, content: input.trim() || "[Attached Image]" };
         if (attachedImage) {
-            userMsg.imageBase64 = attachedImage;
+            userMessagePayload.imageBase64 = attachedImage;
         }
 
-        setMessages(prev => [...prev, userMsg]);
+        const userMsg = createChatMessage(userMessagePayload);
+        const assistantPlaceholder = createChatMessage({ role: "assistant", content: "" });
+
+        setMessages(prev => [...prev, userMsg, assistantPlaceholder]);
         setInput("");
         setAttachedImage(null);
         setIsLoading(true);
-
-        // Placeholder for assistant message while streaming
-        setMessages(prev => [...prev, { role: "assistant", content: "" }]);
-
-        // Cancel any in-flight request from a previous message
-        abortControllerRef.current?.abort();
-        const controller = new AbortController();
-        abortControllerRef.current = controller;
-        let mounted = true;
 
         try {
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ messages: [...messages, userMsg], provider }), // Send full context + override
+                body: JSON.stringify({
+                    messages: [...messages, userMessagePayload].map(({ role, content, imageBase64 }) => ({ role, content, imageBase64 })),
+                    provider,
+                }), // Send full context + override
                 signal: controller.signal,
             });
 
@@ -104,42 +117,48 @@ export default function AIChat() {
             const reader = res.body.getReader();
             const decoder = new TextDecoder("utf-8");
 
-            while (true) {
+            while (!controller.signal.aborted) {
                 const { done, value } = await reader.read();
-                if (done) break;
+                if (done || controller.signal.aborted) break;
 
                 const chunk = decoder.decode(value, { stream: true });
-                if (mounted) {
-                    setMessages(prev => {
-                        const next = [...prev];
-                        const lastIndex = next.length - 1;
-                        const lastMsg = next[lastIndex];
-                        if (lastMsg.role === "assistant") {
-                            next[lastIndex] = { ...lastMsg, content: lastMsg.content + chunk };
-                        }
-                        return next;
-                    });
-                }
-            }
-        } catch (error) {
-            // Ignore AbortError — user navigated away or sent a new message
-            if (error instanceof Error && error.name === 'AbortError') {
-                mounted = false;
-                setIsLoading(false);
-                return;
-            }
-            console.error("Chat error:", error);
-            if (mounted) {
                 setMessages(prev => {
-                    const next = [...prev];
-                    const lastIndex = next.length - 1;
-                    next[lastIndex] = { role: "assistant", content: "Sorry, I encountered an error while processing your request. Please check your AI provider settings and try again." };
-                    return next;
+                    return prev.map(message => {
+                        if (message.id !== assistantPlaceholder.id || message.role !== "assistant") {
+                            return message;
+                        }
+
+                        return { ...message, content: message.content + chunk };
+                    });
                 });
             }
+        } catch (error) {
+            if (controller.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+                if (isMountedRef.current) {
+                    setMessages(prev => prev.filter(message => message.id !== assistantPlaceholder.id));
+                }
+                return;
+            }
+
+            console.error("Chat error:", error);
+            setMessages(prev => prev.map(message => {
+                if (message.id !== assistantPlaceholder.id) {
+                    return message;
+                }
+
+                return {
+                    ...message,
+                    content: "Sorry, I encountered an error while processing your request. Please check your AI provider settings and try again.",
+                };
+            }));
         } finally {
-            mounted = false;
-            setIsLoading(false);
+            if (streamAbortControllerRef.current === controller) {
+                streamAbortControllerRef.current = null;
+
+                if (isMountedRef.current) {
+                    setIsLoading(false);
+                }
+            }
         }
     };
 
@@ -205,9 +224,9 @@ export default function AIChat() {
                         <span className={styles.loadingText}>Loading chat history...</span>
                     </div>
                 )}
-                {!historyLoading && messages.map((msg, idx) => (
+                {!historyLoading && messages.map((msg) => (
                     <div
-                        key={idx}
+                        key={msg.id}
                         className={`${styles.message} ${msg.role === 'user' ? styles.messageUser : styles.messageAssistant}`}
                     >
                         {msg.imageBase64 && (
@@ -218,12 +237,12 @@ export default function AIChat() {
                 ))}
 
                 {isLoading && messages[messages.length - 1]?.content === "" && (
-                    <div className={styles.messageLoading} aria-label="AI is thinking">
+                    <output className={styles.messageLoading}>
                         <div className={styles.dot}></div>
                         <div className={styles.dot}></div>
                         <div className={styles.dot}></div>
                         <span className={styles.loadingText}>Fetching market context...</span>
-                    </div>
+                    </output>
                 )}
                 <div ref={messagesEndRef} />
             </div>
@@ -261,7 +280,6 @@ export default function AIChat() {
                             if (file) handleImageUpload(file);
                             if (e.target) e.target.value = '';
                         }}
-                        aria-hidden="true"
                     />
                     <input
                         type="text"

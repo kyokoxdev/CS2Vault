@@ -58,7 +58,8 @@ describe('StatCard Component', () => {
   it('renders prefix before value', () => {
     render(<StatCard label="Portfolio Value" value={1000} prefix="$" />);
     const valueElement = screen.getByText((content, element) => {
-      return element?.className.includes('value') && content.includes('$1000');
+      if (element?.className.includes('value') && content.includes('$1000')) return true;
+      return false;
     });
     expect(valueElement).toBeInTheDocument();
   });

@@ -18,7 +18,6 @@ export interface FallbackToastProps {
 
 export function FallbackToast({
   failureReason,
-  attemptedProvider,
   onApprove,
   onDismiss,
   autoCloseMs = 15000,
@@ -51,7 +50,7 @@ export function FallbackToast({
   if (!visible) return null;
 
   return (
-    <div className={`${styles.toast} ${exiting ? styles.exiting : ""}`}>
+    <div className={`${styles.toast} ${exiting ? styles.exiting : ""}`} role="alert" aria-live="assertive">
       <div className={styles.icon}>⚠️</div>
       <div className={styles.content}>
         <div className={styles.title}>Price provider unavailable</div>

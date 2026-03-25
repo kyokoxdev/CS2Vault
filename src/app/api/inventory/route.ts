@@ -5,48 +5,24 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/lib/auth/auth";
+import { requireAuth } from "@/lib/auth/guard";
 import { fetchSteamInventory } from "@/lib/inventory/steam-inventory";
 import { writePriceSnapshotsForItems } from "@/lib/market/pricing";
 import { normalizeItemType } from "@/lib/market/rarity";
-
-/**
- * Get the current user's Steam ID.
- * In production: from session. In development: from ALLOWED_STEAM_ID env.
- */
-async function getSteamId(): Promise<string | null> {
-    const session = await auth();
-    if (session?.user?.steamId) return session.user.steamId;
-
-    // Dev fallback
-    if (process.env.NODE_ENV === "development") {
-        return process.env.ALLOWED_STEAM_ID ?? null;
-    }
-    return null;
-}
 
 /**
  * GET — List inventory items with current prices.
  */
 export async function GET(request: NextRequest) {
     try {
-        const steamId = await getSteamId();
+        const { session, error: authError } = await requireAuth();
+        if (authError) return authError;
 
-        // Find user by steamId (or use first user in dev)
-        let userId: string | undefined;
-        if (steamId) {
-            const user = await prisma.user.findUnique({ where: { steamId } });
-            userId = user?.id;
-        }
-        if (!userId && process.env.NODE_ENV === "development") {
-            const firstUser = await prisma.user.findFirst();
-            userId = firstUser?.id;
-        }
+        const userId = session.user.id;
 
         const filter = request.nextUrl.searchParams.get("filter"); // "all" | "tradable" | "sold"
 
-        const whereClause: Record<string, unknown> = {};
-        if (userId) whereClause.userId = userId;
+        const whereClause: Record<string, unknown> = { userId };
         if (filter === "tradable") whereClause.soldAt = null;
         if (filter === "sold") whereClause.soldAt = { not: null };
 
@@ -108,13 +84,10 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
     try {
-        const steamId = await getSteamId();
-        if (!steamId) {
-            return NextResponse.json(
-                { success: false, error: "Steam ID not available. Please sign in or set ALLOWED_STEAM_ID." },
-                { status: 401 }
-            );
-        }
+        const { session, error: authError } = await requireAuth();
+        if (authError) return authError;
+
+        const steamId = session.user.steamId;
 
         // Ensure user exists
         let user = await prisma.user.findUnique({ where: { steamId } });
@@ -122,7 +95,7 @@ export async function POST(request: NextRequest) {
             user = await prisma.user.create({
                 data: {
                     steamId,
-                    displayName: `User ${steamId}`,
+                    displayName: session.user.name,
                 },
             });
         }

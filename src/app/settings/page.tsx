@@ -80,8 +80,9 @@ export default function SettingsPage() {
                     </div>
 
                     <div className={styles.formGroup}>
-                        <label>Active Engine</label>
+                        <label htmlFor="settings-active-engine">Active Engine</label>
                         <Select
+                            id="settings-active-engine"
                             value={settings.activeAIProvider}
                             onChange={(val) => handleChange("activeAIProvider", val)}
                             className={styles.select}
@@ -91,8 +92,9 @@ export default function SettingsPage() {
                     </div>
 
                     <div className={styles.formGroup}>
-                        <label>Google Gemini API Key</label>
+                        <label htmlFor="settings-gemini-key">Google Gemini API Key</label>
                         <input
+                            id="settings-gemini-key"
                             type="password"
                             value={settings.geminiApiKey}
                             onChange={(e) => handleChange("geminiApiKey", e.target.value)}
@@ -102,8 +104,9 @@ export default function SettingsPage() {
                     </div>
 
                     <div className={styles.formGroup}>
-                        <label>OpenAI API Key</label>
+                        <label htmlFor="settings-openai-key">OpenAI API Key</label>
                         <input
+                            id="settings-openai-key"
                             type="password"
                             value={settings.openAiApiKey}
                             onChange={(e) => handleChange("openAiApiKey", e.target.value)}
@@ -121,8 +124,9 @@ export default function SettingsPage() {
                     </div>
 
                     <div className={styles.formGroup}>
-                        <label>Primary Pricing Feed</label>
+                        <label htmlFor="settings-market-source">Primary Pricing Feed</label>
                         <Select
+                            id="settings-market-source"
                             value={settings.activeMarketSource}
                             onChange={(val) => handleChange("activeMarketSource", val)}
                             className={styles.select}
@@ -138,8 +142,9 @@ export default function SettingsPage() {
 
                     {settings.activeMarketSource === "csgotrader" && (
                         <div className={styles.formGroup} style={{ marginLeft: "1.5rem" }}>
-                            <label>Sub-Provider</label>
+                            <label htmlFor="settings-sub-provider">Sub-Provider</label>
                             <Select
+                                id="settings-sub-provider"
                                 value={settings.csgotraderSubProvider}
                                 onChange={(val) => handleChange("csgotraderSubProvider", val)}
                                 className={styles.select}
@@ -165,8 +170,9 @@ export default function SettingsPage() {
                     )}
 
                     <div className={styles.formGroup}>
-                        <label>CSFloat API Key</label>
+                        <label htmlFor="settings-csfloat-key">CSFloat API Key</label>
                         <input
+                            id="settings-csfloat-key"
                             type="password"
                             value={settings.csfloatApiKey}
                             onChange={(e) => handleChange("csfloatApiKey", e.target.value)}
@@ -176,11 +182,12 @@ export default function SettingsPage() {
                     </div>
 
                     <div className={styles.formGroup}>
-                        <label>
+                        <label htmlFor="settings-sync-interval">
                             <FaClock className={styles.inlineIcon} />
                             Cron Sync Interval (Minutes)
                         </label>
                         <input
+                            id="settings-sync-interval"
                             type="number"
                             min="1"
                             max="1440"
@@ -201,6 +208,7 @@ export default function SettingsPage() {
                 )}
 
                 <button
+                    type="button"
                     onClick={handleSave}
                     disabled={saving}
                     className={styles.saveBtn}

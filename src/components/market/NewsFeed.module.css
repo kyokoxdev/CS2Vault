@@ -176,7 +176,7 @@
 .paginationButton:hover:not(:disabled) {
   background: var(--surface-hover);
   color: var(--text-primary-90);
-  border-color: var(--border-secondary);
+  border-color: var(--border-primary);
 }
 
 .paginationButton:disabled {

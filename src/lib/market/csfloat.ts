@@ -122,7 +122,7 @@ export const csfloatProvider: MarketDataProvider = {
         return result;
     },
 
-    async fetchItemHistory(marketHashName: string, _days: number): Promise<PricePoint[]> {
+    async fetchItemHistory(marketHashName: string): Promise<PricePoint[]> {
         // CSFloat provides recent sales via the history endpoint
         const sales = await csfloatQueue.enqueue(async () => {
             const encoded = encodeURIComponent(marketHashName);

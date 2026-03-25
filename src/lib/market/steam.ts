@@ -90,7 +90,7 @@ export const steamProvider: MarketDataProvider = {
         return result;
     },
 
-    async fetchItemHistory(_marketHashName: string, _days: number): Promise<PricePoint[]> {
+    async fetchItemHistory(): Promise<PricePoint[]> {
         // Steam Market doesn't expose a public price history API.
         // The price history chart data on Steam's website is loaded via
         // an authenticated endpoint that requires login cookies.

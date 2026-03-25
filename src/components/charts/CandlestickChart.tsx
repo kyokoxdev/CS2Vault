@@ -41,19 +41,36 @@ export default function CandlestickChart({
     const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
     const [timeframe, setTimeframe] = useState("1d");
     const [latestPrice, setLatestPrice] = useState<number | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [isEmpty, setIsEmpty] = useState(false);
 
     const fetchData = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        setIsEmpty(false);
         try {
             const res = await fetch(
                 `/api/items/${itemId}/prices?interval=${timeframe}&limit=200`
             );
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
             const json = await res.json();
-            if (!json.success) return;
+            if (!json.success) {
+                throw new Error(json.error ?? "API returned unsuccessful response");
+            }
 
             const { candlesticks, latestPrice: price } = json.data;
             setLatestPrice(price);
 
-            if (seriesRef.current && candlesticks.length > 0) {
+            if (!candlesticks || candlesticks.length === 0) {
+                setIsEmpty(true);
+                setLoading(false);
+                return;
+            }
+
+            if (seriesRef.current) {
                 const data: CandlestickData<Time>[] = candlesticks.map(
                     (c: { time: number; open: number; high: number; low: number; close: number }) => ({
                         time: c.time as Time,
@@ -68,6 +85,9 @@ export default function CandlestickChart({
             }
         } catch (err) {
             console.error("[Chart] Fetch failed:", err);
+            setError("Failed to load chart data");
+        } finally {
+            setLoading(false);
         }
     }, [itemId, timeframe]);
 
@@ -116,7 +136,10 @@ export default function CandlestickChart({
         // Resize observer
         const ro = new ResizeObserver((entries) => {
             for (const entry of entries) {
-                chart.applyOptions({ width: entry.contentRect.width });
+                const currentChart = chartRef.current;
+                if (!currentChart) continue;
+
+                currentChart.applyOptions({ width: entry.contentRect.width });
             }
         });
         ro.observe(chartContainerRef.current);
@@ -134,7 +157,12 @@ export default function CandlestickChart({
     }, [fetchData]);
 
     return (
-        <div className="chart-container">
+        <div
+            className="chart-container"
+            role="img"
+            aria-label={`Price chart for ${itemName ?? "item"}`}
+            style={{ minHeight: height }}
+        >
             <div className="chart-toolbar">
                 {itemName && (
                     <span style={{ fontWeight: 600, marginRight: 8, color: "var(--text-primary-90)" }}>{itemName}</span>
@@ -161,7 +189,86 @@ export default function CandlestickChart({
                     </button>
                 ))}
             </div>
-            <div ref={chartContainerRef} />
+
+            {loading && (
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        height: height - 60,
+                        color: "var(--text-secondary-60)",
+                        fontSize: 14,
+                        gap: 8,
+                    }}
+                >
+                    <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        style={{ animation: "spin 1s linear infinite" }}
+                        aria-hidden="true"
+                    >
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    Loading chart…
+                </div>
+            )}
+
+            {error && !loading && (
+                <div
+                    style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        height: height - 60,
+                        gap: 12,
+                    }}
+                >
+                    <span style={{ color: "var(--bear)", fontSize: 14 }}>
+                        {error}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={fetchData}
+                        style={{
+                            padding: "6px 16px",
+                            borderRadius: "var(--radius-sm)",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            color: "var(--text-primary-90)",
+                            background: "var(--surface-hover)",
+                            border: "1px solid var(--border-primary)",
+                            cursor: "pointer",
+                        }}
+                    >
+                        Retry
+                    </button>
+                </div>
+            )}
+
+            {isEmpty && !loading && !error && (
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        height: height - 60,
+                        color: "var(--text-secondary-60)",
+                        fontSize: 14,
+                    }}
+                >
+                    No price history available
+                </div>
+            )}
+
+            <div
+                ref={chartContainerRef}
+                style={{ display: loading || error || isEmpty ? "none" : "block" }}
+            />
             <div className="chart-attribution">
                 <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">
                     <svg width="24" height="13" viewBox="0 0 36 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
