@@ -2,24 +2,24 @@
 .notFound {
   padding: 40px;
   text-align: center;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
 }
 
 .notFound h3 {
-  color: var(--text-primary);
+  color: var(--text-primary-90);
   margin-bottom: 16px;
 }
 
 .backLink {
   font-size: 13px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   margin-bottom: 16px;
   display: inline-block;
   transition: color var(--transition-fast);
 }
 
 .backLink:hover {
-  color: var(--text-primary);
+  color: var(--text-primary-90);
 }
 
 .header {
@@ -33,11 +33,11 @@
   font-size: 22px;
   font-weight: 700;
   margin-bottom: 4px;
-  color: var(--text-primary);
+  color: var(--text-primary-90);
 }
 
 .marketHashName {
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   font-size: 13px;
 }
 
@@ -54,7 +54,7 @@
 
 .priceSource {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
 }
 
 .statsGrid {

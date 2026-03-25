@@ -115,13 +115,18 @@ export default function DashboardShell({
                         </div>
                     ) : isSignedIn ? (
                         <div className={styles.sidebarUser}>
-                            {session.user?.image && (
-                                <img
-                                    src={session.user.image}
-                                    alt={session.user.name ?? "User"}
-                                    className={styles.userAvatar}
-                                />
-                            )}
+                            <img
+                                src={session.user?.image || ""}
+                                alt={session.user?.name ?? "User"}
+                                className={styles.userAvatar}
+                                loading="lazy"
+                                width={32}
+                                height={32}
+                                onError={(e) => {
+                                    const target = e.currentTarget;
+                                    target.style.display = "none";
+                                }}
+                            />
                             <div className={styles.userInfo}>
                                 <div className={styles.userName}>
                                     {session.user?.name}

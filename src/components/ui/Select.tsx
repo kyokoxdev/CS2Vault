@@ -17,9 +17,10 @@ export interface SelectProps {
   className?: string;
   menuPlacement?: "bottom" | "top"; // Optional placement prop
   disabled?: boolean;
+  id?: string;
 }
 
-export function Select({ value, onChange, options, placeholder = "Select...", className = "", menuPlacement = "bottom", disabled = false }: SelectProps) {
+export function Select({ value, onChange, options, placeholder = "Select...", className = "", menuPlacement = "bottom", disabled = false, id }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -174,7 +175,8 @@ export function Select({ value, onChange, options, placeholder = "Select...", cl
   return (
     <div className={`${styles.container} ${className} ${disabled ? styles.disabled : ""}`} ref={dropdownRef}>
       <button 
-        type="button" 
+        type="button"
+        id={id}
         className={`${styles.trigger} ${isOpen ? styles.open : ""}`}
         onClick={() => {
           if (disabled) {

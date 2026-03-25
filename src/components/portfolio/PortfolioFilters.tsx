@@ -77,14 +77,16 @@ export function PortfolioFilters({
         }}
         placeholder="Search items"
         className={styles.input}
+        aria-label="Search items"
       />
       <button
+        type="button"
         onClick={() => onChange("search", pendingSearch.trim())}
         className={styles.button}
       >
         Apply
       </button>
-      <button onClick={onClear} className={styles.clearButton}>
+      <button type="button" onClick={onClear} className={styles.clearButton}>
         Clear
       </button>
       <div className={styles.count}>{itemCount} items</div>

@@ -257,6 +257,9 @@ export default function PortfolioPage() {
               src={item.imageUrl}
               alt={item.name}
               className={styles.itemImage}
+              loading="lazy"
+              width={64}
+              height={48}
             />
           )}
           <div>
@@ -353,6 +356,7 @@ export default function PortfolioPage() {
                 type="button"
                 onClick={() => handleUpdatePrice(item.id)}
                 className={styles.editButton}
+                aria-label="Confirm price"
               >
                 ✓
               </button>

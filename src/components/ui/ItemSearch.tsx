@@ -250,7 +250,8 @@ export default function ItemSearch({
                             {item.imageUrl ? (
                                 <img
                                     src={item.imageUrl}
-                                    alt=""
+                                    alt={item.name}
+                                    loading="lazy"
                                     style={{
                                         width: 48,
                                         height: 36,

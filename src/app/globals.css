@@ -1,28 +1,28 @@
 :root {
   /* Colors — Premium dark theme */
-  --bg-primary: #0a0a0f; /* DEPRECATED — use --surface-0 */
-  --bg-secondary: #12121a; /* DEPRECATED — use --surface-1 */
-  --bg-tertiary: #1a1a28; /* DEPRECATED — use --surface-3 */
-  --bg-card: #15151f; /* DEPRECATED — use --surface-2 */
-  --bg-hover: #1e1e2e; /* DEPRECATED — use --surface-hover */
+  --bg-primary: #0a0a0f; /* DEPRECATED — use --surface-0 */ /* MIGRATION COMPLETE */
+  --bg-secondary: #12121a; /* DEPRECATED — use --surface-1 */ /* MIGRATION COMPLETE */
+  --bg-tertiary: #1a1a28; /* DEPRECATED — use --surface-3 */ /* MIGRATION COMPLETE */
+  --bg-card: #15151f; /* DEPRECATED — use --surface-2 */ /* MIGRATION COMPLETE */
+  --bg-hover: #1e1e2e; /* DEPRECATED — use --surface-hover */ /* MIGRATION COMPLETE */
 
-  --text-primary: #e4e4ef; /* DEPRECATED — use --text-primary-90 */
-  --text-secondary: #8888a0; /* DEPRECATED — use --text-secondary-60 */
-  --text-muted: #55556a; /* DEPRECATED — use --text-secondary-60 */
+  --text-primary: #e4e4ef; /* DEPRECATED — use --text-primary-90 */ /* MIGRATION COMPLETE */
+  --text-secondary: #8888a0; /* DEPRECATED — use --text-secondary-60 */ /* MIGRATION COMPLETE */
+  --text-muted: #55556a; /* DEPRECATED — use --text-secondary-60 */ /* MIGRATION COMPLETE */
 
   --accent-primary: #6c5ce7; /* DEPRECATED — old purple accent, no OKX equivalent */
   --accent-secondary: #a29bfe; /* DEPRECATED — old purple accent, no OKX equivalent */
   --accent-glow: rgba(108, 92, 231, 0.15); /* DEPRECATED — old purple glow, no OKX equivalent */
   --accent: var(--accent-primary); /* DEPRECATED — alias for deprecated --accent-primary */
 
-  --green: #00C076; /* DEPRECATED — use --bull */
-  --green-dim: rgba(0, 192, 118, 0.15); /* DEPRECATED — use --bull with opacity */
-  --red: #FF4D4F; /* DEPRECATED — use --bear */
-  --red-dim: rgba(255, 77, 79, 0.15); /* DEPRECATED — use --bear with opacity */
+  --green: #00C076; /* DEPRECATED — use --bull */ /* MIGRATION COMPLETE */
+  --green-dim: rgba(0, 192, 118, 0.15); /* DEPRECATED — use --bull with opacity */ /* MIGRATION COMPLETE */
+  --red: #FF4D4F; /* DEPRECATED — use --bear */ /* MIGRATION COMPLETE */
+  --red-dim: rgba(255, 77, 79, 0.15); /* DEPRECATED — use --bear with opacity */ /* MIGRATION COMPLETE */
   --yellow: #ffd93d;
 
-  --border: #2a2a3d; /* DEPRECATED — use --border-primary */
-  --border-hover: #3a3a55; /* DEPRECATED — use --border-active */
+  --border: #2a2a3d; /* DEPRECATED — use --border-primary */ /* MIGRATION COMPLETE */
+  --border-hover: #3a3a55; /* DEPRECATED — use --border-active */ /* MIGRATION COMPLETE */
 
   /* Sizing */
   --sidebar-width: 240px;
@@ -84,12 +84,12 @@ html, body {
 }
 
 a {
-  color: var(--accent-secondary);
+  color: var(--accent-secondary); /* TODO: Design decision needed — replace accent color system */
   text-decoration: none;
   transition: color var(--transition-fast);
 }
 a:hover {
-  color: var(--accent-primary);
+  color: var(--accent-primary); /* TODO: Design decision needed — replace accent color system */
 }
 
 button {
@@ -141,8 +141,8 @@ button {
 
 .sidebar {
   width: var(--sidebar-width);
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border);
+  background: var(--surface-1);
+  border-right: 1px solid var(--border-primary);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -154,14 +154,14 @@ button {
   display: flex;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-primary);
   gap: 10px;
 }
 
 .sidebar-brand h1 {
   font-size: 18px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); /* TODO: Design decision needed — replace accent color system */
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -169,8 +169,8 @@ button {
 
 .sidebar-brand .version {
   font-size: 10px;
-  color: var(--text-muted);
-  background: var(--bg-tertiary);
+  color: var(--text-secondary-60);
+  background: var(--surface-3);
   padding: 2px 6px;
   border-radius: 4px;
 }
@@ -189,20 +189,20 @@ button {
   gap: 10px;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  color: var(--text-secondary-60);
   font-size: 13px;
   font-weight: 500;
   transition: all var(--transition-fast);
 }
 
 .nav-link:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--surface-hover);
+  color: var(--text-primary-90);
 }
 
 .nav-link.active {
-  background: var(--accent-glow);
-  color: var(--accent-secondary);
+  background: var(--accent-glow); /* TODO: Design decision needed — replace accent color system */
+  color: var(--accent-secondary); /* TODO: Design decision needed — replace accent color system */
 }
 
 .nav-link .icon {
@@ -216,13 +216,13 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   padding: 16px 12px 6px;
 }
 
 .sidebar-footer {
   padding: 12px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-primary);
 }
 
 .sidebar-user {
@@ -237,7 +237,7 @@ button {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 2px solid var(--border);
+  border: 2px solid var(--border-primary);
 }
 
 .sidebar-user .user-name {
@@ -247,7 +247,7 @@ button {
 
 .sidebar-user .user-status {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
 }
 
 /* ─── Main Content ─────────────────────────────────────── */
@@ -265,8 +265,8 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--surface-1);
   flex-shrink: 0;
 }
 
@@ -295,7 +295,7 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .card-header h3 {
@@ -321,14 +321,14 @@ button {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary-60);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .data-table td {
   padding: 12px 16px;
   font-size: 13px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .data-table tbody tr {
@@ -340,11 +340,11 @@ button {
 }
 
 .data-table .price-up {
-  color: var(--green);
+  color: var(--bull);
 }
 
 .data-table .price-down {
-  color: var(--red);
+  color: var(--bear);
 }
 
 /* ─── Buttons ──────────────────────────────────────────── */
@@ -400,13 +400,13 @@ button {
 }
 
 .badge-green {
-  background: var(--green-dim);
-  color: var(--green);
+  background: rgba(0, 192, 118, 0.15);
+  color: var(--bull);
 }
 
 .badge-red {
-  background: var(--red-dim);
-  color: var(--red);
+  background: rgba(255, 77, 79, 0.15);
+  color: var(--bear);
 }
 
 /* ─── Stat Cards ───────────────────────────────────────── */
@@ -419,15 +419,15 @@ button {
 }
 
 .stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   padding: 20px;
 }
 
 .stat-card .stat-label {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-secondary-60);
   margin-bottom: 4px;
 }
 
@@ -515,12 +515,12 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--border-primary);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-hover);
+  background: var(--border-active);
 }
 
 /* ================== Brutalist Utilities ================== */
@@ -552,7 +552,7 @@ button {
   display: none;
   background: none;
   border: none;
-  color: var(--text-primary);
+  color: var(--text-primary-90);
   font-size: 20px;
   cursor: pointer;
   padding: 8px;

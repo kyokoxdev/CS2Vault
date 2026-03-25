@@ -39,7 +39,7 @@
 }
 
 .info {
-  color: var(--accent-primary, #6c5ce7);
+  color: var(--accent-primary, #6c5ce7); /* TODO: Design decision needed — replace accent color system */
   background-color: rgba(108, 92, 231, 0.12);
 }
 
