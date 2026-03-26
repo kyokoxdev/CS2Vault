@@ -144,6 +144,36 @@ describe("Sync Integration", () => {
         expect(mockGetProvider).not.toHaveBeenCalled();
     });
 
+    it("syncs all active items even when watchlistOnly is enabled", async () => {
+        mockFindUnique.mockResolvedValue({
+            id: "singleton",
+            activeMarketSource: "csfloat",
+            watchlistOnly: true,
+        } as ReturnType<typeof mockFindUnique> extends Promise<infer T> ? T : never);
+
+        mockFindMany.mockResolvedValue([
+            { id: "watched-item", marketHashName: "Watched Item" },
+            { id: "unwatched-item", marketHashName: "Unwatched Item" },
+        ] as ReturnType<typeof mockFindMany> extends Promise<infer T> ? T : never);
+
+        const prices = new Map([
+            ["Watched Item", { price: 100, source: "csfloat", timestamp: new Date() }],
+            ["Unwatched Item", { price: 200, source: "csfloat", timestamp: new Date() }],
+        ]);
+        const mockProvider = createMockProvider("csfloat", prices);
+        mockGetProvider.mockReturnValue(mockProvider as ReturnType<typeof mockGetProvider>);
+
+        const result = await runSync();
+
+        expect(result.status).toBe("success");
+        expect(result.itemCount).toBe(2);
+        expect(mockFindMany).toHaveBeenCalledWith({
+            where: { isActive: true },
+            select: { id: true, marketHashName: true },
+        });
+        expect(mockSnapshotCreate).toHaveBeenCalledTimes(2);
+    });
+
     it("records sync failure on error", async () => {
         mockFindUnique.mockResolvedValue({
             id: "singleton",
@@ -193,5 +223,28 @@ describe("Sync Integration", () => {
 
         expect(result.status).toBe("success");
         expect(mockGetProvider).toHaveBeenCalledWith("csgotrader");
+    });
+
+    it("falls back to csfloat when settings contain an invalid market source", async () => {
+        mockFindUnique.mockResolvedValue({
+            id: "singleton",
+            activeMarketSource: "invalid-source",
+            watchlistOnly: false,
+        } as ReturnType<typeof mockFindUnique> extends Promise<infer T> ? T : never);
+
+        mockFindMany.mockResolvedValue([
+            { id: "item-1", marketHashName: "AK-47 | Redline (Field-Tested)" },
+        ] as ReturnType<typeof mockFindMany> extends Promise<infer T> ? T : never);
+
+        const prices = new Map([
+            ["AK-47 | Redline (Field-Tested)", { price: 1300, source: "csfloat", timestamp: new Date() }],
+        ]);
+        const mockProvider = createMockProvider("csfloat", prices);
+        mockGetProvider.mockReturnValue(mockProvider as ReturnType<typeof mockGetProvider>);
+
+        const result = await runSync();
+
+        expect(result.status).toBe("success");
+        expect(mockGetProvider).toHaveBeenCalledWith("csfloat");
     });
 });

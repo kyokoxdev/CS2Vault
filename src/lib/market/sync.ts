@@ -8,6 +8,7 @@
 import { prisma } from "@/lib/db";
 import { initializeMarketProviders } from "@/lib/market/init";
 import { getMarketProvider } from "@/lib/market/registry";
+import { resolveMarketSource } from "@/lib/market/source";
 import { aggregateAllIntervals } from "@/lib/candles/aggregator";
 import type { MarketSource, SyncResult } from "@/types";
 
@@ -27,16 +28,13 @@ export async function runSync(overrideSource?: MarketSource): Promise<SyncResult
         where: { id: "singleton" },
     });
 
-    const preferredSource = overrideSource ?? (settings?.activeMarketSource as MarketSource) ?? "csfloat";
+    const preferredSource = overrideSource ?? resolveMarketSource(settings?.activeMarketSource);
     const source = preferredSource;
-    const watchlistOnly = settings?.watchlistOnly ?? true;
 
     try {
         // Get items to sync
         const items = await prisma.item.findMany({
-            where: watchlistOnly
-                ? { isWatched: true, isActive: true }
-                : { isActive: true },
+            where: { isActive: true },
             select: { id: true, marketHashName: true },
         });
 
