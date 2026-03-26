@@ -19,7 +19,12 @@ vi.mock("@/lib/market/registry", () => ({
     resolveMarketProvider: vi.fn(),
 }));
 
+vi.mock("@/lib/market/init", () => ({
+    initializeMarketProviders: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { prisma } from "@/lib/db";
+import { initializeMarketProviders } from "@/lib/market/init";
 import { resolveMarketProvider } from "@/lib/market/registry";
 import {
     computeTopMovers,
@@ -29,7 +34,9 @@ import {
 const mockItemFindMany = vi.mocked(prisma.item.findMany);
 const mockSnapshotFindMany = vi.mocked(prisma.priceSnapshot.findMany);
 const mockAppSettingsFindUnique = vi.mocked(prisma.appSettings.findUnique);
+const mockTopMoversCacheFindUnique = vi.mocked(prisma.topMoversCache.findUnique);
 const mockResolveMarketProvider = vi.mocked(resolveMarketProvider);
+const mockInitializeMarketProviders = vi.mocked(initializeMarketProviders);
 
 // Helper to create a Date relative to now
 function hoursAgo(hours: number): Date {
@@ -59,14 +66,15 @@ function makeMockProvider(priceMap: Map<string, { price: number; source: string;
 }
 
 beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     __resetCache();
-    // Default: settings returns csfloat as active source
+    mockInitializeMarketProviders.mockResolvedValue(undefined);
     mockAppSettingsFindUnique.mockResolvedValue({
         id: "singleton",
         activeMarketSource: "csfloat",
         csgotraderSubProvider: "csfloat",
     } as never);
+    mockTopMoversCacheFindUnique.mockResolvedValue(null);
 });
 
 describe("GET /api/market/top-movers", () => {
@@ -297,8 +305,66 @@ describe("GET /api/market/top-movers", () => {
         expect(body2.success).toBe(true);
         expect(body1.data.updatedAt).toBe(body2.data.updatedAt);
 
-        // Settings should only be queried once (cached on second call)
-        expect(mockAppSettingsFindUnique).toHaveBeenCalledTimes(0);
+        expect(mockAppSettingsFindUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it("recomputes movers when active market source changes even within cache TTL", async () => {
+        const { GET } = await import("@/app/api/market/top-movers/route");
+
+        mockAppSettingsFindUnique
+            .mockResolvedValueOnce({
+                id: "singleton",
+                activeMarketSource: "csfloat",
+                csgotraderSubProvider: "csfloat",
+            } as never)
+            .mockResolvedValueOnce({
+                id: "singleton",
+                activeMarketSource: "steam",
+                csgotraderSubProvider: "csfloat",
+            } as never)
+            .mockResolvedValueOnce({
+                id: "singleton",
+                activeMarketSource: "steam",
+                csgotraderSubProvider: "csfloat",
+            } as never);
+
+        mockItemFindMany
+            .mockResolvedValueOnce([{ marketHashName: "CSFloat Item" }] as never)
+            .mockResolvedValueOnce([{ id: "cf-1", name: "CSFloat Item", marketHashName: "CSFloat Item" }] as never)
+            .mockResolvedValueOnce([{ marketHashName: "Steam Item" }] as never)
+            .mockResolvedValueOnce([{ id: "st-1", name: "Steam Item", marketHashName: "Steam Item" }] as never);
+
+        mockSnapshotFindMany
+            .mockResolvedValueOnce([
+                { price: 100, timestamp: hoursAgo(20) },
+                { price: 120, timestamp: hoursAgo(1) },
+            ] as never)
+            .mockResolvedValueOnce([
+                { price: 90, timestamp: hoursAgo(20) },
+                { price: 130, timestamp: hoursAgo(1) },
+            ] as never);
+
+        mockResolveMarketProvider
+            .mockReturnValueOnce(makeMockProvider(makePriceMap([
+                { name: "CSFloat Item", price: 120 },
+            ])) as never)
+            .mockReturnValueOnce(makeMockProvider(new Map([
+                ["Steam Item", { price: 130, source: "steam", timestamp: new Date() }],
+            ])) as never);
+
+        const firstResponse = await GET();
+        const firstBody = await firstResponse.json();
+        expect(firstBody.success).toBe(true);
+        expect(firstBody.data.source).toBe("csfloat");
+        expect(firstBody.data.gainers[0].id).toBe("cf-1");
+
+        const secondResponse = await GET();
+        const secondBody = await secondResponse.json();
+        expect(secondBody.success).toBe(true);
+        expect(secondBody.data.source).toBe("steam");
+        expect(secondBody.data.gainers[0].id).toBe("st-1");
+        expect(mockResolveMarketProvider).toHaveBeenNthCalledWith(1, "csfloat");
+        expect(mockResolveMarketProvider).toHaveBeenNthCalledWith(2, "steam");
     });
 
     it("normal path returns source 'csfloat'", async () => {
@@ -317,6 +383,31 @@ describe("GET /api/market/top-movers", () => {
         const result = await computeTopMovers(null);
 
         expect(result.source).toBe("csfloat");
+        expect(result.gainers).toHaveLength(1);
+    });
+
+    it("initializes providers and uses configured active market source", async () => {
+        mockAppSettingsFindUnique.mockResolvedValue({
+            id: "singleton",
+            activeMarketSource: "steam",
+            csgotraderSubProvider: "csfloat",
+        } as never);
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(makePriceMap([
+            { name: "Steam Item", price: 150 },
+        ])) as never);
+        mockItemFindMany.mockResolvedValue([
+            { id: "s1", name: "Steam Item", marketHashName: "Steam Item" },
+        ] as never);
+        mockSnapshotFindMany.mockResolvedValue([
+            { price: 100, timestamp: hoursAgo(20) },
+            { price: 150, timestamp: hoursAgo(1) },
+        ] as never);
+
+        const result = await computeTopMovers(null);
+
+        expect(mockInitializeMarketProviders).toHaveBeenCalledTimes(1);
+        expect(mockResolveMarketProvider).toHaveBeenCalledWith("steam");
+        expect(result.source).toBe("steam");
         expect(result.gainers).toHaveLength(1);
     });
 
@@ -407,5 +498,137 @@ describe("GET /api/market/top-movers", () => {
         expect(result.source).toBe("watchlist");
         expect(result.gainers).toEqual([]);
         expect(result.losers).toEqual([]);
+    });
+
+    it("does not reuse watchlist fallback from memory cache after provider recovery", async () => {
+        const { GET } = await import("@/app/api/market/top-movers/route");
+
+        mockItemFindMany
+            .mockResolvedValueOnce([
+                {
+                    id: "w1",
+                    name: "Watch Item",
+                    marketHashName: "Watch Item",
+                    isWatched: true,
+                    isActive: true,
+                    priceSnapshots: [
+                        { price: 120, timestamp: hoursAgo(1) },
+                        { price: 100, timestamp: hoursAgo(20) },
+                    ],
+                },
+            ] as never)
+            .mockResolvedValueOnce([
+                { id: "m1", name: "Market Item", marketHashName: "Market Item" },
+            ] as never)
+            .mockResolvedValueOnce([
+                { id: "m1", name: "Market Item", marketHashName: "Market Item" },
+            ] as never);
+
+        mockSnapshotFindMany.mockResolvedValue([
+            { price: 100, timestamp: hoursAgo(20) },
+            { price: 150, timestamp: hoursAgo(1) },
+        ] as never);
+
+        mockResolveMarketProvider
+            .mockReturnValueOnce(null)
+            .mockReturnValueOnce(makeMockProvider(makePriceMap([
+                { name: "Market Item", price: 150 },
+            ])) as never);
+
+        const fallbackResponse = await GET();
+        const fallbackBody = await fallbackResponse.json();
+        expect(fallbackBody.success).toBe(true);
+        expect(fallbackBody.data.source).toBe("watchlist");
+        expect(fallbackBody.data.gainers[0].id).toBe("w1");
+
+        const recoveredResponse = await GET();
+        const recoveredBody = await recoveredResponse.json();
+        expect(recoveredBody.success).toBe(true);
+        expect(recoveredBody.data.source).toBe("csfloat");
+        expect(recoveredBody.data.gainers[0].id).toBe("m1");
+        expect(mockResolveMarketProvider).toHaveBeenCalledTimes(2);
+    });
+
+    it("ignores watchlist-only persistent cache and recomputes live movers", async () => {
+        const { GET } = await import("@/app/api/market/top-movers/route");
+        mockTopMoversCacheFindUnique.mockResolvedValue({
+            id: "singleton",
+            gainers: JSON.stringify([
+                {
+                    id: "cached-watch",
+                    name: "Cached Watch",
+                    marketHashName: "Cached Watch",
+                    price: 100,
+                    change24h: 10,
+                    sparkline: [],
+                },
+            ]),
+            losers: JSON.stringify([]),
+            source: "watchlist",
+            updatedAt: new Date(),
+        } as never);
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(makePriceMap([
+            { name: "Live Item", price: 150 },
+        ])) as never);
+        mockItemFindMany.mockResolvedValue([
+            { id: "live-1", name: "Live Item", marketHashName: "Live Item" },
+        ] as never);
+        mockSnapshotFindMany.mockResolvedValue([
+            { price: 100, timestamp: hoursAgo(20) },
+            { price: 150, timestamp: hoursAgo(1) },
+        ] as never);
+
+        const response = await GET();
+        const body = await response.json();
+
+        expect(body.success).toBe(true);
+        expect(body.data.source).toBe("csfloat");
+        expect(body.data.gainers[0].id).toBe("live-1");
+        expect(mockResolveMarketProvider).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores persistent cache from a different market source", async () => {
+        const { GET } = await import("@/app/api/market/top-movers/route");
+
+        mockAppSettingsFindUnique.mockResolvedValue({
+            id: "singleton",
+            activeMarketSource: "steam",
+            csgotraderSubProvider: "csfloat",
+        } as never);
+        mockTopMoversCacheFindUnique.mockResolvedValue({
+            id: "singleton",
+            gainers: JSON.stringify([
+                {
+                    id: "cached-csfloat",
+                    name: "Cached CSFloat",
+                    marketHashName: "Cached CSFloat",
+                    price: 100,
+                    change24h: 5,
+                    sparkline: [],
+                },
+            ]),
+            losers: JSON.stringify([]),
+            source: "csfloat",
+            updatedAt: new Date(),
+        } as never);
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(new Map([
+            ["Steam Item", { price: 140, source: "steam", timestamp: new Date() }],
+        ])) as never);
+        mockItemFindMany.mockResolvedValue([
+            { marketHashName: "Steam Item" },
+            { id: "steam-1", name: "Steam Item", marketHashName: "Steam Item" },
+        ] as never);
+        mockSnapshotFindMany.mockResolvedValue([
+            { price: 100, timestamp: hoursAgo(20) },
+            { price: 140, timestamp: hoursAgo(1) },
+        ] as never);
+
+        const response = await GET();
+        const body = await response.json();
+
+        expect(body.success).toBe(true);
+        expect(body.data.source).toBe("steam");
+        expect(body.data.gainers[0].id).toBe("steam-1");
+        expect(mockResolveMarketProvider).toHaveBeenCalledWith("steam");
     });
 });

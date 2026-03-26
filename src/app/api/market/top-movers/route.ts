@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { initializeMarketProviders } from "@/lib/market/init";
 import { resolveMarketProvider } from "@/lib/market/registry";
+import { resolveMarketSource } from "@/lib/market/source";
 import type { MarketSource } from "@/types";
 
 interface SparklinePoint {
@@ -29,6 +31,36 @@ let memoryCache: TopMoversData | null = null;
 let memoryCacheAt = 0;
 const MEMORY_CACHE_MS = 5 * 60 * 1000;
 const PERSISTENT_CACHE_TTL_MS = 60 * 60 * 1000;
+
+function hasMoverData(data: TopMoversData): boolean {
+    return data.gainers.length > 0 || data.losers.length > 0;
+}
+
+function canUseMemoryCache(data: TopMoversData, activeSource: MarketSource): boolean {
+    return data.source === activeSource;
+}
+
+function canUsePersistentCache(data: TopMoversData | null, activeSource: MarketSource): data is TopMoversData {
+    if (!data || data.source !== activeSource) {
+        return false;
+    }
+
+    const updatedAt = new Date(data.updatedAt).getTime();
+    if (!Number.isFinite(updatedAt)) {
+        return false;
+    }
+
+    return Date.now() - updatedAt < PERSISTENT_CACHE_TTL_MS;
+}
+
+async function getActiveSource(): Promise<MarketSource> {
+    const settings = await prisma.appSettings.findUnique({
+        where: { id: "singleton" },
+        select: { activeMarketSource: true },
+    });
+
+    return resolveMarketSource(settings?.activeMarketSource);
+}
 
 async function loadCachedData(): Promise<TopMoversData | null> {
     try {
@@ -74,27 +106,15 @@ async function saveCachedData(data: TopMoversData): Promise<void> {
     }
 }
 
-async function isCacheValid(): Promise<boolean> {
-    try {
-        const cached = await prisma.topMoversCache.findUnique({
-            where: { id: "singleton" },
-            select: { updatedAt: true },
-        });
-        
-        if (!cached) return false;
-        
-        const age = Date.now() - cached.updatedAt.getTime();
-        return age < PERSISTENT_CACHE_TTL_MS;
-    } catch {
-        return false;
-    }
-}
-
-async function computeTopMovers(existingCache: TopMoversData | null): Promise<TopMoversData> {
+async function computeTopMovers(
+    existingCache: TopMoversData | null,
+    activeSourceOverride?: MarketSource
+): Promise<TopMoversData> {
     const now = new Date();
     const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    const activeSource: MarketSource = "csfloat";
+    const activeSource = activeSourceOverride ?? await getActiveSource();
+    await initializeMarketProviders();
     const provider = resolveMarketProvider(activeSource);
 
     let allPrices: Map<string, { price: number; source: string }> | null = null;
@@ -122,7 +142,7 @@ async function computeTopMovers(existingCache: TopMoversData | null): Promise<To
     }
 
     if (providerFailed) {
-        if (existingCache && existingCache.gainers.length > 0) {
+        if (canUsePersistentCache(existingCache, activeSource) && hasMoverData(existingCache)) {
             console.log("[Top Movers] Provider failed, returning cached data");
             return { ...existingCache, cached: true };
         }
@@ -251,34 +271,41 @@ async function computeTopMovers(existingCache: TopMoversData | null): Promise<To
 
 export async function GET() {
     try {
-        if (memoryCache && Date.now() - memoryCacheAt < MEMORY_CACHE_MS) {
+        const activeSource = await getActiveSource();
+
+        if (memoryCache && Date.now() - memoryCacheAt < MEMORY_CACHE_MS && canUseMemoryCache(memoryCache, activeSource)) {
             return NextResponse.json({ success: true, data: memoryCache });
         }
 
-        const cacheValid = await isCacheValid();
         const existingCache = await loadCachedData();
         
-        if (cacheValid && existingCache) {
+        if (canUsePersistentCache(existingCache, activeSource)) {
             memoryCache = existingCache;
             memoryCacheAt = Date.now();
             return NextResponse.json({ success: true, data: existingCache });
         }
 
-        const data = await computeTopMovers(existingCache);
+        const data = await computeTopMovers(existingCache, activeSource);
         
-        if (data.source !== "watchlist" && !data.cached) {
+        if (canUsePersistentCache(data, activeSource) && !data.cached) {
             await saveCachedData(data);
         }
 
-        memoryCache = data;
-        memoryCacheAt = Date.now();
+        if (canUseMemoryCache(data, activeSource)) {
+            memoryCache = data;
+            memoryCacheAt = Date.now();
+        } else {
+            memoryCache = null;
+            memoryCacheAt = 0;
+        }
 
         return NextResponse.json({ success: true, data });
     } catch (error) {
         console.error("[API /market/top-movers]", error);
         
+        const activeSource = await getActiveSource();
         const fallbackCache = await loadCachedData();
-        if (fallbackCache) {
+        if (canUsePersistentCache(fallbackCache, activeSource)) {
             return NextResponse.json({ success: true, data: fallbackCache });
         }
         

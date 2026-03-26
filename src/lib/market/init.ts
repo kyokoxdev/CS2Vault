@@ -11,13 +11,25 @@ import { csfloatProvider } from "@/lib/market/csfloat";
 import { steamProvider } from "@/lib/market/steam";
 import { csgotraderProvider } from "@/lib/market/csgotrader";
 import { prisma } from "@/lib/db";
+import { resolveMarketSource } from "@/lib/market/source";
 
 let initialized = false;
+let initializationSignature: string | null = null;
+
+function buildInitializationSignature(activeMarketSource: string | null | undefined, hasCsfloatKey: boolean): string {
+    return `${resolveMarketSource(activeMarketSource)}:${hasCsfloatKey ? "1" : "0"}:${process.env.PRICEMPIRE_API_KEY ? "1" : "0"}`;
+}
 
 export async function initializeMarketProviders(): Promise<void> {
-    if (initialized) return;
-
     const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
+    const csfloatKey = settings?.csfloatApiKey || process.env.CSFLOAT_API_KEY;
+    const initializationKey = buildInitializationSignature(settings?.activeMarketSource, Boolean(csfloatKey));
+
+    if (initialized && initializationSignature === initializationKey) {
+        return;
+    }
+
+    clearProviders();
 
     // Register providers that have API keys configured
     const pricempireKey = process.env.PRICEMPIRE_API_KEY; // PRICEMPIRE is ENV only for now
@@ -28,7 +40,6 @@ export async function initializeMarketProviders(): Promise<void> {
         console.warn("[Market] ⚠️ PRICEMPIRE_API_KEY not set — provider disabled");
     }
 
-    const csfloatKey = settings?.csfloatApiKey || process.env.CSFLOAT_API_KEY;
     if (csfloatKey) {
         registerMarketProvider("csfloat", csfloatProvider);
         console.log("[Market] ✅ CSFloat provider registered");
@@ -43,6 +54,7 @@ export async function initializeMarketProviders(): Promise<void> {
     registerMarketProvider("csgotrader", csgotraderProvider);
     console.log("[Market] ✅ CSGOTrader provider registered (always available)");
 
+    initializationSignature = initializationKey;
     initialized = true;
 }
 
@@ -53,5 +65,6 @@ export async function initializeMarketProviders(): Promise<void> {
 export async function resetProviders(): Promise<void> {
     clearProviders();
     initialized = false;
+    initializationSignature = null;
     await initializeMarketProviders();
 }
