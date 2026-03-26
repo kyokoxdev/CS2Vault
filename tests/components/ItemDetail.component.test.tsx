@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ItemDetailPage from '../../src/app/item/[id]/page';
@@ -21,13 +22,15 @@ vi.mock('next/link', () => ({
 }));
 
 vi.mock('@/components/charts/CandlestickChart', () => ({
-  default: ({ onMarketSnapshotChange }: { onMarketSnapshotChange?: (snapshot: { price: number | null; timestamp: string | null; source: string | null; interval: string }) => void }) => {
-    onMarketSnapshotChange?.({
-      price: 15.5,
-      timestamp: '2023-01-02T12:00:00Z',
-      source: 'steam',
-      interval: '1d',
-    });
+  default: function MockCandlestickChart({ onMarketSnapshotChange }: { onMarketSnapshotChange?: (snapshot: { price: number | null; timestamp: string | null; source: string | null; interval: string }) => void }) {
+    useEffect(() => {
+      onMarketSnapshotChange?.({
+        price: 15.5,
+        timestamp: '2023-01-02T12:00:00Z',
+        source: 'steam',
+        interval: '1d',
+      });
+    }, [onMarketSnapshotChange]);
 
     return <div data-testid="candlestick-chart">Chart</div>;
   },
@@ -75,17 +78,16 @@ describe('ItemDetail Page', () => {
       expect(screen.getByText('AK-47 | Redline')).toBeInTheDocument();
     });
 
-    // Check header info
     expect(screen.getByText('AK-47 | Redline (Field-Tested)')).toBeInTheDocument();
-    expect(screen.getByText('$15.50')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('$15.50')).toBeInTheDocument();
+    });
 
-    // Check stats (StatCard + Badge)
-    expect(screen.getByText('Classified')).toBeInTheDocument(); // Rarity
-    expect(screen.getByText('Rifle')).toBeInTheDocument(); // Type
-    expect(screen.getByText('Field-Tested')).toBeInTheDocument(); // Exterior
-    expect(screen.getByText('Watching')).toBeInTheDocument(); // Status badge
+    expect(screen.getByText('Classified')).toBeInTheDocument();
+    expect(screen.getByText('Rifle')).toBeInTheDocument();
+    expect(screen.getByText('Field-Tested')).toBeInTheDocument();
+    expect(screen.getByText('Watching')).toBeInTheDocument();
 
-    // Check Chart
     expect(screen.getByTestId('candlestick-chart')).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
