@@ -35,6 +35,11 @@ interface PriceSnapshot {
     timestamp: string;
 }
 
+interface ItemApiResponse {
+    success: boolean;
+    data?: ItemDetail;
+}
+
 export default function ItemDetailPage() {
     const params = useParams();
     const id = params.id as string;
@@ -44,21 +49,11 @@ export default function ItemDetailPage() {
 
     const fetchItem = useCallback(async () => {
         try {
-            const [itemRes, priceRes] = await Promise.all([
-                fetch(`/api/items/${id}`),
-                fetch(`/api/items/${id}/prices?interval=1d&limit=1`),
-            ]);
+            const itemRes = await fetch(`/api/items/${id}`);
+            const itemData = (await itemRes.json()) as ItemApiResponse;
 
-            const itemData = await itemRes.json();
-            const priceData = await priceRes.json();
-
-            if (itemData.success) setItem(itemData.data);
-            if (priceData.success && priceData.data.latestPrice) {
-                setLatestPrice({
-                    price: priceData.data.latestPrice,
-                    source: "steam",
-                    timestamp: priceData.data.latestTimestamp,
-                });
+            if (itemData.success && itemData.data) {
+                setItem(itemData.data);
             }
         } catch (err) {
             console.error("Fetch error:", err);
@@ -69,6 +64,24 @@ export default function ItemDetailPage() {
     useEffect(() => {
         fetchItem();
     }, [fetchItem]);
+
+    const handleMarketSnapshotChange = useCallback((snapshot: {
+        price: number | null;
+        timestamp: string | null;
+        source: string | null;
+        interval: "5m" | "15m" | "1h" | "4h" | "1d" | "1w";
+    }) => {
+        if (snapshot.price === null || snapshot.timestamp === null) {
+            setLatestPrice(null);
+            return;
+        }
+
+        setLatestPrice({
+            price: snapshot.price,
+            source: snapshot.source ?? snapshot.interval,
+            timestamp: snapshot.timestamp,
+        });
+    }, []);
 
     if (loading) {
         return (
@@ -179,7 +192,13 @@ export default function ItemDetailPage() {
             </div>
 
             {/* Chart */}
-            <CandlestickChart itemId={id} itemName={item.name} height={450} />
+            <CandlestickChart
+                key={id}
+                itemId={id}
+                itemName={item.name}
+                height={450}
+                onMarketSnapshotChange={handleMarketSnapshotChange}
+            />
         </div>
     );
 }

@@ -44,19 +44,17 @@ export async function GET(
                 interval: query.interval,
                 ...(query.from ? { timestamp: timestampFilter } : {}),
             },
-            orderBy: { timestamp: "asc" },
+            orderBy: { timestamp: "desc" },
             take: query.limit,
         });
 
-        // Also fetch the latest raw snapshots for the "live" price
-        const latestSnapshots = await prisma.priceSnapshot.findMany({
+        const latestSnapshot = await prisma.priceSnapshot.findFirst({
             where: { itemId: id },
             orderBy: { timestamp: "desc" },
-            take: 5,
         });
 
         // Format candlesticks for TradingView Lightweight Charts
-        const ohlcv = candlesticks.map((c) => ({
+        const ohlcv = [...candlesticks].reverse().map((c) => ({
             time: Math.floor(c.timestamp.getTime() / 1000), // Unix seconds
             open: c.open,
             high: c.high,
@@ -75,8 +73,9 @@ export async function GET(
                 },
                 interval: query.interval,
                 candlesticks: ohlcv,
-                latestPrice: latestSnapshots[0]?.price ?? null,
-                latestTimestamp: latestSnapshots[0]?.timestamp ?? null,
+                latestPrice: latestSnapshot?.price ?? null,
+                latestTimestamp: latestSnapshot?.timestamp ?? null,
+                latestSource: latestSnapshot?.source ?? null,
             },
         });
     } catch (error) {
