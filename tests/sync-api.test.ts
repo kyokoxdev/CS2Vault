@@ -14,6 +14,10 @@ vi.mock("@/lib/market/market-cap", () => ({
     calculateAndStoreMarketCap: vi.fn(),
 }));
 
+vi.mock("@/lib/auth/guard", () => ({
+    requireAuth: vi.fn(),
+}));
+
 import { triggerManualSync } from "@/lib/market/scheduler";
 import { getRecentSyncLogs } from "@/lib/market/sync";
 import {
