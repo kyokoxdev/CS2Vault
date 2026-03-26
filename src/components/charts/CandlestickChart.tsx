@@ -1,207 +1,685 @@
 "use client";
 
-/**
- * TradingView Candlestick Chart Component
- *
- * Renders OHLCV candlestick data using TradingView Lightweight Charts.
- * Fetches data from /api/items/[id]/prices endpoint.
- */
-
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    createChart,
     CandlestickSeries,
+    ColorType,
+    HistogramSeries,
+    LineSeries,
+    createChart,
+    type CandlestickData,
+    type HistogramData,
     type IChartApi,
     type ISeriesApi,
-    type CandlestickData,
+    type LineData,
     type Time,
-    ColorType,
 } from "lightweight-charts";
+import {
+    calculateChartStats,
+    calculateSimpleMovingAverage,
+    toLineSeriesData,
+    toVolumeSeriesData,
+    type ChartCandlePoint,
+    type ChartStats,
+} from "./chart-utils";
 
 const TIMEFRAMES = [
-    { label: "1H", value: "1h" },
-    { label: "4H", value: "4h" },
-    { label: "1D", value: "1d" },
-    { label: "1W", value: "1w" },
+    { label: "15M", value: "15m", limit: 192, description: "Short-range structure" },
+    { label: "1H", value: "1h", limit: 240, description: "Trend over days" },
+    { label: "4H", value: "4h", limit: 180, description: "Swing perspective" },
+    { label: "1D", value: "1d", limit: 180, description: "Mid-term view" },
+    { label: "1W", value: "1w", limit: 156, description: "Long-term context" },
 ] as const;
+
+type TimeframeValue = (typeof TIMEFRAMES)[number]["value"];
+type ChartMode = "candles" | "line";
+
+interface PricesApiResponse {
+    success: boolean;
+    data?: {
+        candlesticks: ChartCandlePoint[];
+        latestPrice: number | null;
+        latestTimestamp: string | null;
+        latestSource?: string | null;
+    };
+    error?: string;
+}
+
+interface ChartDataset {
+    interval: TimeframeValue;
+    candles: ChartCandlePoint[];
+    candlestickData: CandlestickData<Time>[];
+    lineData: LineData<Time>[];
+    volumeData: HistogramData<Time>[];
+    maShortData: LineData<Time>[];
+    maLongData: LineData<Time>[];
+    stats: ChartStats | null;
+    latestPrice: number | null;
+    latestTimestamp: string | null;
+    latestSource: string | null;
+}
+
+interface MarketSnapshot {
+    price: number | null;
+    timestamp: string | null;
+    source: string | null;
+    interval: TimeframeValue;
+}
 
 interface CandlestickChartProps {
     itemId: string;
     itemName?: string;
     height?: number;
+    onMarketSnapshotChange?: (snapshot: MarketSnapshot) => void;
+}
+
+const CHART_COLORS = {
+    bull: "#00C076",
+    bear: "#FF4D4F",
+    accent: "#3B82F6",
+    amber: "#F5A524",
+    violet: "#8B5CF6",
+    text: "#8C8C8C",
+    surface: "#141414",
+    grid: "#1A1A1A",
+    border: "#262626",
+    crosshair: "rgba(140, 140, 140, 0.3)",
+};
+
+function getTimeframeConfig(timeframe: TimeframeValue) {
+    return TIMEFRAMES.find((candidate) => candidate.value === timeframe) ?? TIMEFRAMES[0];
+}
+
+function formatPrice(value: number | null): string {
+    if (value === null) {
+        return "—";
+    }
+
+    return `$${value.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
+}
+
+function formatSignedPrice(value: number): string {
+    const formatted = Math.abs(value).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+
+    if (value === 0) {
+        return `$${formatted}`;
+    }
+
+    return `${value > 0 ? "+" : "-"}$${formatted}`;
+}
+
+function formatPercent(value: number): string {
+    const formatted = Math.abs(value).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+
+    if (value === 0) {
+        return `${formatted}%`;
+    }
+
+    return `${value > 0 ? "+" : "-"}${formatted}%`;
+}
+
+function formatCompactNumber(value: number): string {
+    return new Intl.NumberFormat("en-US", {
+        notation: "compact",
+        maximumFractionDigits: 2,
+    }).format(value);
+}
+
+function formatTimestamp(value: string | null): string {
+    if (!value) {
+        return "Waiting for market data";
+    }
+
+    return new Date(value).toLocaleString();
+}
+
+function buildDataset(
+    interval: TimeframeValue,
+    candles: ChartCandlePoint[],
+    latestPrice: number | null,
+    latestTimestamp: string | null,
+    latestSource: string | null
+): ChartDataset {
+    const candlestickData: CandlestickData<Time>[] = candles.map((candle) => ({
+        time: candle.time as Time,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+    }));
+
+    const lineData: LineData<Time>[] = toLineSeriesData(candles).map((point) => ({
+        time: point.time as Time,
+        value: point.value,
+    }));
+
+    const volumeData: HistogramData<Time>[] = toVolumeSeriesData(candles, {
+        bull: `${CHART_COLORS.bull}99`,
+        bear: `${CHART_COLORS.bear}99`,
+    }).map((point) => ({
+        time: point.time as Time,
+        value: point.value,
+        color: point.color,
+    }));
+
+    const maShortData: LineData<Time>[] = calculateSimpleMovingAverage(candles, 7).map((point) => ({
+        time: point.time as Time,
+        value: point.value,
+    }));
+
+    const maLongData: LineData<Time>[] = calculateSimpleMovingAverage(candles, 21).map((point) => ({
+        time: point.time as Time,
+        value: point.value,
+    }));
+
+    return {
+        interval,
+        candles,
+        candlestickData,
+        lineData,
+        volumeData,
+        maShortData,
+        maLongData,
+        stats: calculateChartStats(candles),
+        latestPrice,
+        latestTimestamp,
+        latestSource,
+    };
 }
 
 export default function CandlestickChart({
     itemId,
     itemName,
     height = 400,
+    onMarketSnapshotChange,
 }: CandlestickChartProps) {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
-    const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-    const [timeframe, setTimeframe] = useState("1d");
-    const [latestPrice, setLatestPrice] = useState<number | null>(null);
+    const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+    const lineSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+    const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+    const maShortSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+    const maLongSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+    const cacheRef = useRef<Map<TimeframeValue, ChartDataset>>(new Map());
+    const abortRef = useRef<AbortController | null>(null);
+    const marketSnapshotChangeRef = useRef(onMarketSnapshotChange);
+    const previousItemIdRef = useRef(itemId);
+
+    const [timeframe, setTimeframe] = useState<TimeframeValue>("1d");
+    const [chartMode, setChartMode] = useState<ChartMode>("candles");
+    const [showVolume, setShowVolume] = useState(true);
+    const [showMA7, setShowMA7] = useState(true);
+    const [showMA21, setShowMA21] = useState(false);
+    const [dataset, setDataset] = useState<ChartDataset | null>(null);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
     const [isEmpty, setIsEmpty] = useState(false);
 
-    const fetchData = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        setIsEmpty(false);
-        try {
-            const res = await fetch(
-                `/api/items/${itemId}/prices?interval=${timeframe}&limit=200`
-            );
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}`);
-            }
-            const json = await res.json();
-            if (!json.success) {
-                throw new Error(json.error ?? "API returned unsuccessful response");
-            }
+    useEffect(() => {
+        marketSnapshotChangeRef.current = onMarketSnapshotChange;
+    }, [onMarketSnapshotChange]);
 
-            const { candlesticks, latestPrice: price } = json.data;
-            setLatestPrice(price);
+    const publishSnapshot = useCallback(
+        (nextDataset: ChartDataset | null, nextInterval: TimeframeValue) => {
+            marketSnapshotChangeRef.current?.({
+                price: nextDataset?.latestPrice ?? null,
+                timestamp: nextDataset?.latestTimestamp ?? null,
+                source: nextDataset?.latestSource ?? null,
+                interval: nextInterval,
+            });
+        },
+        []
+    );
 
-            if (!candlesticks || candlesticks.length === 0) {
-                setIsEmpty(true);
+    const fetchData = useCallback(
+        async (nextTimeframe: TimeframeValue, force = false) => {
+            const cachedDataset = cacheRef.current.get(nextTimeframe) ?? null;
+
+            if (cachedDataset && !force) {
+                setDataset(cachedDataset);
+                setError(null);
+                setNotice(null);
+                setIsEmpty(cachedDataset.candles.length === 0);
                 setLoading(false);
+                setRefreshing(false);
+                publishSnapshot(cachedDataset, nextTimeframe);
                 return;
             }
 
-            if (seriesRef.current) {
-                const data: CandlestickData<Time>[] = candlesticks.map(
-                    (c: { time: number; open: number; high: number; low: number; close: number }) => ({
-                        time: c.time as Time,
-                        open: c.open,
-                        high: c.high,
-                        low: c.low,
-                        close: c.close,
-                    })
-                );
-                seriesRef.current.setData(data);
-                chartRef.current?.timeScale().fitContent();
+            setError(null);
+            setNotice(null);
+            setIsEmpty(false);
+            setLoading(!cachedDataset);
+            setRefreshing(Boolean(cachedDataset));
+
+            if (!cachedDataset) {
+                setDataset(null);
             }
-        } catch (err) {
-            console.error("[Chart] Fetch failed:", err);
-            setError("Failed to load chart data");
-        } finally {
-            setLoading(false);
-        }
-    }, [itemId, timeframe]);
+
+            abortRef.current?.abort();
+            const controller = new AbortController();
+            abortRef.current = controller;
+
+            try {
+                const timeframeConfig = getTimeframeConfig(nextTimeframe);
+                const res = await fetch(
+                    `/api/items/${itemId}/prices?interval=${nextTimeframe}&limit=${timeframeConfig.limit}`,
+                    { signal: controller.signal }
+                );
+
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+
+                const json = (await res.json()) as PricesApiResponse;
+
+                if (!json.success || !json.data) {
+                    throw new Error(json.error ?? "API returned unsuccessful response");
+                }
+
+                const nextDataset = buildDataset(
+                    nextTimeframe,
+                    json.data.candlesticks,
+                    json.data.latestPrice,
+                    json.data.latestTimestamp,
+                    json.data.latestSource ?? null
+                );
+
+                cacheRef.current.set(nextTimeframe, nextDataset);
+
+                if (controller.signal.aborted) {
+                    return;
+                }
+
+                setDataset(nextDataset);
+                setIsEmpty(nextDataset.candles.length === 0);
+                setNotice(force ? "Chart refreshed with latest market data." : null);
+                publishSnapshot(nextDataset, nextTimeframe);
+            } catch (err) {
+                if (controller.signal.aborted) {
+                    return;
+                }
+
+                console.error("[Chart] Fetch failed:", err);
+
+                if (cachedDataset) {
+                    setDataset(cachedDataset);
+                    setIsEmpty(cachedDataset.candles.length === 0);
+                    setNotice("Could not refresh right now — showing cached chart data.");
+                    publishSnapshot(cachedDataset, nextTimeframe);
+                } else {
+                    setError("Failed to load chart data");
+                    publishSnapshot(null, nextTimeframe);
+                }
+            } finally {
+                if (abortRef.current === controller) {
+                    abortRef.current = null;
+                    setLoading(false);
+                    setRefreshing(false);
+                }
+            }
+        },
+        [itemId, publishSnapshot]
+    );
 
     useEffect(() => {
-        if (!chartContainerRef.current) return;
+        if (previousItemIdRef.current === itemId) {
+            return;
+        }
+
+        previousItemIdRef.current = itemId;
+        abortRef.current?.abort();
+        cacheRef.current.clear();
+        setDataset(null);
+        setTimeframe("1d");
+        setChartMode("candles");
+        setShowVolume(true);
+        setShowMA7(true);
+        setShowMA21(false);
+        setLoading(true);
+        setRefreshing(false);
+        setError(null);
+        setNotice(null);
+        setIsEmpty(false);
+        publishSnapshot(null, "1d");
+    }, [itemId, publishSnapshot]);
+
+    useEffect(() => {
+        if (!chartContainerRef.current) {
+            return;
+        }
 
         const chart = createChart(chartContainerRef.current, {
             width: chartContainerRef.current.clientWidth,
             height,
             layout: {
-                background: { type: ColorType.Solid, color: "#141414" },
-                textColor: "#8C8C8C",
+                background: { type: ColorType.Solid, color: CHART_COLORS.surface },
+                textColor: CHART_COLORS.text,
                 fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                 fontSize: 12,
                 attributionLogo: false,
             },
             grid: {
-                vertLines: { color: "#1A1A1A" },
-                horzLines: { color: "#1A1A1A" },
+                vertLines: { color: CHART_COLORS.grid },
+                horzLines: { color: CHART_COLORS.grid },
             },
             crosshair: {
-                vertLine: { color: "rgba(140, 140, 140, 0.3)", width: 1, labelBackgroundColor: "#262626" },
-                horzLine: { color: "rgba(140, 140, 140, 0.3)", width: 1, labelBackgroundColor: "#262626" },
+                vertLine: {
+                    color: CHART_COLORS.crosshair,
+                    width: 1,
+                    labelBackgroundColor: CHART_COLORS.border,
+                },
+                horzLine: {
+                    color: CHART_COLORS.crosshair,
+                    width: 1,
+                    labelBackgroundColor: CHART_COLORS.border,
+                },
             },
             rightPriceScale: {
-                borderColor: "#262626",
+                borderColor: CHART_COLORS.border,
+                scaleMargins: { top: 0.08, bottom: 0.28 },
             },
             timeScale: {
-                borderColor: "#262626",
+                borderColor: CHART_COLORS.border,
                 timeVisible: true,
             },
         });
 
-        const series = chart.addSeries(CandlestickSeries, {
-            upColor: "#00C076",
-            downColor: "#FF4D4F",
-            borderUpColor: "#00C076",
-            borderDownColor: "#FF4D4F",
-            wickUpColor: "#00C076",
-            wickDownColor: "#FF4D4F",
+        const candleSeries = chart.addSeries(CandlestickSeries, {
+            upColor: CHART_COLORS.bull,
+            downColor: CHART_COLORS.bear,
+            borderUpColor: CHART_COLORS.bull,
+            borderDownColor: CHART_COLORS.bear,
+            wickUpColor: CHART_COLORS.bull,
+            wickDownColor: CHART_COLORS.bear,
+        });
+
+        const lineSeries = chart.addSeries(LineSeries, {
+            color: CHART_COLORS.accent,
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+            visible: false,
+        });
+
+        const maShortSeries = chart.addSeries(LineSeries, {
+            color: CHART_COLORS.amber,
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+        });
+
+        const maLongSeries = chart.addSeries(LineSeries, {
+            color: CHART_COLORS.violet,
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+            visible: false,
+        });
+
+        const volumeSeries = chart.addSeries(HistogramSeries, {
+            priceScaleId: "volume",
+            priceFormat: { type: "volume" },
+            priceLineVisible: false,
+            lastValueVisible: false,
+        });
+
+        chart.priceScale("volume").applyOptions({
+            scaleMargins: { top: 0.74, bottom: 0 },
         });
 
         chartRef.current = chart;
-        seriesRef.current = series;
+        candleSeriesRef.current = candleSeries;
+        lineSeriesRef.current = lineSeries;
+        maShortSeriesRef.current = maShortSeries;
+        maLongSeriesRef.current = maLongSeries;
+        volumeSeriesRef.current = volumeSeries;
 
-        // Resize observer
         const ro = new ResizeObserver((entries) => {
             for (const entry of entries) {
-                const currentChart = chartRef.current;
-                if (!currentChart) continue;
-
-                currentChart.applyOptions({ width: entry.contentRect.width });
+                chart.applyOptions({
+                    width: entry.contentRect.width,
+                    height,
+                });
             }
         });
+
         ro.observe(chartContainerRef.current);
 
         return () => {
+            abortRef.current?.abort();
             ro.disconnect();
             chart.remove();
             chartRef.current = null;
-            seriesRef.current = null;
+            candleSeriesRef.current = null;
+            lineSeriesRef.current = null;
+            maShortSeriesRef.current = null;
+            maLongSeriesRef.current = null;
+            volumeSeriesRef.current = null;
         };
     }, [height]);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        void fetchData(timeframe);
+    }, [fetchData, timeframe]);
+
+    useEffect(() => {
+        if (!dataset || dataset.candles.length === 0) {
+            return;
+        }
+
+        chartRef.current?.timeScale().fitContent();
+    }, [dataset]);
+
+    useEffect(() => {
+        const chart = chartRef.current;
+        const candleSeries = candleSeriesRef.current;
+        const lineSeries = lineSeriesRef.current;
+        const maShortSeries = maShortSeriesRef.current;
+        const maLongSeries = maLongSeriesRef.current;
+        const volumeSeries = volumeSeriesRef.current;
+
+        if (!chart || !candleSeries || !lineSeries || !maShortSeries || !maLongSeries || !volumeSeries) {
+            return;
+        }
+
+        if (!dataset || dataset.candles.length === 0) {
+            candleSeries.setData([]);
+            lineSeries.setData([]);
+            maShortSeries.setData([]);
+            maLongSeries.setData([]);
+            volumeSeries.setData([]);
+            return;
+        }
+
+        candleSeries.setData(dataset.candlestickData);
+        lineSeries.setData(dataset.lineData);
+        maShortSeries.setData(dataset.maShortData);
+        maLongSeries.setData(dataset.maLongData);
+        volumeSeries.setData(dataset.volumeData);
+
+        const hasVolume = dataset.volumeData.some((point) => point.value > 0);
+        const showVolumePane = showVolume && hasVolume;
+
+        candleSeries.applyOptions({ visible: chartMode === "candles" });
+        lineSeries.applyOptions({ visible: chartMode === "line" });
+        maShortSeries.applyOptions({ visible: showMA7 && dataset.maShortData.length > 0 });
+        maLongSeries.applyOptions({ visible: showMA21 && dataset.maLongData.length > 0 });
+        volumeSeries.applyOptions({ visible: showVolumePane });
+
+        chart.priceScale("right").applyOptions({
+            scaleMargins: showVolumePane
+                ? { top: 0.08, bottom: 0.28 }
+                : { top: 0.12, bottom: 0.08 },
+        });
+
+        chart.priceScale("volume").applyOptions({
+            scaleMargins: showVolumePane
+                ? { top: 0.74, bottom: 0 }
+                : { top: 1, bottom: 0 },
+        });
+
+    }, [chartMode, dataset, showMA21, showMA7, showVolume]);
+
+    const timeframeConfig = getTimeframeConfig(timeframe);
+    const stats = dataset?.stats ?? null;
+    const hasChartData = Boolean(dataset && dataset.candles.length > 0 && !error);
+    const trendClassName =
+        stats?.trend === "up"
+            ? "chart-stat-positive"
+            : stats?.trend === "down"
+              ? "chart-stat-negative"
+              : "chart-stat-neutral";
 
     return (
         <div
             className="chart-container"
-            role="img"
-            aria-label={`Price chart for ${itemName ?? "item"}`}
             style={{ minHeight: height }}
         >
-            <div className="chart-toolbar">
-                {itemName && (
-                    <span style={{ fontWeight: 600, marginRight: 8, color: "var(--text-primary-90)" }}>{itemName}</span>
-                )}
-                {latestPrice !== null && (
-                    <span
-                        style={{
-                            fontFamily: "var(--font-numeric)",
-                            color: "var(--bull)",
-                            marginRight: "auto",
-                        }}
-                    >
-                        ${latestPrice.toFixed(2)}
-                    </span>
-                )}
-                {TIMEFRAMES.map((tf) => (
-                    <button
-                        key={tf.value}
-                        type="button"
-                        className={`timeframe-btn ${timeframe === tf.value ? "active" : ""}`}
-                        onClick={() => setTimeframe(tf.value)}
-                    >
-                        {tf.label}
-                    </button>
-                ))}
+            <div className="chart-toolbar chart-toolbar-expanded">
+                <div className="chart-toolbar-top">
+                    <div className="chart-heading">
+                        <div className="chart-heading-title-row">
+                            {itemName && <span className="chart-heading-title">{itemName}</span>}
+                            <span className="chart-heading-badge">{timeframeConfig.label}</span>
+                        </div>
+                        <span className="chart-heading-subtitle">{timeframeConfig.description}</span>
+                    </div>
+
+                    <div className="chart-header-metrics">
+                        <span className="chart-price-value">{formatPrice(dataset?.latestPrice ?? null)}</span>
+                        <span className="chart-heading-subtitle">{formatTimestamp(dataset?.latestTimestamp ?? null)}</span>
+                    </div>
+                </div>
+
+                <div className="chart-toolbar-row">
+                    <div className="chart-toolbar-group">
+                        {TIMEFRAMES.map((candidate) => (
+                            <button
+                                key={candidate.value}
+                                type="button"
+                                className={`timeframe-btn ${timeframe === candidate.value ? "active" : ""}`}
+                                aria-pressed={timeframe === candidate.value}
+                                onClick={() => setTimeframe(candidate.value)}
+                            >
+                                {candidate.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="chart-toolbar-group">
+                        <button
+                            type="button"
+                            className={`chart-toggle-btn ${chartMode === "candles" ? "active" : ""}`}
+                            aria-pressed={chartMode === "candles"}
+                            onClick={() => setChartMode("candles")}
+                        >
+                            Candles
+                        </button>
+                        <button
+                            type="button"
+                            className={`chart-toggle-btn ${chartMode === "line" ? "active" : ""}`}
+                            aria-pressed={chartMode === "line"}
+                            onClick={() => setChartMode("line")}
+                        >
+                            Line
+                        </button>
+                    </div>
+
+                    <div className="chart-toolbar-group">
+                        <button
+                            type="button"
+                            className={`chart-toggle-btn ${showVolume ? "active" : ""}`}
+                            aria-pressed={showVolume}
+                            onClick={() => setShowVolume((current) => !current)}
+                        >
+                            Volume
+                        </button>
+                        <button
+                            type="button"
+                            className={`chart-toggle-btn ${showMA7 ? "active" : ""}`}
+                            aria-pressed={showMA7}
+                            onClick={() => setShowMA7((current) => !current)}
+                        >
+                            MA 7
+                        </button>
+                        <button
+                            type="button"
+                            className={`chart-toggle-btn ${showMA21 ? "active" : ""}`}
+                            aria-pressed={showMA21}
+                            onClick={() => setShowMA21((current) => !current)}
+                            disabled={!dataset || dataset.maLongData.length === 0}
+                        >
+                            MA 21
+                        </button>
+                    </div>
+
+                    <div className="chart-toolbar-group chart-toolbar-group-actions">
+                        <button
+                            type="button"
+                            className="chart-ghost-btn"
+                            onClick={() => chartRef.current?.timeScale().fitContent()}
+                        >
+                            Reset view
+                        </button>
+                        <button
+                            type="button"
+                            className="chart-ghost-btn"
+                            onClick={() => {
+                                cacheRef.current.delete(timeframe);
+                                void fetchData(timeframe, true);
+                            }}
+                        >
+                            Refresh
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            {loading && (
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        height: height - 60,
-                        color: "var(--text-secondary-60)",
-                        fontSize: 14,
-                        gap: 8,
-                    }}
-                >
+            {stats && hasChartData && (
+                <div className="chart-summary-grid">
+                    <div className="chart-summary-card">
+                        <span className="chart-summary-label">Change</span>
+                        <span className={`chart-summary-value ${trendClassName}`}>{formatPercent(stats.changePercent)}</span>
+                        <span className={`chart-summary-meta ${trendClassName}`}>{formatSignedPrice(stats.delta)}</span>
+                    </div>
+
+                    <div className="chart-summary-card">
+                        <span className="chart-summary-label">Range</span>
+                        <span className="chart-summary-value">{formatPrice(stats.low)}</span>
+                        <span className="chart-summary-meta">to {formatPrice(stats.high)}</span>
+                    </div>
+
+                    <div className="chart-summary-card">
+                        <span className="chart-summary-label">Average volume</span>
+                        <span className="chart-summary-value">{formatCompactNumber(stats.averageVolume)}</span>
+                        <span className="chart-summary-meta">{formatCompactNumber(stats.totalVolume)} total</span>
+                    </div>
+
+                    <div className="chart-summary-card">
+                        <span className="chart-summary-label">Candles</span>
+                        <span className="chart-summary-value">{stats.candleCount}</span>
+                        <span className="chart-summary-meta">{chartMode === "candles" ? "OHLC" : "Close line"} view</span>
+                    </div>
+                </div>
+            )}
+
+            {loading && !dataset && (
+                <div className="chart-state chart-state-loading" style={{ minHeight: height - 80 }}>
                     <svg
                         width="20"
                         height="20"
@@ -213,69 +691,55 @@ export default function CandlestickChart({
                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25" />
                         <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                     </svg>
-                    Loading chart…
+                    <span>Loading chart…</span>
                 </div>
             )}
 
             {error && !loading && (
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        height: height - 60,
-                        gap: 12,
-                    }}
-                >
-                    <span style={{ color: "var(--bear)", fontSize: 14 }}>
-                        {error}
-                    </span>
-                    <button
-                        type="button"
-                        onClick={fetchData}
-                        style={{
-                            padding: "6px 16px",
-                            borderRadius: "var(--radius-sm)",
-                            fontSize: 13,
-                            fontWeight: 500,
-                            color: "var(--text-primary-90)",
-                            background: "var(--surface-hover)",
-                            border: "1px solid var(--border-primary)",
-                            cursor: "pointer",
-                        }}
-                    >
+                <div className="chart-state" style={{ minHeight: height - 80 }}>
+                    <span className="chart-state-error">{error}</span>
+                    <button type="button" className="chart-ghost-btn" onClick={() => void fetchData(timeframe, true)}>
                         Retry
                     </button>
                 </div>
             )}
 
             {isEmpty && !loading && !error && (
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        height: height - 60,
-                        color: "var(--text-secondary-60)",
-                        fontSize: 14,
-                    }}
-                >
-                    No price history available
+                <div className="chart-state" style={{ minHeight: height - 80 }}>
+                    <span>No price history available for this timeframe.</span>
                 </div>
             )}
 
             <div
                 ref={chartContainerRef}
-                style={{ display: loading || error || isEmpty ? "none" : "block" }}
+                className="chart-canvas"
+                role="img"
+                aria-label={`Price chart for ${itemName ?? "item"}`}
+                style={{ display: hasChartData ? "block" : "none", height }}
             />
+
+            {(refreshing || notice || dataset) && (
+                <div className="chart-meta-bar">
+                    <div className="chart-meta-left">
+                        <span className="chart-meta-pill">{dataset?.candles.length ?? 0} points</span>
+                        {dataset?.latestSource && <span className="chart-meta-pill">Source: {dataset.latestSource}</span>}
+                        <span className="chart-meta-pill">View: {chartMode === "candles" ? "Candlestick" : "Line"}</span>
+                    </div>
+
+                    <div className="chart-meta-right">
+                        {refreshing && <span className="chart-status-text">Refreshing chart…</span>}
+                        {notice && !refreshing && <span className="chart-status-text">{notice}</span>}
+                    </div>
+                </div>
+            )}
+
             <div className="chart-attribution">
                 <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">
                     <svg width="24" height="13" viewBox="0 0 36 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M14 0H22V4H18V18H14V0Z" fill="currentColor"/>
-                        <path d="M24 0H26L32 18H28L24 0Z" fill="currentColor"/>
-                        <path d="M36 0H32L28 18H32L36 0Z" fill="currentColor"/>
-                        <path fillRule="evenodd" clipRule="evenodd" d="M0 0H12V4H8V8H12V12H8V18H4V12H0V8H4V4H0V0Z" fill="currentColor"/>
+                        <path d="M14 0H22V4H18V18H14V0Z" fill="currentColor" />
+                        <path d="M24 0H26L32 18H28L24 0Z" fill="currentColor" />
+                        <path d="M36 0H32L28 18H32L36 0Z" fill="currentColor" />
+                        <path fillRule="evenodd" clipRule="evenodd" d="M0 0H12V4H8V8H12V12H8V18H4V12H0V8H4V4H0V0Z" fill="currentColor" />
                     </svg>
                     <span>TradingView</span>
                 </a>
