@@ -36,16 +36,20 @@ export default function WatchlistPage() {
     }
   }, []);
 
-  const handleSync = useCallback(async (fallback?: string) => {
+  const handleRefreshPrices = useCallback(async (fallback?: string) => {
     setSyncing(true);
-    setSyncStatus("Syncing...");
+    setSyncStatus("Refreshing prices...");
     try {
-      const url = fallback ? `/api/sync?fallback=${fallback}` : "/api/sync";
+      const url = fallback
+        ? `/api/watchlist/prices?fallback=${fallback}`
+        : "/api/watchlist/prices";
+      const start = performance.now();
       const res = await fetch(url, { method: "POST" });
+      const elapsed = Math.round(performance.now() - start);
       const data = await res.json();
       if (data.success) {
         setSyncStatus(
-          `Synced ${data.data.itemCount} items in ${data.data.duration}ms`
+          `Refreshed ${data.data.itemCount} items in ${elapsed}ms`
         );
         setTimeout(() => setSyncStatus(""), 3000);
         fetchData();
@@ -70,8 +74,8 @@ export default function WatchlistPage() {
   useEffect(() => {
     if (initialSyncRef.current) return;
     initialSyncRef.current = true;
-    handleSync();
-  }, [handleSync]);
+    handleRefreshPrices();
+  }, [handleRefreshPrices]);
 
   useEffect(() => {
     const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
@@ -80,11 +84,11 @@ export default function WatchlistPage() {
 
     const intervalMs = intervalMin * 60 * 1000;
     const timer = setInterval(() => {
-      handleSync();
+      handleRefreshPrices();
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [handleSync]);
+  }, [handleRefreshPrices]);
 
   async function handleAddItem(selected: {
     hashName: string;
@@ -168,15 +172,15 @@ export default function WatchlistPage() {
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            onClick={() => handleSync()}
+            onClick={() => handleRefreshPrices()}
             disabled={syncing}
           >
             {syncing ? <>
               <FaSpinner style={{ fontSize: '0.875rem', marginRight: '4px', animation: 'spin 1s linear infinite' }} />
-              Syncing...
+              Refreshing...
             </> : <>
               <FaSyncAlt style={{ fontSize: '0.875rem', marginRight: '4px' }} />
-              Sync Now
+              Refresh Prices
             </>}
           </button>
         </div>
@@ -203,7 +207,7 @@ export default function WatchlistPage() {
           attemptedProvider={fallbackInfo.attemptedProvider}
           onApprove={() => {
             setFallbackInfo(null);
-            handleSync("steam");
+            handleRefreshPrices("steam");
           }}
           onDismiss={() => setFallbackInfo(null)}
         />
