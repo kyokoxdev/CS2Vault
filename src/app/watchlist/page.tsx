@@ -20,9 +20,9 @@ export default function WatchlistPage() {
   } | null>(null);
   const initialSyncRef = useRef(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (showLoading = true) => {
     try {
-      setItemsLoading(true);
+      if (showLoading) setItemsLoading(true);
       const res = await fetch("/api/items?limit=100");
       const data = await res.json();
 
@@ -52,7 +52,7 @@ export default function WatchlistPage() {
           `Refreshed ${data.data.itemCount} items in ${elapsed}ms`
         );
         setTimeout(() => setSyncStatus(""), 3000);
-        fetchData();
+        fetchData(false);
 
         if (data.data?.fallbackAvailable && data.data?.failureReason) {
           setFallbackInfo({
@@ -74,8 +74,9 @@ export default function WatchlistPage() {
   useEffect(() => {
     if (initialSyncRef.current) return;
     initialSyncRef.current = true;
+    fetchData();
     handleRefreshPrices();
-  }, [handleRefreshPrices]);
+  }, [fetchData, handleRefreshPrices]);
 
   useEffect(() => {
     const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
