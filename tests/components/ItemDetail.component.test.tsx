@@ -21,7 +21,16 @@ vi.mock('next/link', () => ({
 }));
 
 vi.mock('@/components/charts/CandlestickChart', () => ({
-  default: () => <div data-testid="candlestick-chart">Chart</div>,
+  default: ({ onMarketSnapshotChange }: { onMarketSnapshotChange?: (snapshot: { price: number | null; timestamp: string | null; source: string | null; interval: string }) => void }) => {
+    onMarketSnapshotChange?.({
+      price: 15.5,
+      timestamp: '2023-01-02T12:00:00Z',
+      source: 'steam',
+      interval: '1d',
+    });
+
+    return <div data-testid="candlestick-chart">Chart</div>;
+  },
 }));
 
 // Mock data
@@ -41,14 +50,6 @@ const mockItem = {
   },
 };
 
-const mockPrice = {
-  success: true,
-  data: {
-    latestPrice: 15.50,
-    latestTimestamp: '2023-01-02T12:00:00Z',
-  },
-};
-
 describe('ItemDetail Page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -64,15 +65,8 @@ describe('ItemDetail Page', () => {
   });
 
   it('renders item details when data loads', async () => {
-    (global.fetch as any).mockImplementation((url: string) => {
-      if (url.includes('/prices')) {
-        return Promise.resolve({
-          json: () => Promise.resolve(mockPrice),
-        });
-      }
-      return Promise.resolve({
-        json: () => Promise.resolve(mockItem),
-      });
+    (global.fetch as any).mockResolvedValue({
+      json: () => Promise.resolve(mockItem),
     });
 
     render(<ItemDetailPage />);
@@ -93,6 +87,7 @@ describe('ItemDetail Page', () => {
 
     // Check Chart
     expect(screen.getByTestId('candlestick-chart')).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('renders not found state when item fetch fails', async () => {
