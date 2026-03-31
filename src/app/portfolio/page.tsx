@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { FaSpinner, FaBoxOpen } from "react-icons/fa";
 import styles from "./Portfolio.module.css";
 import { PortfolioFilters } from "@/components/portfolio/PortfolioFilters";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { FallbackToast } from "@/components/ui/FallbackToast";
+import { useToast } from "@/components/providers/ToastProvider";
 
 interface PortfolioItem {
   id: string;
@@ -73,10 +75,10 @@ const RARITY_VARIANTS: Record<string, string> = {
 };
 
 export default function PortfolioPage() {
+  const { addToast } = useToast();
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -117,7 +119,6 @@ export default function PortfolioPage() {
 
   const handleSync = useCallback(async (fallback?: string) => {
     setSyncing(true);
-    setSyncStatus("Fetching inventory from Steam...");
     try {
       const url = fallback ? `/api/inventory?fallback=${fallback}` : "/api/inventory";
       const res = await fetch(url, { method: "POST" });
@@ -129,7 +130,7 @@ export default function PortfolioPage() {
         const coverageLabel = coverage
           ? ` • Priced ${coverage.priced}/${coverage.total}${limitLabel}`
           : "";
-        setSyncStatus(`[OK] Synced ${data.data.synced} items from Steam${coverageLabel}`);
+        addToast(`Synced ${data.data.synced} items from Steam${coverageLabel}`, "success");
         await fetchPortfolio();
 
         if (data.data?.fallbackAvailable && data.data?.failureReason) {
@@ -140,17 +141,16 @@ export default function PortfolioPage() {
           });
         }
       } else {
-        setSyncStatus(`[ERR] ${data.error}`);
+        addToast(data.error, "error");
       }
     } catch (err) {
-      setSyncStatus(`[ERR] ${err}`);
+      addToast(`${err}`, "error");
     }
     setSyncing(false);
-  }, [fetchPortfolio]);
+  }, [fetchPortfolio, addToast]);
 
   const handleRefreshPrices = useCallback(async (fallback?: string) => {
     setRefreshingPrices(true);
-    setSyncStatus("Refreshing prices...");
     try {
       const url = fallback ? `/api/portfolio/prices?fallback=${fallback}` : "/api/portfolio/prices";
       const res = await fetch(url, { method: "POST" });
@@ -158,7 +158,7 @@ export default function PortfolioPage() {
       if (data.success) {
         const limited = data.data?.priceLimitedTo;
         const limitLabel = limited ? ` (limited to ${limited})` : "";
-        setSyncStatus(`[OK] Refreshed prices for ${data.data.pricedCount ?? 0} items${limitLabel}`);
+        addToast(`Refreshed prices for ${data.data.pricedCount ?? 0} items${limitLabel}`, "success");
         await fetchPortfolio();
 
         if (data.data?.fallbackAvailable && data.data?.failureReason) {
@@ -169,13 +169,13 @@ export default function PortfolioPage() {
           });
         }
       } else {
-        setSyncStatus(`[ERR] ${data.error}`);
+        addToast(data.error, "error");
       }
     } catch (err) {
-      setSyncStatus(`[ERR] ${err}`);
+      addToast(`${err}`, "error");
     }
     setRefreshingPrices(false);
-  }, [fetchPortfolio]);
+  }, [fetchPortfolio, addToast]);
 
   refreshRef.current = handleRefreshPrices;
 
@@ -403,7 +403,7 @@ export default function PortfolioPage() {
     return (
       <div className={styles.loadingState}>
         <div className={styles.loadingContent}>
-          <div className={styles.loadingIcon}>[...]</div>
+          <div className={styles.loadingIcon}><FaSpinner style={{ animation: "spin 1s linear infinite" }} /></div>
           <div>Loading portfolio...</div>
         </div>
       </div>
@@ -461,15 +461,9 @@ export default function PortfolioPage() {
         onClear={handleClearFilters}
       />
 
-      {syncStatus && (
-        <div className={`${styles.syncStatus} ${syncStatus.startsWith("[OK]") ? styles.syncStatusSuccess : syncStatus.startsWith("[ERR]") ? styles.syncStatusError : ""}`}>
-          {syncStatus}
-        </div>
-      )}
-
       {isEmpty ? (
         <div className={`${styles.emptyState} card`}>
-          <div className={styles.emptyIcon}>[empty]</div>
+          <div className={styles.emptyIcon}><FaBoxOpen /></div>
           <h3 className={styles.emptyTitle}>No inventory items yet</h3>
           <p className={styles.emptyDescription}>
             Sync your Steam CS2 inventory to start tracking your portfolio value and profit/loss.

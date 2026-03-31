@@ -5,14 +5,15 @@ import { FaTimes, FaPlus, FaSpinner, FaSyncAlt } from "react-icons/fa";
 import { WatchlistTable, type Item } from "@/components/market/WatchlistTable";
 import { AddItemPanel } from "@/components/market/AddItemPanel";
 import { FallbackToast } from "@/components/ui/FallbackToast";
+import { useToast } from "@/components/providers/ToastProvider";
 import styles from "./Watchlist.module.css";
 
 export default function WatchlistPage() {
+  const { addToast } = useToast();
   const [items, setItems] = useState<Item[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [addStatus, setAddStatus] = useState("");
   const [itemsLoading, setItemsLoading] = useState(true);
   const [fallbackInfo, setFallbackInfo] = useState<{
     failureReason: string;
@@ -74,9 +75,8 @@ export default function WatchlistPage() {
   useEffect(() => {
     if (initialSyncRef.current) return;
     initialSyncRef.current = true;
-    fetchData();
     handleRefreshPrices();
-  }, [fetchData, handleRefreshPrices]);
+  }, [handleRefreshPrices]);
 
   useEffect(() => {
     const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
@@ -99,7 +99,6 @@ export default function WatchlistPage() {
     exterior: string | null;
     type: string | null;
   }) {
-    setAddStatus("Adding...");
     try {
       const res = await fetch("/api/items", {
         method: "POST",
@@ -116,16 +115,13 @@ export default function WatchlistPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setAddStatus(`[OK] Added "${data.data.name}" to watchlist`);
+        addToast(`Added "${data.data.name}" to watchlist`, "success");
         fetchData();
-        setTimeout(() => setAddStatus(""), 3000);
       } else {
-        setAddStatus(`[ERR] ${data.error}`);
-        setTimeout(() => setAddStatus(""), 5000);
+        addToast(data.error, "error");
       }
     } catch (err) {
-      setAddStatus(`[ERR] ${err}`);
-      setTimeout(() => setAddStatus(""), 5000);
+      addToast(`${err}`, "error");
     }
   }
 
@@ -150,11 +146,6 @@ export default function WatchlistPage() {
           {syncStatus && (
             <span className={styles.statusMessage}>
               {syncStatus}
-            </span>
-          )}
-          {addStatus && (
-            <span className={styles.statusMessage}>
-              {addStatus}
             </span>
           )}
           <button
@@ -188,7 +179,7 @@ export default function WatchlistPage() {
       </div>
 
       {showAddForm && (
-        <AddItemPanel onAdd={handleAddItem} status={addStatus} />
+        <AddItemPanel onAdd={handleAddItem} status="" />
       )}
 
       <div className={styles.tableContainer}>

@@ -92,7 +92,7 @@ describe('ItemDetail Page', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('renders not found state when item fetch fails', async () => {
+  it('renders error state when item fetch fails', async () => {
     (global.fetch as any).mockResolvedValue({
       json: () => Promise.resolve({ success: false }),
     });
@@ -100,9 +100,10 @@ describe('ItemDetail Page', () => {
     render(<ItemDetailPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Item not found')).toBeInTheDocument();
+      expect(screen.getByText('Something went wrong')).toBeInTheDocument();
     });
     
+    expect(screen.getByText('Try again')).toBeInTheDocument();
     expect(screen.getByText('← Back to Market')).toBeInTheDocument();
   });
 });

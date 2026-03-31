@@ -18,6 +18,7 @@ export interface FallbackToastProps {
 
 export function FallbackToast({
   failureReason,
+  attemptedProvider,
   onApprove,
   onDismiss,
   autoCloseMs = 15000,
@@ -53,7 +54,7 @@ export function FallbackToast({
     <div className={`${styles.toast} ${exiting ? styles.exiting : ""}`} role="alert" aria-live="assertive">
       <div className={styles.icon}>⚠️</div>
       <div className={styles.content}>
-        <div className={styles.title}>Price provider unavailable</div>
+        <div className={styles.title}>{attemptedProvider} failed — try Steam?</div>
         <div className={styles.message}>{failureReason}</div>
       </div>
       <div className={styles.actions}>

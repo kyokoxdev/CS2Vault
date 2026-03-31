@@ -47,19 +47,24 @@ export default function ItemDetailPage() {
     const [item, setItem] = useState<ItemDetail | null>(null);
     const [latestPrice, setLatestPrice] = useState<PriceSnapshot | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
 
     usePageTitle(item?.name ?? null, { backLabel: "Back to Market Overview", backHref: "/" });
 
     const fetchItem = useCallback(async () => {
+        setError(false);
         try {
             const itemRes = await fetch(`/api/items/${id}`);
             const itemData = (await itemRes.json()) as ItemApiResponse;
 
             if (itemData.success && itemData.data) {
                 setItem(itemData.data);
+            } else {
+                setError(true);
             }
         } catch (err) {
             console.error("Fetch error:", err);
+            setError(true);
         }
         setLoading(false);
     }, [id]);
@@ -90,6 +95,39 @@ export default function ItemDetailPage() {
         return (
             <div className={styles.loadingState}>
                 Loading...
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className={styles.notFound}>
+                <div style={{ fontSize: 32, marginBottom: 12, color: "var(--bear)" }} aria-hidden="true">⚠</div>
+                <h3>Something went wrong</h3>
+                <p style={{ fontSize: 13, color: "var(--text-secondary-60)", marginBottom: 16 }}>
+                    Failed to load item details. This may be a temporary issue.
+                </p>
+                <button
+                    type="button"
+                    onClick={() => { setLoading(true); fetchItem(); }}
+                    style={{
+                        padding: "8px 20px",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        fontFamily: "inherit",
+                        background: "var(--text-primary-90)",
+                        color: "var(--surface-0)",
+                        border: "none",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        marginBottom: 12,
+                    }}
+                >
+                    Try again
+                </button>
+                <Link href="/" className={styles.backLink}>
+                    ← Back to Market
+                </Link>
             </div>
         );
     }
