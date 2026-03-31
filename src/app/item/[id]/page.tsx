@@ -13,6 +13,7 @@ import CandlestickChart from "@/components/charts/CandlestickChart";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import styles from "./ItemDetail.module.css";
+import { usePageTitle } from "@/components/providers/PageTitleProvider";
 
 interface ItemDetail {
     id: string;
@@ -46,6 +47,8 @@ export default function ItemDetailPage() {
     const [item, setItem] = useState<ItemDetail | null>(null);
     const [latestPrice, setLatestPrice] = useState<PriceSnapshot | null>(null);
     const [loading, setLoading] = useState(true);
+
+    usePageTitle(item?.name ?? null, { backLabel: "Back to Market Overview", backHref: "/" });
 
     const fetchItem = useCallback(async () => {
         try {
