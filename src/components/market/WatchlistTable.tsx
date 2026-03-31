@@ -7,7 +7,10 @@ import SparklineChart from "@/components/charts/SparklineChart";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RARITY_VARIANTS } from "@/lib/market/rarity";
+import { useToast } from "@/components/providers/ToastProvider";
 import styles from "./WatchlistTable.module.css";
+
+const NOTE_MAX_LENGTH = 500;
 
 export interface Item {
   id: string;
@@ -37,18 +40,100 @@ interface WatchlistTableProps {
   onViewDetails?: (id: string) => void;
 }
 
+function NoteEditor({
+  initialText,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  initialText: string;
+  saving: boolean;
+  onSave: (text: string) => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState(initialText);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
+  const charCount = text.length;
+  const isNearLimit = charCount > NOTE_MAX_LENGTH * 0.9;
+
+  return (
+    <fieldset
+      className={styles.noteEditor}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onCancel();
+        }
+      }}
+    >
+      <textarea
+        ref={textareaRef}
+        className={styles.noteTextarea}
+        value={text}
+        onChange={(e) => {
+          if (e.target.value.length <= NOTE_MAX_LENGTH) {
+            setText(e.target.value);
+          }
+        }}
+        placeholder="Add a note..."
+        maxLength={NOTE_MAX_LENGTH}
+        rows={3}
+      />
+      <div className={styles.noteEditorFooter}>
+        <span
+          className={`${styles.noteCharCount}${isNearLimit ? ` ${styles.noteCharCountWarn}` : ""}`}
+        >
+          {charCount}/{NOTE_MAX_LENGTH}
+        </span>
+        <div className={styles.noteEditorActions}>
+          <button
+            type="button"
+            className={styles.noteEditorBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCancel();
+            }}
+            disabled={saving}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={`${styles.noteEditorBtn} ${styles.noteEditorBtnSave}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSave(text);
+            }}
+            disabled={saving}
+          >
+            {saving ? "Saving\u2026" : "Save"}
+          </button>
+        </div>
+      </div>
+    </fieldset>
+  );
+}
+
 function ActionMenu({
   itemId,
   isWatched,
+  hasNotes,
   onToggleWatch,
-  onAddNote,
+  onEditNote,
   onAssignGroup,
   onViewDetails,
 }: {
   itemId: string;
   isWatched: boolean;
+  hasNotes: boolean;
   onToggleWatch: (id: string, current: boolean) => void;
-  onAddNote?: (id: string) => void;
+  onEditNote: (id: string) => void;
   onAssignGroup?: (id: string) => void;
   onViewDetails?: (id: string) => void;
 }) {
@@ -80,7 +165,7 @@ function ActionMenu({
         aria-label="Item actions"
         aria-expanded={open}
       >
-        ⋯
+        &#x22EF;
       </button>
       {open && (
         <div className={styles.actionMenuDropdown} role="menu">
@@ -94,24 +179,22 @@ function ActionMenu({
               close();
             }}
           >
-            <span className={styles.actionMenuIcon}>✕</span>
+            <span className={styles.actionMenuIcon}>{"\u2715"}</span>
             Unwatch
           </button>
-          {onAddNote && (
-            <button
-              type="button"
-              className={styles.actionMenuItem}
-              role="menuitem"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddNote(itemId);
-                close();
-              }}
-            >
-              <span className={styles.actionMenuIcon}>✎</span>
-              Add Note
-            </button>
-          )}
+          <button
+            type="button"
+            className={styles.actionMenuItem}
+            role="menuitem"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditNote(itemId);
+              close();
+            }}
+          >
+            <span className={styles.actionMenuIcon}>{"\u270E"}</span>
+            {hasNotes ? "Edit Note" : "Add Note"}
+          </button>
           {onAssignGroup && (
             <button
               type="button"
@@ -123,7 +206,7 @@ function ActionMenu({
                 close();
               }}
             >
-              <span className={styles.actionMenuIcon}>⊞</span>
+              <span className={styles.actionMenuIcon}>{"\u229E"}</span>
               Assign to Group
             </button>
           )}
@@ -138,7 +221,7 @@ function ActionMenu({
                 close();
               }}
             >
-              <span className={styles.actionMenuIcon}>↗</span>
+              <span className={styles.actionMenuIcon}>{"\u2197"}</span>
               View Details
             </button>
           )}
@@ -150,11 +233,11 @@ function ActionMenu({
 
 function PriceChangeCell({ value }: { value: number | null }) {
   if (value == null) {
-    return <span className={styles.mutedText}>—</span>;
+    return <span className={styles.mutedText}>&mdash;</span>;
   }
   const isPositive = value > 0;
   const isZero = value === 0;
-  const arrow = isPositive ? "▲" : "▼";
+  const arrow = isPositive ? "\u25B2" : "\u25BC";
   const className = isZero
     ? styles.mutedText
     : isPositive
@@ -179,6 +262,55 @@ export function WatchlistTable({
   onViewDetails,
 }: WatchlistTableProps) {
   const router = useRouter();
+  const { addToast } = useToast();
+
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteOverrides, setNoteOverrides] = useState<Record<string, string | null>>({});
+
+  const getItemNotes = useCallback(
+    (item: Item): string | null => {
+      if (item.id in noteOverrides) return noteOverrides[item.id];
+      return item.notes;
+    },
+    [noteOverrides],
+  );
+
+  const handleOpenNoteEditor = useCallback(
+    (itemId: string) => {
+      setEditingNoteId(itemId);
+      onAddNote?.(itemId);
+    },
+    [onAddNote],
+  );
+
+  const handleCancelNote = useCallback(() => {
+    setEditingNoteId(null);
+  }, []);
+
+  const handleSaveNote = useCallback(
+    async (text: string) => {
+      if (!editingNoteId || savingNote) return;
+      setSavingNote(true);
+      try {
+        const noteValue = text.trim() === "" ? null : text.trim();
+        const res = await fetch(`/api/items/${editingNoteId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: noteValue }),
+        });
+        if (!res.ok) throw new Error("Failed to save note");
+        setNoteOverrides((prev) => ({ ...prev, [editingNoteId]: noteValue }));
+        addToast("Note saved", "success");
+        setEditingNoteId(null);
+      } catch {
+        addToast("Failed to save note", "error");
+      } finally {
+        setSavingNote(false);
+      }
+    },
+    [editingNoteId, savingNote, addToast],
+  );
 
   const columns: Column<Item>[] = [
     {
@@ -220,18 +352,47 @@ export function WatchlistTable({
       key: "name",
       header: "Item",
       sortable: true,
-      render: (_, item) => (
-        <div className={styles.nameCell}>
-          <Link
-            href={`/item/${item.id}`}
-            className={styles.itemNameLink}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {item.name}
-          </Link>
-          <span className={styles.itemHashName}>{item.marketHashName}</span>
-        </div>
-      ),
+      render: (_, item) => {
+        const itemNotes = getItemNotes(item);
+        const isEditing = editingNoteId === item.id;
+
+        return (
+          <div className={styles.nameCell}>
+            <div className={styles.nameRow}>
+              <Link
+                href={`/item/${item.id}`}
+                className={styles.itemNameLink}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {item.name}
+              </Link>
+              {itemNotes && !isEditing && (
+                <button
+                  type="button"
+                  className={styles.noteIndicator}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenNoteEditor(item.id);
+                  }}
+                  title={itemNotes}
+                  aria-label="Edit note"
+                >
+                  {"\u270E"}
+                </button>
+              )}
+            </div>
+            <span className={styles.itemHashName}>{item.marketHashName}</span>
+            {isEditing && (
+              <NoteEditor
+                initialText={itemNotes ?? ""}
+                saving={savingNote}
+                onSave={handleSaveNote}
+                onCancel={handleCancelNote}
+              />
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "category",
@@ -251,7 +412,7 @@ export function WatchlistTable({
             {item.type}
           </Badge>
         ) : (
-          <span className={styles.mutedText}>—</span>
+          <span className={styles.mutedText}>&mdash;</span>
         ),
     },
     {
@@ -264,7 +425,7 @@ export function WatchlistTable({
             {String(val)}
           </Badge>
         ) : (
-          <span className={styles.mutedText}>—</span>
+          <span className={styles.mutedText}>&mdash;</span>
         ),
     },
     {
@@ -277,7 +438,7 @@ export function WatchlistTable({
         <span
           className={`${styles.priceCell} ${val ? styles.pricePositive : ""}`}
         >
-          {val ? `$${(val as number).toFixed(2)}` : "—"}
+          {val ? `$${(val as number).toFixed(2)}` : "\u2014"}
         </span>
       ),
     },
@@ -308,23 +469,27 @@ export function WatchlistTable({
             }
           />
         ) : (
-          <span className={styles.mutedText}>—</span>
+          <span className={styles.mutedText}>&mdash;</span>
         ),
     },
     {
       key: "actions",
       header: "",
       width: "48px",
-      render: (_, item) => (
-        <ActionMenu
-          itemId={item.id}
-          isWatched={item.isWatched}
-          onToggleWatch={onToggleWatch}
-          onAddNote={onAddNote}
-          onAssignGroup={onAssignGroup}
-          onViewDetails={onViewDetails}
-        />
-      ),
+      render: (_, item) => {
+        const itemNotes = getItemNotes(item);
+        return (
+          <ActionMenu
+            itemId={item.id}
+            isWatched={item.isWatched}
+            hasNotes={!!itemNotes}
+            onToggleWatch={onToggleWatch}
+            onEditNote={handleOpenNoteEditor}
+            onAssignGroup={onAssignGroup}
+            onViewDetails={onViewDetails}
+          />
+        );
+      },
     },
   ];
 
@@ -333,6 +498,7 @@ export function WatchlistTable({
       columns={columns}
       data={items}
       onRowClick={(item) => {
+        if (editingNoteId) return;
         if (onRowClick) {
           onRowClick(item.id);
         } else if (router) {
