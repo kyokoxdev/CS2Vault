@@ -84,12 +84,12 @@ html, body {
 }
 
 a {
-  color: var(--accent-secondary); /* TODO: Design decision needed — replace accent color system */
+  color: var(--text-primary-90);
   text-decoration: none;
   transition: color var(--transition-fast);
 }
 a:hover {
-  color: var(--accent-primary); /* TODO: Design decision needed — replace accent color system */
+  color: var(--text-primary-90);
 }
 
 button {

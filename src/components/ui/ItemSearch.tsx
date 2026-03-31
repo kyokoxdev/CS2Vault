@@ -170,6 +170,12 @@ export default function ItemSearch({
                     onFocus={() => results.length > 0 && setShowDropdown(true)}
                     placeholder={placeholder}
                     className={`${styles.input}${loading ? ` ${styles.inputLoading}` : ""}`}
+                    role="combobox"
+                    aria-label="Search CS2 items"
+                    aria-expanded={showDropdown}
+                    aria-autocomplete="list"
+                    aria-controls="search-results-listbox"
+                    aria-activedescendant={activeIndex >= 0 ? `search-result-${activeIndex}` : undefined}
                 />
                 {loading && (
                     <div className={styles.spinner} />
@@ -181,12 +187,18 @@ export default function ItemSearch({
                 <div
                     ref={dropdownRef}
                     className={styles.dropdown}
+                    role="listbox"
+                    id="search-results-listbox"
+                    aria-label="Search CS2 items results"
                 >
                     {results.map((item, i) => (
                         <button
                             key={item.hashName}
+                            id={`search-result-${i}`}
                             type="button"
                             data-search-item
+                            role="option"
+                            aria-selected={i === activeIndex}
                             onClick={() => handleSelect(item)}
                             className={`${styles.resultItem}${i === activeIndex ? ` ${styles.active}` : ""}`}
                             onMouseEnter={() => setActiveIndex(i)}

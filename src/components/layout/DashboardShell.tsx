@@ -1,13 +1,5 @@
 "use client";
 
-/**
- * App Shell Layout — Sidebar + Main Content Area
- *
- * Provides the persistent navigation sidebar and top header.
- * All dashboard pages render inside this shell.
- * Shows Steam login/logout and user info in the sidebar footer.
- */
-
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -20,9 +12,11 @@ import {
     FaCog,
     FaSteam,
     FaBars,
-    FaTimes
+    FaTimes,
+    FaArrowLeft
 } from 'react-icons/fa';
 import styles from './DashboardShell.module.css';
+import { usePageTitleContext } from "@/components/providers/PageTitleProvider";
 
 const NAV_ITEMS = [
     { href: "/", label: "Market Overview", icon: <FaChartPie /> },
@@ -51,12 +45,13 @@ export default function DashboardShell({
     const pathname = usePathname();
     const { data: session, status } = useSession();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const { title: contextTitle, backLabel, backHref } = usePageTitleContext();
 
     const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
     if (pathname === "/startup") return <>{children}</>;
 
-    const pageTitle = PAGE_TITLES[pathname] ?? "CS2Vault";
+    const pageTitle = contextTitle ?? PAGE_TITLES[pathname] ?? "CS2Vault";
     const isLoading = status === "loading";
     const isSignedIn = !!session?.user;
 
@@ -168,7 +163,15 @@ export default function DashboardShell({
                     >
                         {sidebarOpen ? <FaTimes /> : <FaBars />}
                     </button>
-                    <h2>{pageTitle}</h2>
+                    <div className={styles.headerTitleArea}>
+                        {backLabel && backHref && (
+                            <Link href={backHref} className={styles.backLink}>
+                                <FaArrowLeft />
+                                {backLabel}
+                            </Link>
+                        )}
+                        <h2>{pageTitle}</h2>
+                    </div>
                 </header>
                 <div className={styles.mainBody}>
                     {children}

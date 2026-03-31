@@ -62,6 +62,7 @@ export function NewsFeed({ items, isLoading, pageSize = 5 }: NewsFeedProps) {
         </div>
         <div className={styles.list}>
           {Array.from({ length: pageSize }).map((_, i) => (
+            // eslint-disable-next-line react/no-array-index-key -- static skeleton placeholders, order never changes
             <div key={`skeleton-${i}`} className={styles.skeleton} />
           ))}
         </div>
