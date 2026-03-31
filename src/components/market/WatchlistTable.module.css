@@ -17,6 +17,10 @@
   margin-top: 2px;
 }
 
+.nameCell {
+  min-width: 0;
+}
+
 .categoryCell {
   text-transform: capitalize;
 }
@@ -28,7 +32,132 @@
 }
 
 .pricePositive {
+  color: var(--text-primary-90);
+}
+
+.mutedText {
+  color: var(--text-secondary-60);
+}
+
+/* ── Image column ───────────────────────────────────────────── */
+
+.imageCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.itemImage {
+  width: 64px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--surface-3);
+}
+
+.itemImagePlaceholder {
+  width: 64px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-secondary-60);
+}
+
+/* ── 24h price change ───────────────────────────────────────── */
+
+.priceChangeBull {
   color: var(--bull);
+  font-family: var(--font-numeric);
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.priceChangeBear {
+  color: var(--bear);
+  font-family: var(--font-numeric);
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.priceChangeArrow {
+  font-size: 9px;
+  margin-right: 2px;
+  vertical-align: middle;
+}
+
+/* ── Action menu ────────────────────────────────────────────── */
+
+.actionMenuWrapper {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.actionMenuTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary-60);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+
+.actionMenuTrigger:hover {
+  background: var(--surface-3);
+  border-color: var(--border-primary);
+  color: var(--text-primary-90);
+}
+
+.actionMenuDropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 50;
+  min-width: 160px;
+  padding: 4px 0;
+  margin-top: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.actionMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary-90);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.actionMenuItem:hover {
+  background: var(--surface-3);
+}
+
+.actionMenuIcon {
+  width: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary-60);
 }
 
 .sourceCell {
@@ -65,7 +194,4 @@
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-}
-.mutedText {
-  color: var(--text-secondary-60);
 }
