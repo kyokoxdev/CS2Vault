@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import { StatCard } from "@/components/ui/StatCard";
 import { TopMovers, type TopMover } from "@/components/market/TopMovers";
 import styles from "./MarketOverview.module.css";
@@ -242,10 +243,19 @@ export default function MarketOverview() {
           }
         />
         
-        <StatCard
-          label="Watched"
-          value={watchedCount}
-        />
+        <Link href="/watchlist" className={styles.statCardLink}>
+          <StatCard
+            label="Watched"
+            value={
+              <>
+                {watchedCount}
+                {watchedCount === 0 && (
+                  <div className={styles.statSubtext}>Start tracking items</div>
+                )}
+              </>
+            }
+          />
+        </Link>
         
         {authStatus === "unauthenticated" ? (
           <Card padding="md">

@@ -150,6 +150,18 @@
   color: var(--text-secondary-60);
   font-family: var(--font-mono);
 }
+
+.statCardLink {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  border-radius: 10px;
+  transition: outline 0.15s ease;
+}
+
+.statCardLink:hover {
+  outline: 1px solid var(--border-hover, var(--text-secondary-60));
+}
 @media (max-width: 1200px) {
   .statsRow {
     gap: 16px;
