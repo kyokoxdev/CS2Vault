@@ -9,11 +9,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 import CandlestickChart from "@/components/charts/CandlestickChart";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import styles from "./ItemDetail.module.css";
 import { usePageTitle } from "@/components/providers/PageTitleProvider";
+import { useToast } from "@/components/providers/ToastProvider";
+
+interface ItemGroup {
+    id: string;
+    name: string;
+    color: string | null;
+}
 
 interface ItemDetail {
     id: string;
@@ -25,9 +33,12 @@ interface ItemDetail {
     type: string | null;
     rarity: string | null;
     exterior: string | null;
+    imageUrl: string | null;
     isWatched: boolean;
     isActive: boolean;
     createdAt: string;
+    notes?: string | null;
+    groups?: ItemGroup[];
 }
 
 interface PriceSnapshot {
@@ -44,7 +55,10 @@ interface ItemApiResponse {
 export default function ItemDetailPage() {
     const params = useParams();
     const id = params.id as string;
+    const { addToast } = useToast();
     const [item, setItem] = useState<ItemDetail | null>(null);
+    const [isWatched, setIsWatched] = useState(false);
+    const [watchLoading, setWatchLoading] = useState(false);
     const [latestPrice, setLatestPrice] = useState<PriceSnapshot | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -59,6 +73,7 @@ export default function ItemDetailPage() {
 
             if (itemData.success && itemData.data) {
                 setItem(itemData.data);
+                setIsWatched(itemData.data.isWatched);
             } else {
                 setError(true);
             }
@@ -72,6 +87,32 @@ export default function ItemDetailPage() {
     useEffect(() => {
         fetchItem();
     }, [fetchItem]);
+
+    const handleToggleWatch = useCallback(async () => {
+        if (watchLoading) return;
+        setWatchLoading(true);
+        try {
+            const res = await fetch(`/api/items/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ isWatched: !isWatched }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setIsWatched(!isWatched);
+                addToast(
+                    isWatched ? "Removed from watchlist" : "Added to watchlist",
+                    "success"
+                );
+            } else {
+                addToast(data.error ?? "Failed to update watchlist", "error");
+            }
+        } catch (err) {
+            console.error("Toggle watch error:", err);
+            addToast("Failed to update watchlist", "error");
+        }
+        setWatchLoading(false);
+    }, [id, isWatched, watchLoading, addToast]);
 
     const handleMarketSnapshotChange = useCallback((snapshot: {
         price: number | null;
@@ -161,15 +202,59 @@ export default function ItemDetailPage() {
 
             {/* Item Header */}
             <div className={styles.header}>
-                <div>
-                    <h2 className={styles.itemName}>
-                        {item.name}
-                    </h2>
-                    <div className={styles.marketHashName}>
-                        {item.marketHashName}
+                <div className={styles.headerLeft}>
+                    {item.imageUrl && (
+                        <img
+                            src={item.imageUrl}
+                            alt={item.name}
+                            className={styles.itemImage}
+                            loading="lazy"
+                            width={96}
+                            height={72}
+                        />
+                    )}
+                    <div>
+                        <h2 className={styles.itemName}>
+                            {item.name}
+                        </h2>
+                        <div className={styles.marketHashName}>
+                            {item.marketHashName}
+                        </div>
+                        {item.groups && item.groups.length > 0 && (
+                            <div className={styles.groupBadges}>
+                                {item.groups.map((group) => (
+                                    <span
+                                        key={group.id}
+                                        className={styles.groupBadge}
+                                        style={group.color ? { backgroundColor: group.color } : undefined}
+                                    >
+                                        {group.name}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className={styles.headerRight}>
+                    <button
+                        type="button"
+                        className={`${styles.watchToggle} ${isWatched ? styles.watchToggleActive : ""}`}
+                        onClick={handleToggleWatch}
+                        disabled={watchLoading}
+                        title={isWatched ? "Remove from Watchlist" : "Add to Watchlist"}
+                    >
+                        {isWatched ? (
+                            <>
+                                <FaEyeSlash style={{ fontSize: 14 }} />
+                                <span>Remove from Watchlist</span>
+                            </>
+                        ) : (
+                            <>
+                                <FaEye style={{ fontSize: 14 }} />
+                                <span>Add to Watchlist</span>
+                            </>
+                        )}
+                    </button>
                     {latestPrice && (
                         <>
                             <div className={styles.price}>
@@ -223,7 +308,7 @@ export default function ItemDetailPage() {
                 <StatCard
                     label="Status"
                     value={
-                        item.isWatched ? (
+                        isWatched ? (
                             <Badge variant="success">Watching</Badge>
                         ) : (
                             <Badge variant="neutral">Not watched</Badge>
