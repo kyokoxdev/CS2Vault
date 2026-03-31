@@ -1,21 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { FaTimes, FaPlus, FaSpinner, FaSyncAlt } from "react-icons/fa";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { FaTimes, FaPlus, FaSpinner, FaSyncAlt, FaEye } from "react-icons/fa";
 import { WatchlistTable, type Item } from "@/components/market/WatchlistTable";
 import { WatchlistFilters } from "@/components/market/WatchlistFilters";
+import { WatchlistGroups, type Group } from "@/components/market/WatchlistGroups";
 import { AddItemPanel } from "@/components/market/AddItemPanel";
 import { FallbackToast } from "@/components/ui/FallbackToast";
+import { DataTable, type Column } from "@/components/ui/DataTable";
 import { useToast } from "@/components/providers/ToastProvider";
 import styles from "./Watchlist.module.css";
 
-interface ItemGroup {
-  id: string;
-  name: string;
-  color: string | null;
-}
-
-type ItemWithGroups = Item & { groups?: ItemGroup[] };
+type ItemWithMaybeGroups = Item & { groups?: Item["groups"] };
 
 interface ConfirmDialogState {
   open: boolean;
@@ -24,9 +21,19 @@ interface ConfirmDialogState {
   onConfirm: () => Promise<void>;
 }
 
+function normalizeItem(item: ItemWithMaybeGroups): Item {
+  return {
+    ...item,
+    groups: item.groups ?? [],
+  };
+}
+
 export default function WatchlistPage() {
+  const router = useRouter();
   const { addToast } = useToast();
-  const [items, setItems] = useState<ItemWithGroups[]>([]);
+
+  const [items, setItems] = useState<Item[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
@@ -35,14 +42,13 @@ export default function WatchlistPage() {
     failureReason: string;
     attemptedProvider: string;
   } | null>(null);
-  const initialSyncRef = useRef(false);
-
   const [categoryFilter, setCategoryFilter] = useState("");
   const [rarityFilter, setRarityFilter] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
-  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [assignmentItemId, setAssignmentItemId] = useState<string | null>(null);
+  const [assigningGroupIds, setAssigningGroupIds] = useState<Set<string>>(new Set());
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({
     open: false,
     title: "",
@@ -51,25 +57,43 @@ export default function WatchlistPage() {
   });
   const [bulkLoading, setBulkLoading] = useState(false);
 
-  const fetchData = useCallback(async (showLoading = true) => {
+  const fetchItems = useCallback(async (showLoading = true) => {
     try {
       if (showLoading) setItemsLoading(true);
       const res = await fetch("/api/items?limit=100");
       const data = await res.json();
 
       if (data.success) {
-        setItems(data.data.items);
+        setItems((data.data.items as ItemWithMaybeGroups[]).map(normalizeItem));
       }
-    } catch (err) {
-      console.error("Fetch error:", err);
+    } catch {
+      addToast("Failed to load watchlist items", "error");
     } finally {
       setItemsLoading(false);
     }
-  }, []);
+  }, [addToast]);
+
+  const fetchGroups = useCallback(async () => {
+    try {
+      const res = await fetch("/api/groups");
+      const data = await res.json();
+
+      if (data.success) {
+        setGroups(data.data.groups as Group[]);
+      }
+    } catch {
+      addToast("Failed to load groups", "error");
+    }
+  }, [addToast]);
+
+  const refreshWatchlistData = useCallback(async (showLoading = false) => {
+    await Promise.all([fetchItems(showLoading), fetchGroups()]);
+  }, [fetchGroups, fetchItems]);
 
   const handleRefreshPrices = useCallback(async (fallback?: string) => {
     setSyncing(true);
     setSyncStatus("Refreshing prices...");
+
     try {
       const url = fallback
         ? `/api/watchlist/prices?fallback=${fallback}`
@@ -78,12 +102,11 @@ export default function WatchlistPage() {
       const res = await fetch(url, { method: "POST" });
       const elapsed = Math.round(performance.now() - start);
       const data = await res.json();
+
       if (data.success) {
-        setSyncStatus(
-          `Refreshed ${data.data.itemCount} items in ${elapsed}ms`
-        );
+        setSyncStatus(`Refreshed ${data.data.itemCount} items in ${elapsed}ms`);
         setTimeout(() => setSyncStatus(""), 3000);
-        fetchData(false);
+        await fetchItems(false);
 
         if (data.data?.fallbackAvailable && data.data?.failureReason) {
           setFallbackInfo({
@@ -99,14 +122,13 @@ export default function WatchlistPage() {
       setSyncStatus(`Error: ${err}`);
       setTimeout(() => setSyncStatus(""), 5000);
     }
+
     setSyncing(false);
-  }, [fetchData]);
+  }, [fetchItems]);
 
   useEffect(() => {
-    if (initialSyncRef.current) return;
-    initialSyncRef.current = true;
-    handleRefreshPrices();
-  }, [handleRefreshPrices]);
+    void refreshWatchlistData(true);
+  }, [refreshWatchlistData]);
 
   useEffect(() => {
     const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
@@ -115,58 +137,102 @@ export default function WatchlistPage() {
 
     const intervalMs = intervalMin * 60 * 1000;
     const timer = setInterval(() => {
-      handleRefreshPrices();
+      void handleRefreshPrices();
     }, intervalMs);
 
     return () => clearInterval(timer);
   }, [handleRefreshPrices]);
 
   useEffect(() => {
-    async function fetchGroups() {
-      try {
-        const res = await fetch("/api/groups");
-        const data = await res.json();
-        if (data.success) {
-          setGroups(
-            data.data.groups.map((g: { id: string; name: string }) => ({
-              id: g.id,
-              name: g.name,
-            }))
-          );
-        }
-      } catch {
-      }
+    if (groupFilter && !groups.some((group) => group.id === groupFilter)) {
+      setGroupFilter("");
     }
-    fetchGroups();
-  }, []);
+  }, [groupFilter, groups]);
+
+  const watchlistItems = useMemo(
+    () => items.filter((item) => item.isWatched),
+    [items]
+  );
 
   const filterOptions = useMemo(() => {
-    const categories = [...new Set(items.map((i) => i.category))].sort();
+    const categories = [...new Set(watchlistItems.map((item) => item.category))].sort();
     const rarities = [
-      ...new Set(items.map((i) => i.rarity).filter(Boolean) as string[]),
+      ...new Set(watchlistItems.map((item) => item.rarity).filter(Boolean) as string[]),
     ].sort();
-    return { categories, rarities, groups };
-  }, [items, groups]);
+
+    return {
+      categories,
+      rarities,
+      groups: groups.map((group) => ({ id: group.id, name: group.name })),
+    };
+  }, [watchlistItems, groups]);
 
   const filteredItems = useMemo(() => {
-    return items.filter((item) => {
+    return watchlistItems.filter((item) => {
       if (categoryFilter && item.category !== categoryFilter) return false;
       if (rarityFilter && item.rarity !== rarityFilter) return false;
       if (
         searchFilter &&
         !item.name.toLowerCase().includes(searchFilter.toLowerCase())
-      )
+      ) {
         return false;
-      if (
-        groupFilter &&
-        !item.groups?.some((g) => g.id === groupFilter)
-      )
+      }
+      if (groupFilter && !item.groups.some((group) => group.id === groupFilter)) {
         return false;
+      }
+
       return true;
     });
-  }, [items, categoryFilter, rarityFilter, searchFilter, groupFilter]);
+  }, [watchlistItems, categoryFilter, rarityFilter, searchFilter, groupFilter]);
 
-  const handleFilterChange = (field: string, value: string) => {
+  const filteredItemIds = useMemo(
+    () => filteredItems.map((item) => item.id),
+    [filteredItems]
+  );
+
+  const selectedGroup = useMemo(
+    () => groups.find((group) => group.id === groupFilter) ?? null,
+    [groupFilter, groups]
+  );
+
+  const selectedGroupItemCount = useMemo(() => {
+    if (!groupFilter) return watchlistItems.length;
+
+    return watchlistItems.filter((item) =>
+      item.groups.some((group) => group.id === groupFilter)
+    ).length;
+  }, [watchlistItems, groupFilter]);
+
+  const assignmentItem = useMemo(
+    () => items.find((item) => item.id === assignmentItemId) ?? null,
+    [items, assignmentItemId]
+  );
+
+  const assignmentGroupIds = useMemo(
+    () => new Set(assignmentItem?.groups.map((group) => group.id) ?? []),
+    [assignmentItem]
+  );
+
+  const isWatchlistEmpty = !itemsLoading && watchlistItems.length === 0;
+  const isGroupEmpty = !itemsLoading && Boolean(groupFilter) && selectedGroupItemCount === 0;
+  const isFilterEmpty =
+    !itemsLoading &&
+    watchlistItems.length > 0 &&
+    filteredItems.length === 0 &&
+    !isGroupEmpty;
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+
+      const visibleIds = new Set(filteredItemIds);
+      const next = new Set([...prev].filter((id) => visibleIds.has(id)));
+
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filteredItemIds]);
+
+  const handleFilterChange = useCallback((field: string, value: string) => {
     switch (field) {
       case "category":
         setCategoryFilter(value);
@@ -180,18 +246,93 @@ export default function WatchlistPage() {
       case "group":
         setGroupFilter(value);
         break;
+      default:
+        break;
     }
-  };
+  }, []);
 
-  const handleClearFilters = () => {
+  const handleClearFilters = useCallback(() => {
     setCategoryFilter("");
     setRarityFilter("");
     setSearchFilter("");
     setGroupFilter("");
-  };
+  }, []);
+
+  const handleGroupSelect = useCallback((id: string | null) => {
+    setGroupFilter(id ?? "");
+  }, []);
+
+  const handleGroupsChange = useCallback(() => {
+    void refreshWatchlistData(false);
+  }, [refreshWatchlistData]);
+
+  const handleOpenAddForm = useCallback(() => {
+    setShowAddForm(true);
+  }, []);
+
+  const handleToggleAddForm = useCallback(() => {
+    setShowAddForm((prev) => !prev);
+  }, []);
+
+  const handleViewDetails = useCallback((id: string) => {
+    router.push(`/item/${id}`);
+  }, [router]);
+
+  const handleOpenGroupAssignment = useCallback((itemId: string) => {
+    setAssignmentItemId(itemId);
+  }, []);
+
+  const handleCloseGroupAssignment = useCallback(() => {
+    if (assigningGroupIds.size > 0) return;
+    setAssignmentItemId(null);
+  }, [assigningGroupIds]);
+
+  const handleToggleItemGroup = useCallback(async (groupId: string) => {
+    if (!assignmentItemId) return;
+
+    const isAssigned = assignmentGroupIds.has(groupId);
+
+    setAssigningGroupIds((prev) => {
+      const next = new Set(prev);
+      next.add(groupId);
+      return next;
+    });
+
+    try {
+      const res = await fetch(`/api/groups/${groupId}/items`, {
+        method: isAssigned ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemIds: [assignmentItemId] }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        addToast(data?.error || "Failed to update group assignment", "error");
+        return;
+      }
+
+      const groupName = groups.find((group) => group.id === groupId)?.name ?? "group";
+      addToast(
+        `${isAssigned ? "Removed from" : "Assigned to"} \"${groupName}\"`,
+        "success"
+      );
+      await refreshWatchlistData(false);
+    } catch {
+      addToast("Network error updating group assignment", "error");
+    } finally {
+      setAssigningGroupIds((prev) => {
+        const next = new Set(prev);
+        next.delete(groupId);
+        return next;
+      });
+    }
+  }, [assignmentItemId, assignmentGroupIds, addToast, groups, refreshWatchlistData]);
 
   const handleBulkUnwatch = useCallback(() => {
-    const count = selectedIds.size;
+    const itemIds = [...selectedIds];
+    const count = itemIds.length;
+    if (count === 0) return;
+
     setConfirmDialog({
       open: true,
       title: "Unwatch Items",
@@ -202,13 +343,17 @@ export default function WatchlistPage() {
           const res = await fetch("/api/items/bulk", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "unwatch", itemIds: [...selectedIds] }),
+            body: JSON.stringify({ action: "unwatch", itemIds }),
           });
           const data = await res.json();
+
           if (data.success) {
-            addToast(`Unwatched ${data.affected} item${data.affected !== 1 ? "s" : ""}`, "success");
+            addToast(
+              `Unwatched ${data.affected} item${data.affected !== 1 ? "s" : ""}`,
+              "success"
+            );
             setSelectedIds(new Set());
-            fetchData();
+            await refreshWatchlistData(false);
           } else {
             addToast(data.error || "Failed to unwatch items", "error");
           }
@@ -220,10 +365,13 @@ export default function WatchlistPage() {
         }
       },
     });
-  }, [selectedIds, addToast, fetchData]);
+  }, [selectedIds, addToast, refreshWatchlistData]);
 
   const handleBulkDelete = useCallback(() => {
-    const count = selectedIds.size;
+    const itemIds = [...selectedIds];
+    const count = itemIds.length;
+    if (count === 0) return;
+
     setConfirmDialog({
       open: true,
       title: "Delete Items",
@@ -234,13 +382,17 @@ export default function WatchlistPage() {
           const res = await fetch("/api/items/bulk", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "delete", itemIds: [...selectedIds] }),
+            body: JSON.stringify({ action: "delete", itemIds }),
           });
           const data = await res.json();
+
           if (data.success) {
-            addToast(`Deleted ${data.affected} item${data.affected !== 1 ? "s" : ""}`, "success");
+            addToast(
+              `Deleted ${data.affected} item${data.affected !== 1 ? "s" : ""}`,
+              "success"
+            );
             setSelectedIds(new Set());
-            fetchData();
+            await refreshWatchlistData(false);
           } else {
             addToast(data.error || "Failed to delete items", "error");
           }
@@ -252,44 +404,47 @@ export default function WatchlistPage() {
         }
       },
     });
-  }, [selectedIds, addToast, fetchData]);
+  }, [selectedIds, addToast, refreshWatchlistData]);
 
-  const handleBulkAssignGroup = useCallback(
-    async (groupId: string) => {
-      if (!groupId) return;
-      setBulkLoading(true);
-      try {
-        const res = await fetch(`/api/groups/${groupId}/items`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ itemIds: [...selectedIds] }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          const groupName = groups.find((g) => g.id === groupId)?.name ?? "group";
-          addToast(`Assigned ${data.data?.added ?? selectedIds.size} item${selectedIds.size !== 1 ? "s" : ""} to "${groupName}"`, "success");
-          setSelectedIds(new Set());
-          fetchData();
-        } else {
-          addToast(data.error || "Failed to assign to group", "error");
-        }
-      } catch {
-        addToast("Network error assigning to group", "error");
-      } finally {
-        setBulkLoading(false);
+  const handleBulkAssignGroup = useCallback(async (groupId: string) => {
+    const itemIds = [...selectedIds];
+    if (!groupId || itemIds.length === 0) return;
+
+    setBulkLoading(true);
+    try {
+      const res = await fetch(`/api/groups/${groupId}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemIds }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        const groupName = groups.find((group) => group.id === groupId)?.name ?? "group";
+        addToast(
+          `Assigned ${data.data?.added ?? itemIds.length} item${itemIds.length !== 1 ? "s" : ""} to \"${groupName}\"`,
+          "success"
+        );
+        setSelectedIds(new Set());
+        await refreshWatchlistData(false);
+      } else {
+        addToast(data.error || "Failed to assign to group", "error");
       }
-    },
-    [selectedIds, groups, addToast, fetchData],
-  );
+    } catch {
+      addToast("Network error assigning to group", "error");
+    } finally {
+      setBulkLoading(false);
+    }
+  }, [selectedIds, groups, addToast, refreshWatchlistData]);
 
-  async function handleAddItem(selected: {
+  const handleAddItem = useCallback(async (selected: {
     hashName: string;
     name: string;
     category: string;
     rarity: string | null;
     exterior: string | null;
     type: string | null;
-  }) {
+  }) => {
     try {
       const res = await fetch("/api/items", {
         method: "POST",
@@ -305,73 +460,105 @@ export default function WatchlistPage() {
         }),
       });
       const data = await res.json();
+
       if (data.success) {
-        addToast(`Added "${data.data.name}" to watchlist`, "success");
-        fetchData();
+        addToast(`Added \"${data.data.name}\" to watchlist`, "success");
+        setShowAddForm(false);
+        await refreshWatchlistData(false);
       } else {
         addToast(data.error, "error");
       }
     } catch (err) {
       addToast(`${err}`, "error");
     }
-  }
+  }, [addToast, refreshWatchlistData]);
 
-  async function handleToggleWatch(id: string, current: boolean) {
+  const handleToggleWatch = useCallback(async (id: string, current: boolean) => {
     try {
-      await fetch(`/api/items/${id}`, {
+      const res = await fetch(`/api/items/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isWatched: !current }),
       });
-      fetchData();
-    } catch (err) {
-      console.error("Toggle error:", err);
+
+      if (!res.ok) {
+        addToast("Failed to update watchlist item", "error");
+        return;
+      }
+
+      await refreshWatchlistData(false);
+    } catch {
+      addToast("Failed to update watchlist item", "error");
     }
-  }
+  }, [addToast, refreshWatchlistData]);
+
+  const loadingColumns = useMemo<Column<Record<string, never>>[]>(() => (
+    [
+      { key: "select", header: "", width: "40px" },
+      { key: "image", header: "", width: "72px" },
+      { key: "name", header: "Item" },
+      { key: "category", header: "Category", width: "120px" },
+      { key: "type", header: "Type", width: "120px" },
+      { key: "rarity", header: "Rarity", width: "120px" },
+      { key: "price", header: "Price", width: "100px" },
+      { key: "change", header: "24h", width: "100px" },
+      { key: "sparkline", header: "7d", width: "116px" },
+      { key: "actions", header: "", width: "48px" },
+    ]
+  ), []);
 
   return (
     <div className={styles.page}>
       <div className={styles.toolbar}>
         <h3 className={styles.toolbarTitle}>Your Watchlist</h3>
         <div className={styles.toolbarActions}>
-          {syncStatus && (
-            <span className={styles.statusMessage}>
-              {syncStatus}
-            </span>
-          )}
+          {syncStatus && <span className={styles.statusMessage}>{syncStatus}</span>}
           <button
             type="button"
             className="btn btn-ghost btn-sm"
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={handleToggleAddForm}
           >
-            {showAddForm ? <>
-              <FaTimes style={{ fontSize: '0.875rem', marginRight: '4px' }} />
-              Cancel
-            </> : <>
-              <FaPlus style={{ fontSize: '0.875rem', marginRight: '4px' }} />
-              Add Item
-            </>}
+            {showAddForm ? (
+              <>
+                <FaTimes style={{ fontSize: "0.875rem", marginRight: "4px" }} />
+                Cancel
+              </>
+            ) : (
+              <>
+                <FaPlus style={{ fontSize: "0.875rem", marginRight: "4px" }} />
+                Add Item
+              </>
+            )}
           </button>
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            onClick={() => handleRefreshPrices()}
+            onClick={() => void handleRefreshPrices()}
             disabled={syncing}
           >
-            {syncing ? <>
-              <FaSpinner style={{ fontSize: '0.875rem', marginRight: '4px', animation: 'spin 1s linear infinite' }} />
-              Refreshing...
-            </> : <>
-              <FaSyncAlt style={{ fontSize: '0.875rem', marginRight: '4px' }} />
-              Refresh Prices
-            </>}
+            {syncing ? (
+              <>
+                <FaSpinner style={{ fontSize: "0.875rem", marginRight: "4px", animation: "spin 1s linear infinite" }} />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <FaSyncAlt style={{ fontSize: "0.875rem", marginRight: "4px" }} />
+                Refresh Prices
+              </>
+            )}
           </button>
         </div>
       </div>
 
-      {showAddForm && (
-        <AddItemPanel onAdd={handleAddItem} status="" />
-      )}
+      {showAddForm && <AddItemPanel onAdd={handleAddItem} status="" />}
+
+      <WatchlistGroups
+        groups={groups}
+        activeGroupId={groupFilter || null}
+        onGroupSelect={handleGroupSelect}
+        onGroupsChange={handleGroupsChange}
+      />
 
       <WatchlistFilters
         category={categoryFilter}
@@ -380,16 +567,14 @@ export default function WatchlistPage() {
         group={groupFilter}
         filterOptions={filterOptions}
         itemCount={filteredItems.length}
-        totalCount={items.length}
+        totalCount={watchlistItems.length}
         onChange={handleFilterChange}
         onClear={handleClearFilters}
       />
 
       {selectedIds.size > 0 && (
         <div className={styles.bulkToolbar}>
-          <span className={styles.bulkCount}>
-            {selectedIds.size} selected
-          </span>
+          <span className={styles.bulkCount}>{selectedIds.size} selected</span>
           <span className={styles.bulkSeparator} />
           <button
             type="button"
@@ -403,15 +588,15 @@ export default function WatchlistPage() {
             <select
               className={styles.bulkGroupSelect}
               value=""
-              onChange={(e) => handleBulkAssignGroup(e.target.value)}
+              onChange={(e) => void handleBulkAssignGroup(e.target.value)}
               disabled={bulkLoading}
             >
               <option value="" disabled>
                 Assign to Group...
               </option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
                 </option>
               ))}
             </select>
@@ -436,11 +621,63 @@ export default function WatchlistPage() {
 
       <div className={styles.tableContainer}>
         {itemsLoading ? (
-          <div className={styles.loadingState}>Loading watchlist...</div>
+          <div className={styles.loadingTable}>
+            <DataTable columns={loadingColumns} data={[]} isLoading={true} />
+          </div>
+        ) : isWatchlistEmpty ? (
+          <div className={`${styles.emptyState} card`}>
+            <div className={styles.emptyIcon}><FaEye /></div>
+            <h3 className={styles.emptyTitle}>No items tracked yet</h3>
+            <p className={styles.emptyDescription}>
+              Add your first item to start tracking prices
+            </p>
+            <button
+              type="button"
+              onClick={handleOpenAddForm}
+              className={styles.emptyAction}
+            >
+              Add Item
+            </button>
+          </div>
+        ) : isGroupEmpty ? (
+          <div className={`${styles.emptyState} card`}>
+            <h3 className={styles.emptyTitle}>This group is empty</h3>
+            <p className={styles.emptyDescription}>
+              Assign items to {selectedGroup?.name ?? "this group"} from the table actions or bulk toolbar.
+            </p>
+            <div className={styles.emptyActions}>
+              <button
+                type="button"
+                onClick={() => setGroupFilter("")}
+                className={styles.emptySecondaryAction}
+              >
+                View All Items
+              </button>
+            </div>
+          </div>
+        ) : isFilterEmpty ? (
+          <div className={`${styles.emptyState} card`}>
+            <h3 className={styles.emptyTitle}>No items match your filters</h3>
+            <p className={styles.emptyDescription}>
+              Try adjusting your current filters or clear them to see all tracked items again.
+            </p>
+            <div className={styles.emptyActions}>
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className={styles.emptyAction}
+              >
+                Clear Filters
+              </button>
+            </div>
+          </div>
         ) : (
           <WatchlistTable
             items={filteredItems}
             onToggleWatch={handleToggleWatch}
+            onRowClick={handleViewDetails}
+            onAssignGroup={handleOpenGroupAssignment}
+            onViewDetails={handleViewDetails}
             selectedIds={selectedIds}
             onSelectionChange={setSelectedIds}
           />
@@ -482,10 +719,82 @@ export default function WatchlistPage() {
               <button
                 type="button"
                 className={styles.modalConfirmBtn}
-                onClick={confirmDialog.onConfirm}
+                onClick={() => void confirmDialog.onConfirm()}
                 disabled={bulkLoading}
               >
                 {bulkLoading ? "Processing..." : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {assignmentItem && (
+        <div
+          className={styles.modalOverlay}
+          onClick={handleCloseGroupAssignment}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              handleCloseGroupAssignment();
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Assign item to groups"
+        >
+          <div
+            className={`${styles.modalContent} ${styles.assignmentModal}`}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            role="document"
+          >
+            <h4 className={styles.modalTitle}>Assign to groups</h4>
+            <p className={styles.modalMessage}>{assignmentItem.name}</p>
+
+            {groups.length === 0 ? (
+              <div className={styles.assignmentEmpty}>
+                Create a group from the tab bar to start organizing tracked items.
+              </div>
+            ) : (
+              <div className={styles.assignmentList}>
+                {groups.map((group) => {
+                  const isAssigned = assignmentGroupIds.has(group.id);
+                  const isSaving = assigningGroupIds.has(group.id);
+
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      className={`${styles.assignmentItem}${isAssigned ? ` ${styles.assignmentItemActive}` : ""}`}
+                      onClick={() => void handleToggleItemGroup(group.id)}
+                      disabled={isSaving}
+                    >
+                      <span className={styles.assignmentItemMeta}>
+                        {group.color && (
+                          <span
+                            className={styles.assignmentDot}
+                            style={{ backgroundColor: group.color }}
+                          />
+                        )}
+                        <span>{group.name}</span>
+                      </span>
+                      <span className={styles.assignmentState}>
+                        {isSaving ? "Saving..." : isAssigned ? "Assigned" : "Assign"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.modalCancelBtn}
+                onClick={handleCloseGroupAssignment}
+                disabled={assigningGroupIds.size > 0}
+              >
+                Done
               </button>
             </div>
           </div>
@@ -498,7 +807,7 @@ export default function WatchlistPage() {
           attemptedProvider={fallbackInfo.attemptedProvider}
           onApprove={() => {
             setFallbackInfo(null);
-            handleRefreshPrices("steam");
+            void handleRefreshPrices("steam");
           }}
           onDismiss={() => setFallbackInfo(null)}
         />

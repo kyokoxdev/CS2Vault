@@ -42,10 +42,99 @@
   overflow: auto;
 }
 
+.loadingTable {
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  background: var(--surface-0);
+}
+
 .loadingState {
   text-align: center;
   padding: 2rem;
   color: var(--muted);
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 320px;
+  padding: 36px 24px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg, 12px);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-2) 70%, transparent),
+    var(--surface-1)
+  );
+  text-align: center;
+}
+
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-primary, #3b82f6) 16%, transparent);
+  color: var(--accent-primary, #3b82f6);
+  font-size: 24px;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary-90);
+}
+
+.emptyDescription {
+  max-width: 460px;
+  margin: 0;
+  color: var(--text-secondary-60);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.emptyActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.emptyAction,
+.emptySecondaryAction {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.emptyAction {
+  border: 1px solid var(--accent-primary, #3b82f6);
+  background: var(--accent-primary, #3b82f6);
+  color: #fff;
+}
+
+.emptyAction:hover {
+  opacity: 0.92;
+}
+
+.emptySecondaryAction {
+  border: 1px solid var(--border-primary);
+  background: var(--surface-2);
+  color: var(--text-primary-90);
+}
+
+.emptySecondaryAction:hover {
+  background: var(--surface-3);
 }
 
 /* ── Bulk toolbar ───────────────────────────────────────────── */
@@ -181,6 +270,10 @@
   animation: modalScaleIn 0.15s ease-out;
 }
 
+.assignmentModal {
+  max-width: 520px;
+}
+
 @keyframes modalScaleIn {
   from {
     opacity: 0;
@@ -210,6 +303,74 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.assignmentList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.assignmentItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface-3);
+  color: var(--text-primary-90);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.assignmentItem:hover {
+  border-color: var(--accent-primary, #3b82f6);
+  background: color-mix(in srgb, var(--accent-primary, #3b82f6) 8%, var(--surface-3));
+}
+
+.assignmentItem:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.assignmentItemActive {
+  border-color: color-mix(in srgb, var(--accent-primary, #3b82f6) 50%, transparent);
+  background: color-mix(in srgb, var(--accent-primary, #3b82f6) 10%, var(--surface-3));
+}
+
+.assignmentItemMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.assignmentDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.assignmentState {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary-60);
+}
+
+.assignmentEmpty {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px dashed var(--border-primary);
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text-secondary-60);
+  background: var(--surface-3);
+  line-height: 1.5;
 }
 
 .modalCancelBtn {
@@ -278,6 +439,11 @@
     flex-wrap: wrap;
     gap: 8px;
   }
+
+  .emptyState {
+    min-height: 280px;
+    padding: 28px 18px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -305,5 +471,18 @@
 
   .bulkGroupSelect {
     min-width: 100%;
+  }
+
+  .emptyActions,
+  .modalActions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .emptyAction,
+  .emptySecondaryAction,
+  .modalCancelBtn,
+  .modalConfirmBtn {
+    width: 100%;
   }
 }
