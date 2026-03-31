@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import DashboardShell from "@/components/layout/DashboardShell";
 import SessionProvider from "@/components/providers/SessionProvider";
+import PageTitleProvider from "@/components/providers/PageTitleProvider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({
@@ -38,7 +39,9 @@ export default function RootLayout({
       <body>
         <a href="#main-content" className="skip-link">Skip to content</a>
         <SessionProvider>
-          <DashboardShell>{children}</DashboardShell>
+          <PageTitleProvider>
+            <DashboardShell>{children}</DashboardShell>
+          </PageTitleProvider>
         </SessionProvider>
         <SpeedInsights />
       </body>
