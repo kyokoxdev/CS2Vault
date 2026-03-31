@@ -62,6 +62,18 @@
   white-space: nowrap;
 }
 
+/* ── Mobile: touch targets ──────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .select,
+  .input,
+  .clearButton {
+    min-height: 44px;
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+}
+
 @media (max-width: 480px) {
   .container {
     flex-direction: column;
@@ -71,9 +83,15 @@
   .input {
     min-width: 0;
     width: 100%;
+    order: -1;
+  }
+
+  .select {
+    width: 100%;
   }
 
   .count {
     margin-left: 0;
+    text-align: center;
   }
 }

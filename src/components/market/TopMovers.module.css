@@ -138,4 +138,29 @@
   .container {
     flex-direction: column;
   }
+
+  .card {
+    min-height: 44px;
+    padding: 10px 0;
+    gap: 10px;
+  }
+
+  .section {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .section {
+    padding: 10px;
+  }
+
+  .itemName {
+    font-size: 12px;
+  }
+
+  .itemPrice {
+    font-size: 12px;
+    min-width: 60px;
+  }
 }

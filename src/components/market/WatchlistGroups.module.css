@@ -415,6 +415,56 @@
   border-color: var(--border-active);
 }
 
+/* ── Mobile: scroll snap + touch targets ───────────────────── */
+
+@media (max-width: 768px) {
+  .tabBar {
+    scrollbar-width: none;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .tabBar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 13px;
+    scroll-snap-align: start;
+  }
+
+  .newGroupBtn {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .popover {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 16px;
+    min-width: auto;
+    max-width: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .tab {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .inlineInput {
+    width: 110px;
+  }
+}
+
 .assignmentWrapper {
   position: relative;
   display: inline-block;

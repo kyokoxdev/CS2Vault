@@ -189,9 +189,61 @@
   overflow: hidden;
 }
 
+/* ── Mobile: touch targets + compact images ─────────────────── */
+
 @media (max-width: 768px) {
-  .tableWrapper {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+  .actionMenuTrigger {
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+  }
+
+  .actionMenuItem {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .actionMenuDropdown {
+    min-width: 180px;
+  }
+
+  .itemImage {
+    width: 48px;
+    height: 36px;
+  }
+
+  .itemImagePlaceholder {
+    width: 48px;
+    height: 36px;
+  }
+
+  .priceChangeBull,
+  .priceChangeBear {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .itemImage {
+    width: 40px;
+    height: 30px;
+  }
+
+  .itemImagePlaceholder {
+    width: 40px;
+    height: 30px;
+  }
+
+  .nameCell {
+    max-width: 120px;
+  }
+
+  .itemNameLink {
+    font-size: 12px;
+  }
+
+  .itemHashName {
+    display: none;
   }
 }

@@ -147,3 +147,27 @@
 .sortableHeaderActive .sortIndicator {
   opacity: 1;
 }
+
+/* ── Mobile: compact cell padding ───────────────────────────── */
+
+@media (max-width: 768px) {
+  .dataTable th {
+    padding: 8px 10px;
+    font-size: 10px;
+  }
+
+  .dataTable td {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dataTable th {
+    padding: 6px 8px;
+  }
+
+  .dataTable td {
+    padding: 8px;
+  }
+}
