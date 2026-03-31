@@ -32,7 +32,9 @@ model Item {
   isActive       Boolean         @default(true)
   createdAt      DateTime        @default(now())
   type           String?
+  notes          String?
   candlesticks   Candlestick[]
+  groups         ItemGroup[]
   inventoryItems InventoryItem[]
   priceSnapshots PriceSnapshot[]
 }
@@ -136,4 +138,25 @@ model TopMoversCache {
   losers    String   // JSON array of top 5 losers
   source    String   @default("csfloat")
   updatedAt DateTime @default(now())
+}
+
+model WatchlistGroup {
+  id        String      @id @default(cuid())
+  name      String
+  color     String?
+  sortOrder Int         @default(0)
+  createdAt DateTime    @default(now())
+  items     ItemGroup[]
+}
+
+model ItemGroup {
+  id      String         @id @default(cuid())
+  itemId  String
+  groupId String
+  item    Item           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  group   WatchlistGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, groupId])
+  @@index([itemId])
+  @@index([groupId])
 }
