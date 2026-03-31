@@ -63,6 +63,7 @@ const UpdateItemSchema = z.object({
     name: z.string().optional(),
     category: z.string().optional(),
     imageUrl: z.string().url().optional(),
+    notes: z.string().nullable().optional(),
 });
 
 export async function PATCH(
