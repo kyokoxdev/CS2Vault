@@ -1,16 +1,25 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { FaTimes, FaPlus, FaSpinner, FaSyncAlt } from "react-icons/fa";
 import { WatchlistTable, type Item } from "@/components/market/WatchlistTable";
+import { WatchlistFilters } from "@/components/market/WatchlistFilters";
 import { AddItemPanel } from "@/components/market/AddItemPanel";
 import { FallbackToast } from "@/components/ui/FallbackToast";
 import { useToast } from "@/components/providers/ToastProvider";
 import styles from "./Watchlist.module.css";
 
+interface ItemGroup {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+type ItemWithGroups = Item & { groups?: ItemGroup[] };
+
 export default function WatchlistPage() {
   const { addToast } = useToast();
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<ItemWithGroups[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
@@ -20,6 +29,12 @@ export default function WatchlistPage() {
     attemptedProvider: string;
   } | null>(null);
   const initialSyncRef = useRef(false);
+
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [rarityFilter, setRarityFilter] = useState("");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [groupFilter, setGroupFilter] = useState("");
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
 
   const fetchData = useCallback(async (showLoading = true) => {
     try {
@@ -90,6 +105,75 @@ export default function WatchlistPage() {
 
     return () => clearInterval(timer);
   }, [handleRefreshPrices]);
+
+  useEffect(() => {
+    async function fetchGroups() {
+      try {
+        const res = await fetch("/api/groups");
+        const data = await res.json();
+        if (data.success) {
+          setGroups(
+            data.data.groups.map((g: { id: string; name: string }) => ({
+              id: g.id,
+              name: g.name,
+            }))
+          );
+        }
+      } catch {
+      }
+    }
+    fetchGroups();
+  }, []);
+
+  const filterOptions = useMemo(() => {
+    const categories = [...new Set(items.map((i) => i.category))].sort();
+    const rarities = [
+      ...new Set(items.map((i) => i.rarity).filter(Boolean) as string[]),
+    ].sort();
+    return { categories, rarities, groups };
+  }, [items, groups]);
+
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      if (categoryFilter && item.category !== categoryFilter) return false;
+      if (rarityFilter && item.rarity !== rarityFilter) return false;
+      if (
+        searchFilter &&
+        !item.name.toLowerCase().includes(searchFilter.toLowerCase())
+      )
+        return false;
+      if (
+        groupFilter &&
+        !item.groups?.some((g) => g.id === groupFilter)
+      )
+        return false;
+      return true;
+    });
+  }, [items, categoryFilter, rarityFilter, searchFilter, groupFilter]);
+
+  const handleFilterChange = (field: string, value: string) => {
+    switch (field) {
+      case "category":
+        setCategoryFilter(value);
+        break;
+      case "rarity":
+        setRarityFilter(value);
+        break;
+      case "search":
+        setSearchFilter(value);
+        break;
+      case "group":
+        setGroupFilter(value);
+        break;
+    }
+  };
+
+  const handleClearFilters = () => {
+    setCategoryFilter("");
+    setRarityFilter("");
+    setSearchFilter("");
+    setGroupFilter("");
+  };
 
   async function handleAddItem(selected: {
     hashName: string;
@@ -182,12 +266,24 @@ export default function WatchlistPage() {
         <AddItemPanel onAdd={handleAddItem} status="" />
       )}
 
+      <WatchlistFilters
+        category={categoryFilter}
+        rarity={rarityFilter}
+        search={searchFilter}
+        group={groupFilter}
+        filterOptions={filterOptions}
+        itemCount={filteredItems.length}
+        totalCount={items.length}
+        onChange={handleFilterChange}
+        onClear={handleClearFilters}
+      />
+
       <div className={styles.tableContainer}>
         {itemsLoading ? (
           <div className={styles.loadingState}>Loading watchlist...</div>
         ) : (
           <WatchlistTable 
-            items={items} 
+            items={filteredItems} 
             onToggleWatch={handleToggleWatch}
           />
         )}
