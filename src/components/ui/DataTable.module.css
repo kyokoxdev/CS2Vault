@@ -107,3 +107,43 @@
 .numericCell {
   font-family: var(--font-numeric);
 }
+
+.sortableHeader {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition-fast);
+}
+
+.sortableHeader:hover {
+  color: var(--text-primary);
+}
+
+.sortableHeader:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: -2px;
+}
+
+.sortableHeaderActive {
+  color: var(--text-primary);
+}
+
+.sortableHeaderContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sortIndicator {
+  font-size: 9px;
+  opacity: 0.4;
+  transition: opacity var(--transition-fast);
+  line-height: 1;
+}
+
+.sortableHeader:hover .sortIndicator {
+  opacity: 0.7;
+}
+
+.sortableHeaderActive .sortIndicator {
+  opacity: 1;
+}
