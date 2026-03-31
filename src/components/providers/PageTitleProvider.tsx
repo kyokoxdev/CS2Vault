@@ -46,7 +46,7 @@ export default function PageTitleProvider({
 export function usePageTitleContext(): PageTitleContextValue {
     const ctx = useContext(PageTitleContext);
     if (!ctx) {
-        throw new Error("usePageTitleContext must be used within PageTitleProvider");
+        return { title: null, backLabel: null, backHref: null, setPageTitle: () => {} };
     }
     return ctx;
 }
