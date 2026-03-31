@@ -10,13 +10,30 @@ import { normalizeRarity, normalizeItemType } from "@/lib/market/rarity";
 import { z } from "zod";
 import { requireAuth } from "@/lib/auth/guard";
 
+function mapGroups(groups: Array<{ group: { id: string; name: string; color: string | null } }>) {
+    return groups.map(({ group }) => ({
+        id: group.id,
+        name: group.name,
+        color: group.color,
+    }));
+}
+
 export async function GET(
     _request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const { id } = await params;
-        const item = await prisma.item.findUnique({ where: { id } });
+        const item = await prisma.item.findUnique({
+            where: { id },
+            include: {
+                groups: {
+                    include: {
+                        group: true,
+                    },
+                },
+            },
+        });
         if (!item) {
             return NextResponse.json(
                 { success: false, error: "Item not found" },
@@ -29,6 +46,7 @@ export async function GET(
                 ...item,
                 type: item.category === "weapon" ? normalizeItemType(item.type) : null,
                 rarity: normalizeRarity(item.rarity),
+                groups: mapGroups(item.groups),
             },
         });
     } catch (error) {
