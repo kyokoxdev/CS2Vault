@@ -38,6 +38,8 @@ interface WatchlistTableProps {
   onAddNote?: (id: string) => void;
   onAssignGroup?: (id: string) => void;
   onViewDetails?: (id: string) => void;
+  selectedIds?: Set<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
 }
 
 function NoteEditor({
@@ -260,6 +262,8 @@ export function WatchlistTable({
   onAddNote,
   onAssignGroup,
   onViewDetails,
+  selectedIds,
+  onSelectionChange,
 }: WatchlistTableProps) {
   const router = useRouter();
   const { addToast } = useToast();
@@ -267,6 +271,32 @@ export function WatchlistTable({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [savingNote, setSavingNote] = useState(false);
   const [noteOverrides, setNoteOverrides] = useState<Record<string, string | null>>({});
+
+  const allSelected = items.length > 0 && selectedIds != null && items.every((item) => selectedIds.has(item.id));
+  const someSelected = selectedIds != null && selectedIds.size > 0 && !allSelected;
+
+  const handleSelectAll = useCallback(() => {
+    if (!onSelectionChange) return;
+    if (allSelected) {
+      onSelectionChange(new Set());
+    } else {
+      onSelectionChange(new Set(items.map((item) => item.id)));
+    }
+  }, [items, allSelected, onSelectionChange]);
+
+  const handleSelectRow = useCallback(
+    (itemId: string) => {
+      if (!onSelectionChange || !selectedIds) return;
+      const next = new Set(selectedIds);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      onSelectionChange(next);
+    },
+    [selectedIds, onSelectionChange],
+  );
 
   const getItemNotes = useCallback(
     (item: Item): string | null => {
@@ -313,6 +343,55 @@ export function WatchlistTable({
   );
 
   const columns: Column<Item>[] = [
+    ...(onSelectionChange
+      ? [
+          {
+            key: "select" as keyof Item,
+            header: (
+              <label
+                className={styles.checkboxCell}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === " " || e.key === "Enter") {
+                    e.stopPropagation();
+                  }
+                }}
+              >
+                <input
+                  type="checkbox"
+                  className={styles.checkbox}
+                  checked={allSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someSelected;
+                  }}
+                  onChange={handleSelectAll}
+                />
+                <span className={styles.checkboxCustom} />
+              </label>
+            ),
+            width: "40px",
+            render: (_: unknown, item: Item) => (
+              <label
+                className={styles.checkboxCell}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === " " || e.key === "Enter") {
+                    e.stopPropagation();
+                  }
+                }}
+              >
+                <input
+                  type="checkbox"
+                  className={styles.checkbox}
+                  checked={selectedIds?.has(item.id) ?? false}
+                  onChange={() => handleSelectRow(item.id)}
+                />
+                <span className={styles.checkboxCustom} />
+              </label>
+            ),
+          } satisfies Column<Item>,
+        ]
+      : []),
     {
       key: "imageUrl",
       header: "",

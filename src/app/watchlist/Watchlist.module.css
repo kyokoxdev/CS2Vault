@@ -48,6 +48,206 @@
   color: var(--muted);
 }
 
+/* ── Bulk toolbar ───────────────────────────────────────────── */
+
+.bulkToolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--accent-primary, #3b82f6);
+  border-radius: var(--radius-md, 8px);
+  animation: bulkSlideIn 0.2s ease-out;
+}
+
+@keyframes bulkSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bulkCount {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-primary, #3b82f6);
+  white-space: nowrap;
+  font-family: var(--font-numeric);
+}
+
+.bulkSeparator {
+  width: 1px;
+  height: 20px;
+  background: var(--border-primary);
+  flex-shrink: 0;
+}
+
+.bulkBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface-3);
+  color: var(--text-primary-90);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.bulkBtn:hover {
+  background: var(--surface-4, #333);
+  border-color: var(--text-secondary-60);
+}
+
+.bulkBtnDanger {
+  color: var(--bear, #ff4d4f);
+  border-color: color-mix(in srgb, var(--bear, #ff4d4f) 30%, transparent);
+}
+
+.bulkBtnDanger:hover {
+  background: color-mix(in srgb, var(--bear, #ff4d4f) 12%, transparent);
+  border-color: var(--bear, #ff4d4f);
+}
+
+.bulkGroupSelect {
+  padding: 6px 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface-3);
+  color: var(--text-primary-90);
+  font-size: 12px;
+  cursor: pointer;
+  min-width: 140px;
+}
+
+.bulkGroupSelect:focus {
+  outline: none;
+  border-color: var(--accent-primary, #3b82f6);
+}
+
+.bulkClearBtn {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: var(--text-secondary-60);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.bulkClearBtn:hover {
+  color: var(--text-primary-90);
+  background: var(--surface-3);
+}
+
+/* ── Confirmation modal ─────────────────────────────────────── */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  animation: modalFadeIn 0.15s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modalContent {
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  animation: modalScaleIn 0.15s ease-out;
+}
+
+@keyframes modalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modalTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary-90);
+  margin: 0 0 8px;
+}
+
+.modalMessage {
+  font-size: 13px;
+  color: var(--text-secondary-60);
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modalCancelBtn {
+  padding: 8px 16px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface-3);
+  color: var(--text-primary-90);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.modalCancelBtn:hover {
+  background: var(--surface-4, #333);
+}
+
+.modalConfirmBtn {
+  padding: 8px 16px;
+  border: 1px solid var(--bear, #ff4d4f);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--bear, #ff4d4f);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.modalConfirmBtn:hover {
+  opacity: 0.9;
+}
+
+.modalConfirmBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .toolbar {
     flex-wrap: wrap;
@@ -59,19 +259,24 @@
     gap: 8px;
   }
 
-  /* Hide category (3rd), type (4th), rarity (5th) columns */
-  .tableContainer th:nth-child(3),
-  .tableContainer td:nth-child(3),
+  /* Hide category (4th), type (5th), rarity (6th) columns — shifted by checkbox col */
   .tableContainer th:nth-child(4),
   .tableContainer td:nth-child(4),
   .tableContainer th:nth-child(5),
-  .tableContainer td:nth-child(5) {
+  .tableContainer td:nth-child(5),
+  .tableContainer th:nth-child(6),
+  .tableContainer td:nth-child(6) {
     display: none;
   }
 
   .toolbarActions button {
     min-height: 44px;
     min-width: 44px;
+  }
+
+  .bulkToolbar {
+    flex-wrap: wrap;
+    gap: 8px;
   }
 }
 
@@ -88,9 +293,17 @@
     flex-wrap: wrap;
   }
 
-  /* Also hide sparkline (8th) column */
-  .tableContainer th:nth-child(8),
-  .tableContainer td:nth-child(8) {
+  /* Also hide sparkline (9th) column — shifted by checkbox col */
+  .tableContainer th:nth-child(9),
+  .tableContainer td:nth-child(9) {
     display: none;
+  }
+
+  .bulkToolbar {
+    padding: 8px 12px;
+  }
+
+  .bulkGroupSelect {
+    min-width: 100%;
   }
 }

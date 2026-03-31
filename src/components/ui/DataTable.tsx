@@ -9,7 +9,7 @@ import styles from "./DataTable.module.css";
 
 export interface Column<T> {
   key: keyof T | string;
-  header: string;
+  header: ReactNode;
   align?: "left" | "right";
   render?: (value: unknown, row: T) => ReactNode;
   width?: string;
