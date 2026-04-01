@@ -7,14 +7,14 @@ import "../setup-component";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 
 vi.mock("@/components/ui/Select", () => ({
-  Select: ({ value, onChange, options, className }: any) => (
+  Select: ({ value, onChange, options, className }: { value: string; onChange: (val: string) => void; options: { value: string; label: string }[]; className?: string }) => (
     <select
       data-testid="select"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={className}
     >
-      {options.map((opt: any) => (
+      {options.map((opt: { value: string; label: string }) => (
         <option key={opt.value} value={opt.value}>
           {opt.label}
         </option>

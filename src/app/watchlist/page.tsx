@@ -35,7 +35,6 @@ export default function WatchlistPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [syncing, setSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [itemsLoading, setItemsLoading] = useState(true);
   const [fallbackInfo, setFallbackInfo] = useState<{
@@ -92,7 +91,6 @@ export default function WatchlistPage() {
 
   const handleRefreshPrices = useCallback(async (fallback?: string) => {
     setSyncing(true);
-    setSyncStatus("Refreshing prices...");
 
     try {
       const url = fallback
@@ -104,8 +102,7 @@ export default function WatchlistPage() {
       const data = await res.json();
 
       if (data.success) {
-        setSyncStatus(`Refreshed ${data.data.itemCount} items in ${elapsed}ms`);
-        setTimeout(() => setSyncStatus(""), 3000);
+        addToast(`Refreshed ${data.data.itemCount} items in ${elapsed}ms`, "success");
         await fetchItems(false);
 
         if (data.data?.fallbackAvailable && data.data?.failureReason) {
@@ -115,16 +112,14 @@ export default function WatchlistPage() {
           });
         }
       } else {
-        setSyncStatus(`Failed: ${data.error}`);
-        setTimeout(() => setSyncStatus(""), 5000);
+        addToast(`Failed: ${data.error}`, "error");
       }
     } catch (err) {
-      setSyncStatus(`Error: ${err}`);
-      setTimeout(() => setSyncStatus(""), 5000);
+      addToast(`Error refreshing prices`, "error");
     }
 
     setSyncing(false);
-  }, [fetchItems]);
+  }, [fetchItems, addToast]);
 
   useEffect(() => {
     void refreshWatchlistData(true);
@@ -511,8 +506,7 @@ export default function WatchlistPage() {
     <div className={styles.page}>
       <div className={styles.toolbar}>
         <h3 className={styles.toolbarTitle}>Your Watchlist</h3>
-        <div className={styles.toolbarActions}>
-          {syncStatus && <span className={styles.statusMessage}>{syncStatus}</span>}
+          <div className={styles.toolbarActions}>
           <button
             type="button"
             className="btn btn-ghost btn-sm"
