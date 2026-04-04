@@ -18,10 +18,10 @@ export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { session: _s, error: authError } = await requireAuth();
-    if (authError) return authError;
-
     try {
+        const { session: _s, error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const { id } = await params;
         const body = await request.json();
         const data = UpdateSchema.parse(body);
@@ -65,10 +65,10 @@ export async function DELETE(
     _request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const { session: _s, error: authError } = await requireAuth();
-    if (authError) return authError;
-
     try {
+        const { session: _s, error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const { id } = await params;
 
         const existing = await prisma.inventoryItem.findUnique({ where: { id } });

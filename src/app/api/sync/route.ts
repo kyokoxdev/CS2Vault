@@ -10,10 +10,10 @@ import { calculateAndStoreMarketCap, shouldRecalculate } from "@/lib/market/mark
 import { getRecentSyncLogs } from "@/lib/market/sync";
 
 export async function POST(request: NextRequest) {
-    const { session: _s, error: authError } = await requireAuth();
-    if (authError) return authError;
-
     try {
+        const { session: _s, error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const fallbackParam = request.nextUrl.searchParams.get("fallback");
         const overrideSource = fallbackParam === "steam" ? "steam" as const : undefined;
 

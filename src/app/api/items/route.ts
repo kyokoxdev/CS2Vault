@@ -244,10 +244,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-    const { session: _s, error: authError } = await requireAuth();
-    if (authError) return authError;
-
     try {
+        const { session: _s, error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const body = await request.json();
         const data = AddItemSchema.parse(body);
         const normalizedRarity = normalizeRarity(data.rarity ?? null) ?? undefined;

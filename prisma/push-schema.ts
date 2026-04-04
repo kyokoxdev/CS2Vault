@@ -12,11 +12,8 @@ async function main() {
     const tursoToken = process.env.TURSO_AUTH_TOKEN;
 
     if (!tursoUrl || !tursoToken) {
-        console.error(
-            "❌ TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set.\n" +
-            "   Export them in your shell or add to .env.local"
-        );
-        process.exit(1);
+        console.log("⏭️  No Turso credentials found — skipping schema push.");
+        process.exit(0);
     }
 
     console.log(`📡 Target: ${tursoUrl}`);
