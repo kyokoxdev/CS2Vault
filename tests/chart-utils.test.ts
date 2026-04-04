@@ -3,7 +3,6 @@ import {
   calculateChartStats,
   calculateSimpleMovingAverage,
   toLineSeriesData,
-  toVolumeSeriesData,
 } from "../src/components/charts/chart-utils";
 
 const sampleCandles = [
@@ -29,20 +28,6 @@ describe("chart-utils", () => {
     ]);
   });
 
-  it("maps candle direction into volume colors", () => {
-    expect(
-      toVolumeSeriesData(sampleCandles, { bull: "green", bear: "red" })
-    ).toEqual([
-      { time: 1, value: 100, color: "green" },
-      { time: 2, value: 200, color: "green" },
-      { time: 3, value: 300, color: "green" },
-      { time: 4, value: 400, color: "green" },
-      { time: 5, value: 500, color: "green" },
-      { time: 6, value: 600, color: "green" },
-      { time: 7, value: 700, color: "green" },
-    ]);
-  });
-
   it("calculates moving averages only after the full period exists", () => {
     expect(calculateSimpleMovingAverage(sampleCandles, 3)).toEqual([
       { time: 3, value: 12.333333333333334 },
@@ -61,8 +46,6 @@ describe("chart-utils", () => {
       changePercent: 80,
       high: 19,
       low: 9,
-      averageVolume: 400,
-      totalVolume: 2800,
       candleCount: 7,
       trend: "up",
     });

@@ -4,11 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
     CandlestickSeries,
     ColorType,
-    HistogramSeries,
     LineSeries,
     createChart,
     type CandlestickData,
-    type HistogramData,
     type IChartApi,
     type ISeriesApi,
     type LineData,
@@ -18,7 +16,6 @@ import {
     calculateChartStats,
     calculateSimpleMovingAverage,
     toLineSeriesData,
-    toVolumeSeriesData,
     type ChartCandlePoint,
     type ChartStats,
 } from "./chart-utils";
@@ -50,7 +47,6 @@ interface ChartDataset {
     candles: ChartCandlePoint[];
     candlestickData: CandlestickData<Time>[];
     lineData: LineData<Time>[];
-    volumeData: HistogramData<Time>[];
     maShortData: LineData<Time>[];
     maLongData: LineData<Time>[];
     stats: ChartStats | null;
@@ -127,13 +123,6 @@ function formatPercent(value: number): string {
     return `${value > 0 ? "+" : "-"}${formatted}%`;
 }
 
-function formatCompactNumber(value: number): string {
-    return new Intl.NumberFormat("en-US", {
-        notation: "compact",
-        maximumFractionDigits: 2,
-    }).format(value);
-}
-
 function formatTimestamp(value: string | null): string {
     if (!value) {
         return "Waiting for market data";
@@ -162,15 +151,6 @@ function buildDataset(
         value: point.value,
     }));
 
-    const volumeData: HistogramData<Time>[] = toVolumeSeriesData(candles, {
-        bull: `${CHART_COLORS.bull}99`,
-        bear: `${CHART_COLORS.bear}99`,
-    }).map((point) => ({
-        time: point.time as Time,
-        value: point.value,
-        color: point.color,
-    }));
-
     const maShortData: LineData<Time>[] = calculateSimpleMovingAverage(candles, 7).map((point) => ({
         time: point.time as Time,
         value: point.value,
@@ -186,7 +166,6 @@ function buildDataset(
         candles,
         candlestickData,
         lineData,
-        volumeData,
         maShortData,
         maLongData,
         stats: calculateChartStats(candles),
@@ -206,7 +185,6 @@ export default function CandlestickChart({
     const chartRef = useRef<IChartApi | null>(null);
     const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
     const lineSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-    const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
     const maShortSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
     const maLongSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
     const cacheRef = useRef<Map<TimeframeValue, ChartDataset>>(new Map());
@@ -216,7 +194,6 @@ export default function CandlestickChart({
 
     const [timeframe, setTimeframe] = useState<TimeframeValue>("1d");
     const [chartMode, setChartMode] = useState<ChartMode>("candles");
-    const [showVolume, setShowVolume] = useState(true);
     const [showMA7, setShowMA7] = useState(true);
     const [showMA21, setShowMA21] = useState(false);
     const [dataset, setDataset] = useState<ChartDataset | null>(null);
@@ -344,7 +321,6 @@ export default function CandlestickChart({
         setDataset(null);
         setTimeframe("1d");
         setChartMode("candles");
-        setShowVolume(true);
         setShowMA7(true);
         setShowMA21(false);
         setLoading(true);
@@ -431,23 +407,11 @@ export default function CandlestickChart({
             visible: false,
         });
 
-        const volumeSeries = chart.addSeries(HistogramSeries, {
-            priceScaleId: "volume",
-            priceFormat: { type: "volume" },
-            priceLineVisible: false,
-            lastValueVisible: false,
-        });
-
-        chart.priceScale("volume").applyOptions({
-            scaleMargins: { top: 0.74, bottom: 0 },
-        });
-
         chartRef.current = chart;
         candleSeriesRef.current = candleSeries;
         lineSeriesRef.current = lineSeries;
         maShortSeriesRef.current = maShortSeries;
         maLongSeriesRef.current = maLongSeries;
-        volumeSeriesRef.current = volumeSeries;
 
         const ro = new ResizeObserver((entries) => {
             for (const entry of entries) {
@@ -469,7 +433,6 @@ export default function CandlestickChart({
             lineSeriesRef.current = null;
             maShortSeriesRef.current = null;
             maLongSeriesRef.current = null;
-            volumeSeriesRef.current = null;
         };
     }, [height]);
 
@@ -478,22 +441,13 @@ export default function CandlestickChart({
     }, [fetchData, timeframe]);
 
     useEffect(() => {
-        if (!dataset || dataset.candles.length === 0) {
-            return;
-        }
-
-        chartRef.current?.timeScale().fitContent();
-    }, [dataset]);
-
-    useEffect(() => {
         const chart = chartRef.current;
         const candleSeries = candleSeriesRef.current;
         const lineSeries = lineSeriesRef.current;
         const maShortSeries = maShortSeriesRef.current;
         const maLongSeries = maLongSeriesRef.current;
-        const volumeSeries = volumeSeriesRef.current;
 
-        if (!chart || !candleSeries || !lineSeries || !maShortSeries || !maLongSeries || !volumeSeries) {
+        if (!chart || !candleSeries || !lineSeries || !maShortSeries || !maLongSeries) {
             return;
         }
 
@@ -502,7 +456,6 @@ export default function CandlestickChart({
             lineSeries.setData([]);
             maShortSeries.setData([]);
             maLongSeries.setData([]);
-            volumeSeries.setData([]);
             return;
         }
 
@@ -510,30 +463,19 @@ export default function CandlestickChart({
         lineSeries.setData(dataset.lineData);
         maShortSeries.setData(dataset.maShortData);
         maLongSeries.setData(dataset.maLongData);
-        volumeSeries.setData(dataset.volumeData);
-
-        const hasVolume = dataset.volumeData.some((point) => point.value > 0);
-        const showVolumePane = showVolume && hasVolume;
 
         candleSeries.applyOptions({ visible: chartMode === "candles" });
         lineSeries.applyOptions({ visible: chartMode === "line" });
         maShortSeries.applyOptions({ visible: showMA7 && dataset.maShortData.length > 0 });
         maLongSeries.applyOptions({ visible: showMA21 && dataset.maLongData.length > 0 });
-        volumeSeries.applyOptions({ visible: showVolumePane });
 
         chart.priceScale("right").applyOptions({
-            scaleMargins: showVolumePane
-                ? { top: 0.08, bottom: 0.28 }
-                : { top: 0.12, bottom: 0.08 },
+            scaleMargins: { top: 0.08, bottom: 0.08 },
         });
 
-        chart.priceScale("volume").applyOptions({
-            scaleMargins: showVolumePane
-                ? { top: 0.74, bottom: 0 }
-                : { top: 1, bottom: 0 },
-        });
+        chart.timeScale().fitContent();
 
-    }, [chartMode, dataset, showMA21, showMA7, showVolume]);
+    }, [chartMode, dataset, showMA21, showMA7]);
 
     const timeframeConfig = getTimeframeConfig(timeframe);
     const stats = dataset?.stats ?? null;
@@ -603,14 +545,6 @@ export default function CandlestickChart({
                     <div className="chart-toolbar-group">
                         <button
                             type="button"
-                            className={`chart-toggle-btn ${showVolume ? "active" : ""}`}
-                            aria-pressed={showVolume}
-                            onClick={() => setShowVolume((current) => !current)}
-                        >
-                            Volume
-                        </button>
-                        <button
-                            type="button"
                             className={`chart-toggle-btn ${showMA7 ? "active" : ""}`}
                             aria-pressed={showMA7}
                             onClick={() => setShowMA7((current) => !current)}
@@ -662,12 +596,6 @@ export default function CandlestickChart({
                         <span className="chart-summary-label">Range</span>
                         <span className="chart-summary-value">{formatPrice(stats.low)}</span>
                         <span className="chart-summary-meta">to {formatPrice(stats.high)}</span>
-                    </div>
-
-                    <div className="chart-summary-card">
-                        <span className="chart-summary-label">Average volume</span>
-                        <span className="chart-summary-value">{formatCompactNumber(stats.averageVolume)}</span>
-                        <span className="chart-summary-meta">{formatCompactNumber(stats.totalVolume)} total</span>
                     </div>
 
                     <div className="chart-summary-card">

@@ -12,10 +12,6 @@ export interface ChartLinePoint {
     value: number;
 }
 
-export interface ChartVolumePoint extends ChartLinePoint {
-    color: string;
-}
-
 export interface ChartStats {
     startPrice: number;
     endPrice: number;
@@ -23,8 +19,6 @@ export interface ChartStats {
     changePercent: number;
     high: number;
     low: number;
-    averageVolume: number;
-    totalVolume: number;
     candleCount: number;
     trend: "up" | "down" | "flat";
 }
@@ -33,17 +27,6 @@ export function toLineSeriesData(candles: ChartCandlePoint[]): ChartLinePoint[] 
     return candles.map((candle) => ({
         time: candle.time,
         value: candle.close,
-    }));
-}
-
-export function toVolumeSeriesData(
-    candles: ChartCandlePoint[],
-    colors: { bull: string; bear: string }
-): ChartVolumePoint[] {
-    return candles.map((candle) => ({
-        time: candle.time,
-        value: candle.volume,
-        color: candle.close >= candle.open ? colors.bull : colors.bear,
     }));
 }
 
@@ -83,19 +66,16 @@ export function calculateChartStats(candles: ChartCandlePoint[]): ChartStats | n
 
     let high = Number.NEGATIVE_INFINITY;
     let low = Number.POSITIVE_INFINITY;
-    let totalVolume = 0;
 
     for (const candle of candles) {
         high = Math.max(high, candle.high);
         low = Math.min(low, candle.low);
-        totalVolume += candle.volume;
     }
 
     const startPrice = candles[0].open;
     const endPrice = candles[candles.length - 1].close;
     const delta = endPrice - startPrice;
     const changePercent = startPrice === 0 ? 0 : (delta / startPrice) * 100;
-    const averageVolume = totalVolume / candles.length;
 
     return {
         startPrice,
@@ -104,8 +84,6 @@ export function calculateChartStats(candles: ChartCandlePoint[]): ChartStats | n
         changePercent,
         high,
         low,
-        averageVolume,
-        totalVolume,
         candleCount: candles.length,
         trend: delta > 0 ? "up" : delta < 0 ? "down" : "flat",
     };
