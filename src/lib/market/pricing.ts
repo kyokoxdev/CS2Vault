@@ -36,6 +36,7 @@ export interface PriceWriteOptions {
     maxItems?: number;
     allowSteamLimit?: boolean;
     allowFallback?: boolean;
+    skipCandleAggregation?: boolean;
 }
 
 const DEFAULT_STEAM_BATCH_SIZE = 25;
@@ -369,24 +370,40 @@ export async function writePriceSnapshotsForItems(
             };
         }
     }
-    let pricedCount = 0;
+    // Batch all snapshot creates into a single INSERT
+    const snapshotsToCreate: Array<{
+        itemId: string;
+        price: number;
+        volume: number | null;
+        source: string;
+        timestamp: Date;
+    }> = [];
 
     for (const [hashName, itemId] of entriesToFetch) {
         const priceData = prices.get(hashName);
         if (!priceData || priceData.price <= 0) continue;
 
-        await prisma.priceSnapshot.create({
-            data: {
-                itemId,
-                price: priceData.price,
-                volume: priceData.volume,
-                source: priceData.source,
-                timestamp: priceData.timestamp,
-            },
+        snapshotsToCreate.push({
+            itemId,
+            price: priceData.price,
+            volume: priceData.volume ?? null,
+            source: priceData.source,
+            timestamp: priceData.timestamp,
         });
-        pricedCount++;
+    }
 
-        await aggregateAllIntervals(itemId);
+    if (snapshotsToCreate.length > 0) {
+        await prisma.priceSnapshot.createMany({ data: snapshotsToCreate });
+    }
+
+    const pricedCount = snapshotsToCreate.length;
+
+    // Aggregate candles after all writes (skip during inventory sync for speed)
+    if (!options.skipCandleAggregation && pricedCount > 0) {
+        const uniqueItemIds = [...new Set(snapshotsToCreate.map((s) => s.itemId))];
+        for (const itemId of uniqueItemIds) {
+            await aggregateAllIntervals(itemId);
+        }
     }
 
     return {

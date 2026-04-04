@@ -121,9 +121,7 @@ export async function aggregateCandlesticks(
  */
 export async function aggregateAllIntervals(itemId: string): Promise<void> {
     const intervals: CandleInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"];
-    for (const interval of intervals) {
-        await aggregateCandlesticks(itemId, interval);
-    }
+    await Promise.all(intervals.map((interval) => aggregateCandlesticks(itemId, interval)));
 }
 
 /**

@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST — Sync inventory from Steam.
  * Fetches inventory, upserts linked Item records, and upserts InventoryItem records.
+ * Removes items no longer present in Steam inventory (sold/traded externally).
  */
 export async function POST(request: NextRequest) {
     try {
@@ -89,7 +90,6 @@ export async function POST(request: NextRequest) {
 
         const steamId = session.user.steamId;
 
-        // Ensure user exists
         let user = await prisma.user.findUnique({ where: { steamId } });
         if (!user) {
             user = await prisma.user.create({
@@ -100,72 +100,95 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        // Fetch inventory from Steam
-        const inventoryItems = await fetchSteamInventory(steamId);
+        const userId = user.id;
+
+        const [inventoryItems, currentDbItems] = await Promise.all([
+            fetchSteamInventory(steamId),
+            prisma.inventoryItem.findMany({
+                where: { userId, soldAt: null },
+                select: { id: true, assetId: true },
+            }),
+        ]);
+
+        const steamAssetIds = new Set(inventoryItems.map((i) => i.assetId));
+        const dbAssetIds = new Set(currentDbItems.map((i) => i.assetId));
+
+        const staleIds = currentDbItems
+            .filter((i) => !steamAssetIds.has(i.assetId))
+            .map((i) => i.id);
 
         let synced = 0;
-        let skipped = 0;
+        let added = 0;
         const itemIdByHash = new Map<string, string>();
 
-        for (const invItem of inventoryItems) {
-            const normalizedType = invItem.category === "weapon"
-                ? normalizeItemType(invItem.itemType) ?? undefined
-                : undefined;
-            // Upsert the linked Item (market item)
-            const item = await prisma.item.upsert({
-                where: { marketHashName: invItem.marketHashName },
-                create: {
-                    marketHashName: invItem.marketHashName,
-                    name: invItem.name,
-                    weapon: invItem.weapon,
-                    skin: invItem.skin,
-                    category: invItem.category,
-                    type: normalizedType,
-                    rarity: invItem.rarity ?? undefined,
-                    exterior: invItem.exterior,
-                    imageUrl: invItem.imageUrl,
-                    isWatched: false,
-                    isActive: true,
-                },
-                update: {
-                    imageUrl: invItem.imageUrl,
-                    category: invItem.category,
-                    type: normalizedType,
-                    rarity: invItem.rarity ?? undefined,
-                    exterior: invItem.exterior ?? undefined,
-                    weapon: invItem.weapon ?? undefined,
-                    skin: invItem.skin ?? undefined,
-                },
-            });
+        await prisma.$transaction(async (tx) => {
+            if (staleIds.length > 0) {
+                await tx.inventoryItem.deleteMany({
+                    where: { id: { in: staleIds } },
+                });
+            }
 
-            itemIdByHash.set(invItem.marketHashName, item.id);
+            for (const invItem of inventoryItems) {
+                const normalizedType = invItem.category === "weapon"
+                    ? normalizeItemType(invItem.itemType) ?? undefined
+                    : undefined;
 
-            // Upsert InventoryItem (by assetId)
-            try {
-                await prisma.inventoryItem.upsert({
-                    where: { assetId: invItem.assetId },
+                const item = await tx.item.upsert({
+                    where: { marketHashName: invItem.marketHashName },
                     create: {
-                        userId: user.id,
-                        itemId: item.id,
-                        assetId: invItem.assetId,
+                        marketHashName: invItem.marketHashName,
+                        name: invItem.name,
+                        weapon: invItem.weapon,
+                        skin: invItem.skin,
+                        category: invItem.category,
+                        type: normalizedType,
+                        rarity: invItem.rarity ?? undefined,
+                        exterior: invItem.exterior,
+                        imageUrl: invItem.imageUrl,
+                        isWatched: false,
+                        isActive: true,
                     },
                     update: {
-                        itemId: item.id, // Update in case item was recreated
+                        imageUrl: invItem.imageUrl,
+                        category: invItem.category,
+                        type: normalizedType,
+                        rarity: invItem.rarity ?? undefined,
+                        exterior: invItem.exterior ?? undefined,
+                        weapon: invItem.weapon ?? undefined,
+                        skin: invItem.skin ?? undefined,
                     },
                 });
-                synced++;
-            } catch {
-                skipped++;
-            }
-        }
 
-        // Fetch latest prices for synced inventory items (no watchlist dependency)
+                itemIdByHash.set(invItem.marketHashName, item.id);
+
+                try {
+                    await tx.inventoryItem.upsert({
+                        where: { assetId: invItem.assetId },
+                        create: {
+                            userId,
+                            itemId: item.id,
+                            assetId: invItem.assetId,
+                        },
+                        update: {
+                            itemId: item.id,
+                        },
+                    });
+
+                    if (!dbAssetIds.has(invItem.assetId)) added++;
+                    synced++;
+                } catch {
+                    // Skip items that fail (e.g. constraint violations)
+                }
+            }
+        }, { timeout: 30000 });
+
         const fallbackParam = request.nextUrl.searchParams.get("fallback");
         const allowFallback = fallbackParam === "steam";
 
         const pricingResult = await writePriceSnapshotsForItems(itemIdByHash, {
             minAgeMinutes: 0,
             allowFallback,
+            skipCandleAggregation: true,
             ...(allowFallback ? { overrideSource: "steam" } : {}),
         });
 
@@ -179,7 +202,8 @@ export async function POST(request: NextRequest) {
             data: {
                 totalFetched: inventoryItems.length,
                 synced,
-                skipped,
+                added,
+                removed: staleIds.length,
                 pricedCount: pricingResult.pricedCount,
                 priceSource: pricingResult.provider,
                 fallbackAvailable: pricingResult.fallbackAvailable,
