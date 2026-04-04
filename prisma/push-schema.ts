@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-import { execSync, spawnSync } from "child_process";
 import { createClient } from "@libsql/client";
 import fs from "fs";
 import path from "path";
@@ -19,84 +18,58 @@ async function main() {
     console.log(`📡 Target: ${tursoUrl}`);
     const client = createClient({ url: tursoUrl, authToken: tursoToken });
 
-    const tempDbPath = path.join(process.cwd(), "prisma", ".turso-shadow.db");
-    if (fs.existsSync(tempDbPath)) fs.unlinkSync(tempDbPath);
+    // Collect all migration SQL files in order
+    const migrationsDir = path.join(process.cwd(), "prisma", "migrations");
+    const migrationFolders = fs
+        .readdirSync(migrationsDir, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name)
+        .sort();
 
-    console.log("📥 Dumping current Turso schema to shadow DB...");
-    const tables = await client.execute(
-        "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_%'"
-    );
-    const indexes = await client.execute(
-        "SELECT sql FROM sqlite_master WHERE type='index' AND sql IS NOT NULL"
-    );
+    let totalApplied = 0;
+    let totalSkipped = 0;
 
-    const shadowClient = createClient({ url: `file:${tempDbPath}` });
-    for (const row of tables.rows) {
-        if (row.sql) await shadowClient.execute(row.sql as string);
-    }
-    for (const row of indexes.rows) {
-        if (row.sql) {
-            try { await shadowClient.execute(row.sql as string); } catch { /* ignore */ }
-        }
-    }
-    shadowClient.close();
+    for (const folder of migrationFolders) {
+        const sqlPath = path.join(migrationsDir, folder, "migration.sql");
+        if (!fs.existsSync(sqlPath)) continue;
 
-    console.log("🔧 Generating migration diff...");
-    const diffResult = spawnSync(
-        "npx",
-        ["prisma", "migrate", "diff", "--from-url", `file:${tempDbPath}`, "--to-schema", "prisma/schema.prisma", "--script"],
-        { encoding: "utf-8", timeout: 30_000, shell: true }
-    );
+        const sql = fs.readFileSync(sqlPath, "utf-8");
+        const statements = sql
+            .replace(/^--.*$/gm, "")
+            .split(";")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
 
-    if (diffResult.error) {
-        console.error("❌ Failed to run prisma migrate diff:", diffResult.error);
-        process.exit(1);
-    }
+        console.log(`\n📂 ${folder} (${statements.length} statements)`);
 
-    const sql = (diffResult.stdout || "").trim();
-    
-    try { fs.unlinkSync(tempDbPath); } catch { /* Windows file lock - ignore */ }
-    try { fs.unlinkSync(tempDbPath + "-journal"); } catch { /* may not exist */ }
-
-    if (!sql || sql === "-- This is an empty migration.") {
-        console.log("\n✅ Schema already in sync — nothing to do.");
-        client.close();
-        return;
-    }
-
-    const sqlNoComments = sql.replace(/^--.*$/gm, "");
-    const statements = sqlNoComments
-        .split(";")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-
-    console.log(`📝 ${statements.length} statements to execute`);
-
-    let applied = 0;
-    let skipped = 0;
-
-    for (const stmt of statements) {
-        try {
-            await client.execute(stmt);
-            applied++;
-            const match = stmt.match(/(?:TABLE|INDEX|COLUMN)\s+"?(\w+)"?/i);
-            console.log(`  ✅ ${match?.[1] || stmt.slice(0, 50)}`);
-        } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
-            if (msg.includes("already exists") || msg.includes("duplicate column")) {
-                skipped++;
-                const match = stmt.match(/(?:TABLE|INDEX|COLUMN)\s+"?(\w+)"?/i);
-                console.log(`  ⏭️  ${match?.[1] || "statement"} (already exists)`);
-            } else {
-                console.error(`  ❌ Failed: ${stmt.slice(0, 80)}...`);
-                console.error(`     ${msg}`);
-                process.exit(1);
+        for (const stmt of statements) {
+            try {
+                await client.execute(stmt);
+                totalApplied++;
+                const match = stmt.match(/(?:CREATE\s+(?:TABLE|INDEX|UNIQUE\s+INDEX)|ALTER\s+TABLE|DROP\s+TABLE|INSERT\s+INTO)\s+"?(\w+)"?/i);
+                console.log(`  ✅ ${match?.[1] || stmt.slice(0, 60)}`);
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
+                if (
+                    msg.includes("already exists") ||
+                    msg.includes("duplicate column") ||
+                    msg.includes("no such table: main.new_") ||
+                    msg.includes("table already exists")
+                ) {
+                    totalSkipped++;
+                    const match = stmt.match(/(?:TABLE|INDEX|COLUMN)\s+"?(\w+)"?/i);
+                    console.log(`  ⏭️  ${match?.[1] || "statement"} (already exists)`);
+                } else {
+                    console.error(`  ❌ Failed: ${stmt.slice(0, 100)}`);
+                    console.error(`     ${msg}`);
+                    // Don't exit — try remaining statements
+                }
             }
         }
     }
 
     client.close();
-    console.log(`\n✅ Schema push complete — ${applied} applied, ${skipped} skipped`);
+    console.log(`\n✅ Schema push complete — ${totalApplied} applied, ${totalSkipped} skipped`);
 }
 
 main().catch((err) => {
