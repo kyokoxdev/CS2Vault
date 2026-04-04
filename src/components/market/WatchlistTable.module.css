@@ -252,6 +252,13 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
+.actionMenuDropdownUp {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+
 .actionMenuItem {
   display: flex;
   align-items: center;

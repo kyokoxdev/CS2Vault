@@ -77,8 +77,21 @@ export async function GET(request: NextRequest) {
         });
         const priceMap = new Map(latestPrices.map((p) => [p.itemId, p.price]));
 
+        const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const oldestSnapshots24h = await prisma.priceSnapshot.findMany({
+            where: {
+                itemId: { in: itemIds },
+                timestamp: { gte: cutoff24h },
+            },
+            orderBy: { timestamp: "asc" },
+            distinct: ["itemId"],
+        });
+        const price24hAgoMap = new Map(oldestSnapshots24h.map((p) => [p.itemId, p.price]));
+
         let totalCurrentValue = 0;
         let totalAcquiredValue = 0;
+        let totalValue24hAgo = 0;
+        let has24hData = false;
 
         const items = inventoryItems.map((inv) => {
             const currentPrice = priceMap.get(inv.itemId) ?? null;
@@ -92,6 +105,14 @@ export async function GET(request: NextRequest) {
             }
             if (inv.acquiredPrice) {
                 totalAcquiredValue += inv.acquiredPrice;
+            }
+
+            const price24hAgo = price24hAgoMap.get(inv.itemId) ?? null;
+            if (price24hAgo !== null && price24hAgo > 0) {
+                totalValue24hAgo += price24hAgo;
+                has24hData = true;
+            } else if (hasPrice && currentPrice !== null) {
+                totalValue24hAgo += currentPrice;
             }
 
             return {
@@ -168,6 +189,13 @@ export async function GET(request: NextRequest) {
             ? (unrealizedPnL / totalAcquiredValue) * 100
             : 0;
 
+        const change24h = has24hData && totalValue24hAgo > 0
+            ? totalCurrentValue - totalValue24hAgo
+            : null;
+        const change24hPercent = has24hData && totalValue24hAgo > 0
+            ? ((totalCurrentValue - totalValue24hAgo) / totalValue24hAgo) * 100
+            : null;
+
         return NextResponse.json({
             success: true,
             data: {
@@ -175,6 +203,8 @@ export async function GET(request: NextRequest) {
                 totalAcquiredValue,
                 unrealizedPnL,
                 unrealizedPnLPercent,
+                change24h,
+                change24hPercent,
                 itemCount: items.length,
                 filteredCount: filtered.length,
                 items: filtered,

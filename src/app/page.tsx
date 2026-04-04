@@ -27,11 +27,12 @@ interface MarketSummary {
 
 export default function MarketOverview() {
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
-  const [watchedCount, setWatchedCount] = useState(0);
+  const [watchlistPerf, setWatchlistPerf] = useState<{ avg24h: number | null; count: number }>({ avg24h: null, count: 0 });
   const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
   const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[]; source?: string; cached?: boolean; updatedAt?: string }>({ gainers: [], losers: [] });
   const [topMoversLoading, setTopMoversLoading] = useState(true);
   const [portfolioValue, setPortfolioValue] = useState<number | null>(null);
+  const [portfolioChange24h, setPortfolioChange24h] = useState<number | null>(null);
   const [portfolioLoading, setPortfolioLoading] = useState(true);
 
   const [csgotraderMarketCap, setCsgotraderMarketCap] = useState<{
@@ -47,15 +48,20 @@ export default function MarketOverview() {
 
   const [error, setError] = useState<string | null>(null);
 
-  const fetchWatchedCount = useCallback(async () => {
+  const fetchWatchlistPerformance = useCallback(async () => {
     try {
-      const res = await fetch("/api/items?limit=1");
+      const res = await fetch("/api/items?limit=200");
       const data = await res.json();
       if (data.success) {
-        setWatchedCount(data.data.items.length > 0 ? data.data.total : 0);
+        const items = data.data.items as Array<{ priceChange24h: number | null }>;
+        const withChange = items.filter((i) => i.priceChange24h !== null);
+        const avg = withChange.length > 0
+          ? withChange.reduce((sum, i) => sum + (i.priceChange24h ?? 0), 0) / withChange.length
+          : null;
+        setWatchlistPerf({ avg24h: avg, count: data.data.total });
       }
     } catch (err) {
-      console.warn("Watched count fetch error:", err);
+      console.warn("Watchlist performance fetch error:", err);
     }
   }, []);
 
@@ -112,6 +118,7 @@ export default function MarketOverview() {
       const data = await res.json();
       if (data.success && data.data?.totalCurrentValue !== undefined) {
         setPortfolioValue(data.data.totalCurrentValue);
+        setPortfolioChange24h(data.data.change24hPercent ?? null);
       }
     } catch (err) {
       console.warn('Portfolio fetch error:', err);
@@ -174,13 +181,13 @@ export default function MarketOverview() {
   }, [authStatus, fetchPortfolioValue]);
 
   useEffect(() => {
-    fetchWatchedCount();
+    fetchWatchlistPerformance();
     fetchSyncLogs();
     fetchMarketSummary();
     fetchTopMovers();
     fetchNewsFeed();
     fetchMarketCap();
-  }, [fetchWatchedCount, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
+  }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
   useEffect(() => {
     const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
@@ -189,7 +196,7 @@ export default function MarketOverview() {
 
     const intervalMs = intervalMin * 60 * 1000;
     const timer = setInterval(() => {
-      fetchWatchedCount();
+      fetchWatchlistPerformance();
       fetchSyncLogs();
       fetchMarketSummary();
       fetchTopMovers();
@@ -198,7 +205,7 @@ export default function MarketOverview() {
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [fetchWatchedCount, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
+  }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
   const lastSync = syncLogs[0];
   
@@ -245,15 +252,19 @@ export default function MarketOverview() {
         
         <Link href="/watchlist" className={styles.statCardLink}>
           <StatCard
-            label="Watched"
+            label="Watchlist 24h"
             value={
               <>
-                {watchedCount}
-                {watchedCount === 0 && (
+                {watchlistPerf.count} items
+                {watchlistPerf.avg24h === null && watchlistPerf.count > 0 && (
+                  <div className={styles.statSubtext}>No price data yet</div>
+                )}
+                {watchlistPerf.count === 0 && (
                   <div className={styles.statSubtext}>Start tracking items</div>
                 )}
               </>
             }
+            change={watchlistPerf.avg24h ?? undefined}
           />
         </Link>
         
@@ -276,6 +287,7 @@ export default function MarketOverview() {
             label="Portfolio Value"
             value={portfolioValue ? portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}
             prefix="$"
+            change={portfolioChange24h ?? undefined}
           />
         )}
         

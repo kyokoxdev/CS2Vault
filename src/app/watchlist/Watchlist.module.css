@@ -39,7 +39,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
 }
 
 .loadingTable {
@@ -138,6 +138,80 @@
 }
 
 /* ── Bulk toolbar ───────────────────────────────────────────── */
+
+/* ── Pagination ─────────────────────────────────────────────── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 0 2px;
+  flex-wrap: wrap;
+}
+
+.paginationBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface-2);
+  color: var(--text-secondary-60);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--font-numeric);
+}
+
+.paginationBtn:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text-primary-90);
+  border-color: var(--text-secondary-60);
+}
+
+.paginationBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.paginationBtnActive {
+  background: var(--accent-primary, #3b82f6);
+  border-color: var(--accent-primary, #3b82f6);
+  color: #fff;
+}
+
+.paginationBtnActive:hover:not(:disabled) {
+  background: var(--accent-primary, #3b82f6);
+  border-color: var(--accent-primary, #3b82f6);
+  color: #fff;
+  opacity: 0.9;
+}
+
+.paginationEllipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 32px;
+  color: var(--text-secondary-60);
+  font-size: 14px;
+  user-select: none;
+}
+
+.paginationInfo {
+  margin-left: 12px;
+  font-size: 12px;
+  color: var(--text-secondary-60);
+  font-family: var(--font-numeric);
+  white-space: nowrap;
+}
+
+/* ── Bulk toolbar (continued) ──────────────────────────────── */
 
 .bulkToolbar {
   display: flex;
@@ -444,6 +518,11 @@
     min-height: 280px;
     padding: 28px 18px;
   }
+
+  .paginationBtn {
+    min-width: 36px;
+    height: 36px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -484,5 +563,12 @@
   .modalCancelBtn,
   .modalConfirmBtn {
     width: 100%;
+  }
+
+  .paginationInfo {
+    width: 100%;
+    text-align: center;
+    margin-left: 0;
+    margin-top: 4px;
   }
 }

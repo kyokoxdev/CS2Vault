@@ -140,7 +140,9 @@ function ActionMenu({
   onViewDetails?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -155,22 +157,33 @@ function ActionMenu({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open, close]);
 
+  const handleToggle = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpen((prev) => {
+      if (!prev && triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        // Menu is roughly 180px tall (4 items × ~40px + padding)
+        setOpenUpward(spaceBelow < 200);
+      }
+      return !prev;
+    });
+  }, []);
+
   return (
     <div className={styles.actionMenuWrapper} ref={menuRef}>
       <button
+        ref={triggerRef}
         type="button"
         className={styles.actionMenuTrigger}
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((prev) => !prev);
-        }}
+        onClick={handleToggle}
         aria-label="Item actions"
         aria-expanded={open}
       >
         &#x22EF;
       </button>
       {open && (
-        <div className={styles.actionMenuDropdown} role="menu">
+        <div className={`${styles.actionMenuDropdown}${openUpward ? ` ${styles.actionMenuDropdownUp}` : ""}`} role="menu">
           <button
             type="button"
             className={styles.actionMenuItem}

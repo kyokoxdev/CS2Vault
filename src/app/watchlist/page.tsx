@@ -55,6 +55,8 @@ export default function WatchlistPage() {
     onConfirm: async () => {},
   });
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 8;
 
   const fetchItems = useCallback(async (showLoading = true) => {
     try {
@@ -185,6 +187,15 @@ export default function WatchlistPage() {
     [filteredItems]
   );
 
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / ITEMS_PER_PAGE));
+
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedItems = useMemo(() => {
+    const start = (safePage - 1) * ITEMS_PER_PAGE;
+    return filteredItems.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredItems, safePage]);
+
   const selectedGroup = useMemo(
     () => groups.find((group) => group.id === groupFilter) ?? null,
     [groupFilter, groups]
@@ -228,6 +239,7 @@ export default function WatchlistPage() {
   }, [filteredItemIds]);
 
   const handleFilterChange = useCallback((field: string, value: string) => {
+    setCurrentPage(1);
     switch (field) {
       case "category":
         setCategoryFilter(value);
@@ -251,10 +263,12 @@ export default function WatchlistPage() {
     setRarityFilter("");
     setSearchFilter("");
     setGroupFilter("");
+    setCurrentPage(1);
   }, []);
 
   const handleGroupSelect = useCallback((id: string | null) => {
     setGroupFilter(id ?? "");
+    setCurrentPage(1);
   }, []);
 
   const handleGroupsChange = useCallback(() => {
@@ -457,7 +471,28 @@ export default function WatchlistPage() {
       const data = await res.json();
 
       if (data.success) {
-        addToast(`Added \"${data.data.name}\" to watchlist`, "success");
+        const itemId = data.data.id as string;
+
+        if (groupFilter) {
+          try {
+            const groupRes = await fetch(`/api/groups/${groupFilter}/items`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ itemIds: [itemId] }),
+            });
+            if (groupRes.ok) {
+              const groupName = groups.find((g) => g.id === groupFilter)?.name ?? "group";
+              addToast(`Added \"${data.data.name}\" to watchlist and assigned to \"${groupName}\"`, "success");
+            } else {
+              addToast(`Added \"${data.data.name}\" to watchlist (failed to assign to group)`, "warning");
+            }
+          } catch {
+            addToast(`Added \"${data.data.name}\" to watchlist (failed to assign to group)`, "warning");
+          }
+        } else {
+          addToast(`Added \"${data.data.name}\" to watchlist`, "success");
+        }
+
         setShowAddForm(false);
         await refreshWatchlistData(false);
       } else {
@@ -466,7 +501,7 @@ export default function WatchlistPage() {
     } catch (err) {
       addToast(`${err}`, "error");
     }
-  }, [addToast, refreshWatchlistData]);
+  }, [addToast, refreshWatchlistData, groupFilter, groups]);
 
   const handleToggleWatch = useCallback(async (id: string, current: boolean) => {
     try {
@@ -667,7 +702,7 @@ export default function WatchlistPage() {
           </div>
         ) : (
           <WatchlistTable
-            items={filteredItems}
+            items={paginatedItems}
             onToggleWatch={handleToggleWatch}
             onRowClick={handleViewDetails}
             onAssignGroup={handleOpenGroupAssignment}
@@ -675,6 +710,84 @@ export default function WatchlistPage() {
             selectedIds={selectedIds}
             onSelectionChange={setSelectedIds}
           />
+        )}
+
+        {!itemsLoading && filteredItems.length > ITEMS_PER_PAGE && (
+          <div className={styles.pagination}>
+            <button
+              type="button"
+              className={styles.paginationBtn}
+              onClick={() => setCurrentPage(1)}
+              disabled={safePage <= 1}
+              aria-label="First page"
+            >
+              &#x21E4;
+            </button>
+            <button
+              type="button"
+              className={styles.paginationBtn}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              aria-label="Previous page"
+            >
+              &#x2039;
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((page) => {
+                if (totalPages <= 7) return true;
+                if (page === 1 || page === totalPages) return true;
+                return Math.abs(page - safePage) <= 1;
+              })
+              .reduce<(number | "ellipsis")[]>((acc, page, idx, arr) => {
+                if (idx > 0 && page - (arr[idx - 1] as number) > 1) {
+                  acc.push("ellipsis");
+                }
+                acc.push(page);
+                return acc;
+              }, [])
+              .map((item, idx) =>
+                item === "ellipsis" ? (
+                  <span key={`ellipsis-${idx > 1 ? "end" : "start"}`} className={styles.paginationEllipsis}>
+                    &hellip;
+                  </span>
+                ) : (
+                  <button
+                    key={item}
+                    type="button"
+                    className={`${styles.paginationBtn}${item === safePage ? ` ${styles.paginationBtnActive}` : ""}`}
+                    onClick={() => setCurrentPage(item)}
+                    aria-label={`Page ${item}`}
+                    aria-current={item === safePage ? "page" : undefined}
+                  >
+                    {item}
+                  </button>
+                )
+              )}
+
+            <button
+              type="button"
+              className={styles.paginationBtn}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              aria-label="Next page"
+            >
+              &#x203A;
+            </button>
+            <button
+              type="button"
+              className={styles.paginationBtn}
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={safePage >= totalPages}
+              aria-label="Last page"
+            >
+              &#x21E5;
+            </button>
+
+            <span className={styles.paginationInfo}>
+              {(safePage - 1) * ITEMS_PER_PAGE + 1}&ndash;{Math.min(safePage * ITEMS_PER_PAGE, filteredItems.length)} of {filteredItems.length}
+            </span>
+          </div>
         )}
       </div>
 
