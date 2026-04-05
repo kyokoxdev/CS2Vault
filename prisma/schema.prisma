@@ -130,6 +130,17 @@ model AppSettings {
   googleAccessToken       String?
   googleRefreshToken      String?
   googleTokenExpiry       DateTime?
+  // DB-based sync lock to prevent concurrent CSFloat access across serverless instances
+  syncInProgress          Boolean   @default(false)
+  syncStartedAt           DateTime?
+}
+
+/// Persists the csgotrader.app bulk price JSON so cold starts don't re-fetch.
+/// Singleton row (id="singleton"). The `data` column holds the full JSON blob.
+model BulkPriceCache {
+  id        String   @id @default("singleton")
+  data      String   // JSON blob of the full csgotrader.app/csfloat.json response
+  updatedAt DateTime @default(now())
 }
 
 model TopMoversCache {
