@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        const BATCH_SIZE = 50;
+        const BATCH_SIZE = 10;
         for (let i = 0; i < inventoryItems.length; i += BATCH_SIZE) {
             const batch = inventoryItems.slice(i, i + BATCH_SIZE);
 
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
                         // Skip items that fail (e.g. constraint violations)
                     }
                 }
-            });
+            }, { timeout: 15000 });
         }
 
         const fallbackParam = request.nextUrl.searchParams.get("fallback");
