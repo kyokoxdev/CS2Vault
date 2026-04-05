@@ -50,7 +50,7 @@
 .panel {
     background: var(--surface-1);
     border: 1px solid var(--border-primary);
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     padding: 2rem;
     box-shadow: none;
     transition: border-color var(--transition-fast);
@@ -104,13 +104,13 @@
 
 .input {
     width: 100%;
-    padding: 0.8rem 1rem;
+    padding: 10px 14px;
     background: var(--surface-hover);
     border: 1px solid var(--border-primary);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     color: var(--text-primary-90);
-    font-size: 1rem;
-    transition: all 0.2s ease;
+    font-size: 14px;
+    transition: all var(--transition-fast);
     outline: none;
 }
 
@@ -146,22 +146,19 @@
 .saveBtn {
     display: flex;
     align-items: center;
-    gap: 0.8rem;
-    padding: 1rem 2.5rem;
+    gap: 8px;
+    padding: 10px 24px;
     background: var(--text-primary-90);
     color: var(--surface-0);
     border: none;
-    border-radius: 30px;
-    font-size: 1.1rem;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    transition: all var(--transition-fast);
 }
 
 .saveBtn:hover:not(:disabled) {
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-    background: var(--text-primary-90);
     opacity: 0.9;
 }
 

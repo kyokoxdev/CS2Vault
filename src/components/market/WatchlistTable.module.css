@@ -59,7 +59,7 @@
   padding: 8px;
   background: var(--surface-3);
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-sm, 4px);
+  border-radius: var(--radius-sm, 6px);
 }
 
 .noteTextarea {
@@ -68,7 +68,7 @@
   max-height: 120px;
   padding: 8px;
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-sm, 4px);
+  border-radius: var(--radius-sm, 6px);
   background: var(--surface-1, #0d0d0d);
   color: var(--text-primary-90);
   font-family: inherit;
@@ -80,7 +80,7 @@
 
 .noteTextarea:focus {
   outline: none;
-  border-color: var(--accent-primary, #3b82f6);
+  border-color: var(--border-active);
 }
 
 .noteTextarea::placeholder {

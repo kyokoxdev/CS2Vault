@@ -62,24 +62,22 @@
   left: 0;
   width: 100%;
   min-width: 160px;
-  background: rgba(20, 20, 20, 0.85); /* Slightly translucent surface-2 */
-  border: 1px solid var(--border-active);
-  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   z-index: 1000;
   overflow: hidden;
 }
 
 .dropdownBottom {
-  top: calc(100% + 6px);
+  top: calc(100% + 2px);
   animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: top;
 }
 
 .dropdownTop {
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 2px);
   animation: slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: bottom;
 }

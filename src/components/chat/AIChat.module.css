@@ -46,7 +46,7 @@
     border: 1px solid var(--border-primary);
     color: var(--text-primary-90);
     padding: 6px 12px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-size: 13px;
     outline: none;
     cursor: pointer;
@@ -183,7 +183,7 @@
     color: var(--text-primary-90);
     width: 48px;
     height: 48px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -217,7 +217,7 @@
     border: 1px solid var(--border-primary);
     color: var(--text-primary-90);
     padding: 14px 18px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-size: 14px;
     outline: none;
     transition: all var(--transition-fast);
@@ -234,7 +234,7 @@
     border: none;
     width: 48px;
     height: 48px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
