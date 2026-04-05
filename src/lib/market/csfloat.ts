@@ -24,10 +24,31 @@ let bulkCacheTimestamp = 0;
 
 async function getBulkPriceCache(): Promise<Map<string, number>> {
     const now = Date.now();
+
+    // 1. Fast path — in-memory cache is still fresh
     if (bulkPriceCache && now - bulkCacheTimestamp < BULK_CACHE_TTL_MS) {
         return bulkPriceCache;
     }
 
+    // 2. Check DB cache (survives serverless cold starts)
+    try {
+        const dbCache = await prisma.bulkPriceCache.findUnique({
+            where: { id: "singleton" },
+        });
+        if (dbCache) {
+            const dbAge = now - dbCache.updatedAt.getTime();
+            if (dbAge < BULK_CACHE_TTL_MS) {
+                const parsed = JSON.parse(dbCache.data) as Record<string, { price: number | null }>;
+                bulkPriceCache = parseSimplePriceFormat(parsed);
+                bulkCacheTimestamp = dbCache.updatedAt.getTime();
+                return bulkPriceCache;
+            }
+        }
+    } catch (error) {
+        console.warn("[CSFloat Bulk] Failed to read DB cache:", error instanceof Error ? error.message : error);
+    }
+
+    // 3. Fetch from web (both in-memory and DB caches are stale/missing)
     const res = await fetch(BULK_CACHE_URL);
     if (!res.ok) {
         console.warn(`[CSFloat Bulk] Failed to fetch bulk cache: ${res.status}`);
@@ -37,6 +58,25 @@ async function getBulkPriceCache(): Promise<Map<string, number>> {
     const data = await res.json();
     bulkPriceCache = parseSimplePriceFormat(data as Record<string, { price: number | null }>);
     bulkCacheTimestamp = now;
+
+    // 4. Persist to DB so the next cold start doesn't re-fetch
+    try {
+        await prisma.bulkPriceCache.upsert({
+            where: { id: "singleton" },
+            update: {
+                data: JSON.stringify(data),
+                updatedAt: new Date(now),
+            },
+            create: {
+                id: "singleton",
+                data: JSON.stringify(data),
+                updatedAt: new Date(now),
+            },
+        });
+    } catch (error) {
+        console.warn("[CSFloat Bulk] Failed to persist cache to DB:", error instanceof Error ? error.message : error);
+    }
+
     return bulkPriceCache;
 }
 
