@@ -121,66 +121,71 @@ export async function POST(request: NextRequest) {
         let added = 0;
         const itemIdByHash = new Map<string, string>();
 
-        await prisma.$transaction(async (tx) => {
-            if (staleIds.length > 0) {
-                await tx.inventoryItem.deleteMany({
-                    where: { id: { in: staleIds } },
-                });
-            }
+        if (staleIds.length > 0) {
+            await prisma.inventoryItem.deleteMany({
+                where: { id: { in: staleIds } },
+            });
+        }
 
-            for (const invItem of inventoryItems) {
-                const normalizedType = invItem.category === "weapon"
-                    ? normalizeItemType(invItem.itemType) ?? undefined
-                    : undefined;
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < inventoryItems.length; i += BATCH_SIZE) {
+            const batch = inventoryItems.slice(i, i + BATCH_SIZE);
 
-                const item = await tx.item.upsert({
-                    where: { marketHashName: invItem.marketHashName },
-                    create: {
-                        marketHashName: invItem.marketHashName,
-                        name: invItem.name,
-                        weapon: invItem.weapon,
-                        skin: invItem.skin,
-                        category: invItem.category,
-                        type: normalizedType,
-                        rarity: invItem.rarity ?? undefined,
-                        exterior: invItem.exterior,
-                        imageUrl: invItem.imageUrl,
-                        isWatched: false,
-                        isActive: true,
-                    },
-                    update: {
-                        imageUrl: invItem.imageUrl,
-                        category: invItem.category,
-                        type: normalizedType,
-                        rarity: invItem.rarity ?? undefined,
-                        exterior: invItem.exterior ?? undefined,
-                        weapon: invItem.weapon ?? undefined,
-                        skin: invItem.skin ?? undefined,
-                    },
-                });
+            await prisma.$transaction(async (tx) => {
+                for (const invItem of batch) {
+                    const normalizedType = invItem.category === "weapon"
+                        ? normalizeItemType(invItem.itemType) ?? undefined
+                        : undefined;
 
-                itemIdByHash.set(invItem.marketHashName, item.id);
-
-                try {
-                    await tx.inventoryItem.upsert({
-                        where: { assetId: invItem.assetId },
+                    const item = await tx.item.upsert({
+                        where: { marketHashName: invItem.marketHashName },
                         create: {
-                            userId,
-                            itemId: item.id,
-                            assetId: invItem.assetId,
+                            marketHashName: invItem.marketHashName,
+                            name: invItem.name,
+                            weapon: invItem.weapon,
+                            skin: invItem.skin,
+                            category: invItem.category,
+                            type: normalizedType,
+                            rarity: invItem.rarity ?? undefined,
+                            exterior: invItem.exterior,
+                            imageUrl: invItem.imageUrl,
+                            isWatched: false,
+                            isActive: true,
                         },
                         update: {
-                            itemId: item.id,
+                            imageUrl: invItem.imageUrl,
+                            category: invItem.category,
+                            type: normalizedType,
+                            rarity: invItem.rarity ?? undefined,
+                            exterior: invItem.exterior ?? undefined,
+                            weapon: invItem.weapon ?? undefined,
+                            skin: invItem.skin ?? undefined,
                         },
                     });
 
-                    if (!dbAssetIds.has(invItem.assetId)) added++;
-                    synced++;
-                } catch {
-                    // Skip items that fail (e.g. constraint violations)
+                    itemIdByHash.set(invItem.marketHashName, item.id);
+
+                    try {
+                        await tx.inventoryItem.upsert({
+                            where: { assetId: invItem.assetId },
+                            create: {
+                                userId,
+                                itemId: item.id,
+                                assetId: invItem.assetId,
+                            },
+                            update: {
+                                itemId: item.id,
+                            },
+                        });
+
+                        if (!dbAssetIds.has(invItem.assetId)) added++;
+                        synced++;
+                    } catch {
+                        // Skip items that fail (e.g. constraint violations)
+                    }
                 }
-            }
-        }, { timeout: 30000 });
+            });
+        }
 
         const fallbackParam = request.nextUrl.searchParams.get("fallback");
         const allowFallback = fallbackParam === "steam";
