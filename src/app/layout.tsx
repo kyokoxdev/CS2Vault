@@ -6,6 +6,7 @@ import SessionProvider from "@/components/providers/SessionProvider";
 import ToastProvider from "@/components/providers/ToastProvider";
 import PageTitleProvider from "@/components/providers/PageTitleProvider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -47,6 +48,7 @@ export default function RootLayout({
           </ToastProvider>
         </SessionProvider>
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
