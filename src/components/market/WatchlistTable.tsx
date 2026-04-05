@@ -452,7 +452,7 @@ export function WatchlistTable({
           <div className={styles.nameCell}>
             <div className={styles.nameRow}>
               <Link
-                href={`/item/${item.id}`}
+                href={`/item/${item.id}?from=watchlist`}
                 className={styles.itemNameLink}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -594,7 +594,7 @@ export function WatchlistTable({
         if (onRowClick) {
           onRowClick(item.id);
         } else if (router) {
-          router.push(`/item/${item.id}`);
+          router.push(`/item/${item.id}?from=watchlist`);
         }
       }}
       emptyMessage="No items in watchlist. Add items above to start tracking."

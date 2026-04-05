@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import CandlestickChart from "@/components/charts/CandlestickChart";
@@ -54,6 +54,7 @@ interface ItemApiResponse {
 
 export default function ItemDetailPage() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const id = params.id as string;
     const { addToast } = useToast();
     const [item, setItem] = useState<ItemDetail | null>(null);
@@ -63,7 +64,11 @@ export default function ItemDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
-    usePageTitle(item?.name ?? null, { backLabel: "Back to Market Overview", backHref: "/" });
+    const from = searchParams.get("from");
+    const backHref = from === "watchlist" ? "/watchlist" : "/";
+    const backLabel = from === "watchlist" ? "Back to Watchlist" : "Back to Market Overview";
+
+    usePageTitle(item?.name ?? null, { backLabel, backHref });
 
     const fetchItem = useCallback(async () => {
         setError(false);
@@ -166,8 +171,8 @@ export default function ItemDetailPage() {
                 >
                     Try again
                 </button>
-                <Link href="/" className={styles.backLink}>
-                    ← Back to Market
+                <Link href={backHref} className={styles.backLink}>
+                    ← {backLabel}
                 </Link>
             </div>
         );
@@ -177,8 +182,8 @@ export default function ItemDetailPage() {
         return (
             <div className={styles.notFound}>
                 <h3>Item not found</h3>
-                <Link href="/" className={styles.backLink}>
-                    ← Back to Market
+                <Link href={backHref} className={styles.backLink}>
+                    ← {backLabel}
                 </Link>
             </div>
         );
@@ -196,8 +201,8 @@ export default function ItemDetailPage() {
     return (
         <div className={styles.page}>
             {/* Back link */}
-            <Link href="/" className={styles.backLink}>
-                ← Back to Market Overview
+            <Link href={backHref} className={styles.backLink}>
+                ← {backLabel}
             </Link>
 
             {/* Item Header */}

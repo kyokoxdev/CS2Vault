@@ -284,7 +284,7 @@ export default function WatchlistPage() {
   }, []);
 
   const handleViewDetails = useCallback((id: string) => {
-    router.push(`/item/${id}`);
+    router.push(`/item/${id}?from=watchlist`);
   }, [router]);
 
   const handleOpenGroupAssignment = useCallback((itemId: string) => {
