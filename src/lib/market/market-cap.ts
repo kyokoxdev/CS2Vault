@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { csgotraderQueue } from "@/lib/api-queue";
 
 const CSGOTRADER_CSFLOAT_URL = "https://prices.csgotrader.app/latest/csfloat.json";
 const PROVIDER_NAME = "csgotrader-csfloat";
@@ -218,16 +219,18 @@ export async function calculateAndStoreMarketCap(): Promise<MarketCapResult> {
     const startTime = Date.now();
 
     try {
-        const response = await fetch(CSGOTRADER_CSFLOAT_URL, {
-            headers: { Accept: "application/json" },
-            signal: AbortSignal.timeout(60_000),
+        const data: Record<string, { price: number | null }> = await csgotraderQueue.enqueue(async () => {
+            const response = await fetch(CSGOTRADER_CSFLOAT_URL, {
+                headers: { Accept: "application/json" },
+                signal: AbortSignal.timeout(60_000),
+            });
+
+            if (!response.ok) {
+                throw new Error(`CSGOTrader API error: ${response.status} ${response.statusText}`);
+            }
+
+            return response.json();
         });
-
-        if (!response.ok) {
-            throw new Error(`CSGOTrader API error: ${response.status} ${response.statusText}`);
-        }
-
-        const data: Record<string, { price: number | null }> = await response.json();
 
         let weightedSum = 0;
         let itemCount = 0;

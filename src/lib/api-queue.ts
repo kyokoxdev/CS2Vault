@@ -98,7 +98,7 @@ export class ApiRequestQueue {
                     lastError = error;
 
                     // Check if it's a rate limit error (429)
-                    if (this.isRateLimitError(error) && attempt < this.maxRetries) {
+                    if (isRateLimitError(error) && attempt < this.maxRetries) {
                         const backoffMs =
                             this.minDelayMs *
                             Math.pow(this.backoffMultiplier, attempt + 1) +
@@ -120,16 +120,6 @@ export class ApiRequestQueue {
         }
 
         this.processing = false;
-    }
-
-    private isRateLimitError(error: unknown): boolean {
-        if (error instanceof Error) {
-            return error.message.includes("429") || error.message.includes("rate limit");
-        }
-        if (typeof error === "object" && error !== null && "status" in error) {
-            return (error as { status: number }).status === 429;
-        }
-        return false;
     }
 
     private resetDailyCounterIfNeeded(): void {
@@ -162,6 +152,36 @@ export class ApiRequestQueue {
         }
         this.queue = [];
     }
+}
+
+// ─── Rate-limit error detection (shared utility) ───────
+
+const RATE_LIMIT_PATTERNS = [
+    "429",
+    "rate limit",
+    "rate-limit",
+    "too many requests",
+    "resource has been exhausted",
+    "quota exceeded",
+    "quota_exceeded",
+    "rateLimitExceeded",
+    "requests per minute",
+    "requests per day",
+];
+
+/**
+ * Check if an error indicates a rate limit / quota exceeded response.
+ * Works with HTTP 429, Google API quota errors, and generic rate limit messages.
+ */
+export function isRateLimitError(error: unknown): boolean {
+    if (error instanceof Error) {
+        const msg = error.message.toLowerCase();
+        return RATE_LIMIT_PATTERNS.some((p) => msg.includes(p.toLowerCase()));
+    }
+    if (typeof error === "object" && error !== null && "status" in error) {
+        return (error as { status: number }).status === 429;
+    }
+    return false;
 }
 
 // ─── Pre-configured queues per provider ─────────────────

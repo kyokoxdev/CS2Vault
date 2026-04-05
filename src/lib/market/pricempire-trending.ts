@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { pricempireQueue } from "@/lib/api-queue";
 
 const PRICEMPIRE_API_URL = "https://api.pricempire.com/v4/paid/items/metas";
 
@@ -59,18 +60,19 @@ export async function fetchMarketCapData(): Promise<MarketCapResult> {
 async function fetchFromApi(apiKey: string): Promise<MarketCapData | null> {
     try {
         const url = `${PRICEMPIRE_API_URL}?app_id=730`;
-        const res = await fetch(url, {
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                Accept: "application/json",
-            },
-            signal: AbortSignal.timeout(30_000),
+        const res = await pricempireQueue.enqueue(async () => {
+            const response = await fetch(url, {
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    Accept: "application/json",
+                },
+                signal: AbortSignal.timeout(30_000),
+            });
+            if (!response.ok) {
+                throw new Error(`Pricempire API error: ${response.status} ${response.statusText}`);
+            }
+            return response;
         });
-
-        if (!res.ok) {
-            console.warn(`[Pricempire API] ${res.status} ${res.statusText}`);
-            return null;
-        }
 
         const items: unknown = await res.json();
         const result = parseMetasResponse(items);

@@ -10,6 +10,7 @@
  */
 
 import type { AIProvider, AIProviderName, ChatMessageData, MarketContext } from "@/types";
+import { isRateLimitError } from "@/lib/api-queue";
 
 const providers = new Map<AIProviderName, AIProvider>();
 
@@ -79,8 +80,42 @@ export async function* chatWithFallback(
     messages: ChatMessageData[],
     context: MarketContext
 ): AsyncGenerator<string> {
-    const provider = await getActiveAIProvider(preferred);
-    yield* provider.chat(messages, context);
+    const triedProviders = new Set<AIProviderName>();
+
+    const order: AIProviderName[] = [
+        preferred,
+        ...FALLBACK_ORDER.filter((n) => n !== preferred),
+    ];
+
+    for (const name of order) {
+        if (triedProviders.has(name)) continue;
+        triedProviders.add(name);
+
+        const provider = providers.get(name);
+        if (!provider) continue;
+
+        try {
+            const isAvailable = !provider.requiresOAuth || (await provider.isAuthenticated());
+            if (!isAvailable) continue;
+        } catch {
+            continue;
+        }
+
+        try {
+            yield* provider.chat(messages, context);
+            return;
+        } catch (error) {
+            if (isRateLimitError(error)) {
+                console.warn(
+                    `[AI Registry] Provider "${name}" hit rate limit, trying next provider...`
+                );
+                continue;
+            }
+            throw error;
+        }
+    }
+
+    throw new Error("All AI providers are rate-limited or unavailable. Please try again later.");
 }
 
 /**
