@@ -4,12 +4,13 @@
 
 import { NextResponse } from "next/server";
 import { csfloatQueue } from "@/lib/api-queue";
+import { isSyncLocked } from "@/lib/market/sync-lock";
 
 const CSFLOAT_BASE_URL = "https://csfloat.com/api/v1";
 const CSFLOAT_PAGE_LIMIT = 50;
 const CSFLOAT_TARGET_ITEMS = 500;
-const CSFLOAT_MAX_PAGES = 12;
-const CSFLOAT_CACHE_MS = 10 * 60 * 1000;
+const CSFLOAT_MAX_PAGES = 5;
+const CSFLOAT_CACHE_MS = 30 * 60 * 1000;
 const BASE_TURNOVER_DAYS = 30;
 const MIN_TURNOVER_DAYS = 7;
 const MAX_TURNOVER_DAYS = 90;
@@ -174,6 +175,13 @@ export async function GET() {
             return NextResponse.json({
                 success: true,
                 data: cachedSummary,
+            });
+        }
+
+        if (await isSyncLocked()) {
+            return NextResponse.json({
+                success: true,
+                data: cachedSummary ?? { marketCapUsd: null, source: "csfloat", status: "no_data" },
             });
         }
 

@@ -10,6 +10,7 @@ import { initializeMarketProviders } from "@/lib/market/init";
 import { getMarketProvider } from "@/lib/market/registry";
 import { resolveMarketSource } from "@/lib/market/source";
 import { aggregateAllIntervals } from "@/lib/candles/aggregator";
+import { acquireSyncLock, releaseSyncLock } from "@/lib/market/sync-lock";
 import type { MarketSource, SyncResult } from "@/types";
 
 /**
@@ -23,6 +24,28 @@ import type { MarketSource, SyncResult } from "@/types";
 export async function runSync(overrideSource?: MarketSource): Promise<SyncResult> {
     const startTime = Date.now();
 
+    const acquired = await acquireSyncLock();
+    if (!acquired) {
+        console.warn("[Sync] Another sync is in progress — skipping this cycle");
+        const result: SyncResult = {
+            type: "market_prices",
+            status: "failed",
+            itemCount: 0,
+            duration: Date.now() - startTime,
+            error: "Another sync is already in progress",
+        };
+        await logSync(result);
+        return result;
+    }
+
+    try {
+        return await runSyncInner(overrideSource, startTime);
+    } finally {
+        await releaseSyncLock();
+    }
+}
+
+async function runSyncInner(overrideSource: MarketSource | undefined, startTime: number): Promise<SyncResult> {
     // Get app settings
     const settings = await prisma.appSettings.findUnique({
         where: { id: "singleton" },
