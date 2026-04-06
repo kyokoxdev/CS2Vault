@@ -182,7 +182,7 @@
 .statCardLink {
   text-decoration: none;
   color: inherit;
-  display: block;
+  display: flex;
   border-radius: 10px;
   transition: outline 0.15s ease;
 }
