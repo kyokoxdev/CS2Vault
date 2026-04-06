@@ -25,7 +25,7 @@ interface SearchResult {
 }
 
 interface ItemSearchProps {
-    onSelect: (item: { hashName: string; name: string; category: string; rarity: string | null; exterior: string | null; type: string | null }) => void;
+    onSelect: (item: { hashName: string; name: string; imageUrl: string | null; category: string; rarity: string | null; exterior: string | null; type: string | null }) => void;
     placeholder?: string;
 }
 
@@ -78,7 +78,7 @@ export default function ItemSearch({
         const skinPart = parts[1]?.replace(/\s*\(.*\)/, "") ?? "";
         const displayName = skinPart ? `${weapon} ${skinPart}` : weapon;
 
-        onSelect({ hashName: item.hashName, name: displayName, category: item.category, rarity: item.rarity, exterior: item.exterior, type: item.type });
+        onSelect({ hashName: item.hashName, name: displayName, imageUrl: item.imageUrl, category: item.category, rarity: item.rarity, exterior: item.exterior, type: item.type });
         setQuery("");
         setResults([]);
         setShowDropdown(false);

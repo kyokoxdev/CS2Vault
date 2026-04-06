@@ -8,6 +8,7 @@ interface AddItemPanelProps {
   onAdd: (selected: {
     hashName: string;
     name: string;
+    imageUrl: string | null;
     category: string;
     rarity: string | null;
     exterior: string | null;

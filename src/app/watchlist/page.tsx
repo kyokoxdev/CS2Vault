@@ -449,6 +449,7 @@ export default function WatchlistPage() {
   const handleAddItem = useCallback(async (selected: {
     hashName: string;
     name: string;
+    imageUrl: string | null;
     category: string;
     rarity: string | null;
     exterior: string | null;
@@ -461,6 +462,7 @@ export default function WatchlistPage() {
         body: JSON.stringify({
           marketHashName: selected.hashName,
           name: selected.name,
+          imageUrl: selected.imageUrl ?? undefined,
           category: selected.category,
           type: selected.type ?? undefined,
           rarity: selected.rarity ?? undefined,
