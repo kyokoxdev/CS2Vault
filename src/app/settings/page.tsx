@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import styles from "./Settings.module.css";
-import { FaSave, FaRobot, FaChartLine, FaClock } from "react-icons/fa";
+import { FaSave, FaRobot, FaChartLine, FaClock, FaSyncAlt } from "react-icons/fa";
 import { AI_MODELS } from "@/lib/ai/model-labels";
 import { Select } from "@/components/ui/Select";
 
@@ -10,6 +10,7 @@ interface AppSettings {
     activeMarketSource: string;
     activeAIProvider: string;
     syncIntervalMin: number;
+    priceRefreshIntervalMin: number;
     openAiApiKey: string;
     geminiApiKey: string;
     csfloatApiKey: string;
@@ -19,6 +20,7 @@ interface AppSettings {
 export default function SettingsPage() {
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [saving, setSaving] = useState(false);
+    const [refreshingMarketCap, setRefreshingMarketCap] = useState(false);
     const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
     useEffect(() => {
@@ -56,6 +58,38 @@ export default function SettingsPage() {
         } finally {
             setSaving(false);
             // Hide success message after 3 seconds
+            setTimeout(() => setMessage(null), 3000);
+        }
+    };
+
+    const handleRefreshMarketCap = async () => {
+        setRefreshingMarketCap(true);
+        setMessage(null);
+
+        try {
+            const res = await fetch("/api/market/market-cap-sync", {
+                method: "POST",
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || "Failed to refresh market cap");
+            }
+
+            if (data.data?.skipped) {
+                setMessage({ text: "Market cap is already fresh. No recalculation was needed.", type: "success" });
+                return;
+            }
+
+            const totalMarketCap = typeof data.data?.totalMarketCap === "number"
+                ? `$${data.data.totalMarketCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                : "Market cap";
+            setMessage({ text: `${totalMarketCap} refreshed successfully.`, type: "success" });
+        } catch (error) {
+            console.error(error);
+            setMessage({ text: "Error refreshing market cap. Please try again.", type: "error" });
+        } finally {
+            setRefreshingMarketCap(false);
             setTimeout(() => setMessage(null), 3000);
         }
     };
@@ -184,7 +218,7 @@ export default function SettingsPage() {
                     <div className={styles.formGroup}>
                         <label htmlFor="settings-sync-interval">
                             <FaClock className={styles.inlineIcon} />
-                            Cron Sync Interval (Minutes)
+                            Server Sync Interval (Minutes)
                         </label>
                         <input
                             id="settings-sync-interval"
@@ -195,7 +229,39 @@ export default function SettingsPage() {
                             onChange={(e) => handleChange("syncIntervalMin", parseInt(e.target.value) || 5)}
                             className={styles.input}
                         />
-                        <p className={styles.helpText}>How rapidly the tracker updates asset values in the background.</p>
+                        <p className={styles.helpText}>Desired background sync cadence. On Vercel Hobby, cron still only runs daily, so this mainly applies outside cron-limited environments.</p>
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label htmlFor="settings-price-refresh-interval">
+                            <FaClock className={styles.inlineIcon} />
+                            Browser Refresh Interval (Minutes)
+                        </label>
+                        <input
+                            id="settings-price-refresh-interval"
+                            type="number"
+                            min="1"
+                            max="1440"
+                            value={settings.priceRefreshIntervalMin}
+                            onChange={(e) => handleChange("priceRefreshIntervalMin", parseInt(e.target.value) || 15)}
+                            className={styles.input}
+                        />
+                        <p className={styles.helpText}>How often open browser sessions refresh watchlist, portfolio, and dashboard market data without needing server cron.</p>
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label htmlFor="settings-refresh-market-cap">Market Cap Controls</label>
+                        <button
+                            id="settings-refresh-market-cap"
+                            type="button"
+                            onClick={handleRefreshMarketCap}
+                            disabled={refreshingMarketCap}
+                            className={styles.secondaryBtn}
+                        >
+                            <FaSyncAlt />
+                            {refreshingMarketCap ? "Refreshing Market Cap..." : "Refresh Market Cap"}
+                        </button>
+                        <p className={styles.helpText}>Forces a fresh weighted market-cap calculation immediately, even if the daily cron has not run yet.</p>
                     </div>
                 </section>
             </div>

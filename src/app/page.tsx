@@ -13,6 +13,7 @@ import {
   type DashboardLegacyMarketCap,
   type DashboardMarketSummary,
 } from "@/lib/market/market-cap-display";
+import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
 
 interface SyncLog {
   id: number;
@@ -38,6 +39,7 @@ export default function MarketOverview() {
   const [feedLoading, setFeedLoading] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
+  const priceRefreshIntervalMin = usePriceRefreshInterval();
 
   const fetchWatchlistPerformance = useCallback(async () => {
     try {
@@ -182,11 +184,9 @@ export default function MarketOverview() {
   }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
   useEffect(() => {
-    const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
-    const intervalMin = rawInterval ? Number.parseInt(rawInterval, 10) : 5;
-    if (!Number.isFinite(intervalMin) || intervalMin <= 0) return;
+    if (!Number.isFinite(priceRefreshIntervalMin) || priceRefreshIntervalMin <= 0) return;
 
-    const intervalMs = intervalMin * 60 * 1000;
+    const intervalMs = priceRefreshIntervalMin * 60 * 1000;
     const timer = setInterval(() => {
       fetchWatchlistPerformance();
       fetchSyncLogs();
@@ -197,7 +197,7 @@ export default function MarketOverview() {
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
+  }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap, priceRefreshIntervalMin]);
 
   const lastSync = syncLogs[0];
   const marketCapPreference = selectPreferredMarketCapSource(csgotraderMarketCap, marketSummary);

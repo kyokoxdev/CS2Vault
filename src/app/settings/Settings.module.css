@@ -168,6 +168,32 @@
     transform: none;
 }
 
+.secondaryBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: transparent;
+    color: var(--text-primary-90);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.secondaryBtn:hover:not(:disabled) {
+    border-color: var(--border-active);
+    background: var(--surface-hover);
+}
+
+.secondaryBtn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
 .successMsg {
     padding: 1rem 2rem;
     background: rgba(46, 204, 113, 0.1);

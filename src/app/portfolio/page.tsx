@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { FallbackToast } from "@/components/ui/FallbackToast";
 import { useToast } from "@/components/providers/ToastProvider";
+import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
 
 interface PortfolioItem {
   id: string;
@@ -91,8 +92,8 @@ export default function PortfolioPage() {
     attemptedProvider: string;
     source: "sync" | "prices";
   } | null>(null);
-  const [priceRefreshIntervalMin, setPriceRefreshIntervalMin] = useState(15);
   const refreshRef = useRef<((fallback?: string) => Promise<void>) | null>(null);
+  const priceRefreshIntervalMin = usePriceRefreshInterval();
 
   const fetchPortfolio = useCallback(async () => {
     try {
@@ -178,17 +179,6 @@ export default function PortfolioPage() {
   }, [fetchPortfolio, addToast]);
 
   refreshRef.current = handleRefreshPrices;
-
-  useEffect(() => {
-    fetch("/api/settings")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.priceRefreshIntervalMin) {
-          setPriceRefreshIntervalMin(data.priceRefreshIntervalMin);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (priceRefreshIntervalMin <= 0) return;

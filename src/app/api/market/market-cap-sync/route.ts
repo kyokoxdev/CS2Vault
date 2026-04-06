@@ -1,19 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calculateAndStoreMarketCap, shouldRecalculate } from "@/lib/market/market-cap";
+import { requireAuth } from "@/lib/auth/guard";
 
-export async function GET(request: NextRequest) {
+async function authorize(request: NextRequest): Promise<NextResponse | null> {
     const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
 
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-        return NextResponse.json(
-            { success: false, error: "Unauthorized" },
-            { status: 401 }
-        );
+    if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+        return null;
+    }
+
+    const authResult = await requireAuth();
+    return authResult.error;
+}
+
+async function runMarketCapSync(request: NextRequest, forceRecalculate: boolean) {
+    const authError = await authorize(request);
+    if (authError) {
+        return authError;
     }
 
     try {
-        const needsRecalculation = await shouldRecalculate();
+        const needsRecalculation = forceRecalculate || await shouldRecalculate();
         
         if (!needsRecalculation) {
             return NextResponse.json({
@@ -46,4 +54,12 @@ export async function GET(request: NextRequest) {
             { status: 500 }
         );
     }
+}
+
+export async function GET(request: NextRequest) {
+    return runMarketCapSync(request, false);
+}
+
+export async function POST(request: NextRequest) {
+    return runMarketCapSync(request, true);
 }

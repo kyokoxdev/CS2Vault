@@ -10,6 +10,7 @@ import { AddItemPanel } from "@/components/market/AddItemPanel";
 import { FallbackToast } from "@/components/ui/FallbackToast";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { useToast } from "@/components/providers/ToastProvider";
+import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
 import styles from "./Watchlist.module.css";
 
 type ItemWithMaybeGroups = Item & { groups?: Item["groups"] };
@@ -57,6 +58,7 @@ export default function WatchlistPage() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
+  const priceRefreshIntervalMin = usePriceRefreshInterval();
 
   const fetchItems = useCallback(async (showLoading = true) => {
     try {
@@ -116,7 +118,7 @@ export default function WatchlistPage() {
       } else {
         addToast(`Failed: ${data.error}`, "error");
       }
-    } catch (err) {
+    } catch {
       addToast(`Error refreshing prices`, "error");
     }
 
@@ -128,17 +130,15 @@ export default function WatchlistPage() {
   }, [refreshWatchlistData]);
 
   useEffect(() => {
-    const rawInterval = process.env.NEXT_PUBLIC_PRICE_REFRESH_MINUTES;
-    const intervalMin = rawInterval ? Number.parseInt(rawInterval, 10) : 5;
-    if (!Number.isFinite(intervalMin) || intervalMin <= 0) return;
+    if (!Number.isFinite(priceRefreshIntervalMin) || priceRefreshIntervalMin <= 0) return;
 
-    const intervalMs = intervalMin * 60 * 1000;
+    const intervalMs = priceRefreshIntervalMin * 60 * 1000;
     const timer = setInterval(() => {
       void handleRefreshPrices();
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [handleRefreshPrices]);
+  }, [handleRefreshPrices, priceRefreshIntervalMin]);
 
   useEffect(() => {
     if (groupFilter && !groups.some((group) => group.id === groupFilter)) {
