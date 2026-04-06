@@ -16,23 +16,40 @@
 }
 
 .select {
-  background: var(--surface-1);
-  border: 1px solid var(--border-primary);
-  color: var(--text-primary-90);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
-  cursor: pointer;
+  /* No extra padding/border — Select component styles its own trigger */
 }
 
 .input {
-  background: var(--surface-1);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
   color: var(--text-primary-90);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 12px;
   min-width: 200px;
+  outline: none;
+  transition: all var(--transition-normal);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.input:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-active);
+}
+
+.input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-active);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.05);
+}
+
+.input::placeholder {
+  color: var(--text-secondary-60);
+  font-family: var(--font-sans);
+  font-weight: 500;
 }
 
 .button {
