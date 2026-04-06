@@ -24,7 +24,8 @@ import {
     calculateAndStoreMarketCap,
     shouldRecalculate,
 } from "@/lib/market/market-cap";
-import { GET } from "@/app/api/sync/route";
+import { requireAuth } from "@/lib/auth/guard";
+import { GET, POST } from "@/app/api/sync/route";
 
 const originalCronSecret = process.env.CRON_SECRET;
 
@@ -36,6 +37,10 @@ describe("GET /api/sync", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         process.env.CRON_SECRET = "test-secret";
+        vi.mocked(requireAuth).mockResolvedValue({
+            session: { user: { steamId: "123" } },
+            error: null,
+        } as never);
     });
 
     it("returns sync logs for non-cron requests", async () => {
@@ -140,6 +145,96 @@ describe("GET /api/sync", () => {
         expect(response.status).toBe(500);
         expect(payload.success).toBe(false);
         expect(payload.data.marketCap.status).toBe("error");
+    });
+
+    it("runs market cap recalculation for authenticated manual sync requests when stale", async () => {
+        vi.mocked(triggerManualSync).mockResolvedValueOnce({
+            status: "success",
+            itemCount: 5,
+            duration: 222,
+            type: "market_prices",
+        } as never);
+        vi.mocked(shouldRecalculate).mockResolvedValueOnce(true);
+        vi.mocked(calculateAndStoreMarketCap).mockResolvedValueOnce({
+            status: "ok",
+            data: {
+                totalMarketCap: 100,
+                itemCount: 2,
+                timestamp: new Date("2026-03-25T00:00:00.000Z"),
+                provider: "csgotrader-csfloat",
+                source: "calculated",
+            },
+        });
+
+        const request = new Request("http://localhost/api/sync");
+        const response = await POST(toNextRequest(request));
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.success).toBe(true);
+        expect(triggerManualSync).toHaveBeenCalledTimes(1);
+        expect(shouldRecalculate).toHaveBeenCalledTimes(1);
+        expect(calculateAndStoreMarketCap).toHaveBeenCalledTimes(1);
+        expect(payload.data.sync.status).toBe("success");
+        expect(payload.data.marketCap.attempted).toBe(true);
+        expect(payload.data.marketCap.status).toBe("ok");
+    });
+
+    it("skips manual market cap recalculation when recent snapshot exists", async () => {
+        vi.mocked(triggerManualSync).mockResolvedValueOnce({
+            status: "success",
+            itemCount: 5,
+            duration: 222,
+            type: "market_prices",
+        } as never);
+        vi.mocked(shouldRecalculate).mockResolvedValueOnce(false);
+
+        const request = new Request("http://localhost/api/sync");
+        const response = await POST(toNextRequest(request));
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.success).toBe(true);
+        expect(calculateAndStoreMarketCap).not.toHaveBeenCalled();
+        expect(payload.data.marketCap.status).toBe("skipped");
+    });
+
+    it("returns 500 when manual sync market cap recalculation fails", async () => {
+        vi.mocked(triggerManualSync).mockResolvedValueOnce({
+            status: "success",
+            itemCount: 5,
+            duration: 222,
+            type: "market_prices",
+        } as never);
+        vi.mocked(shouldRecalculate).mockResolvedValueOnce(true);
+        vi.mocked(calculateAndStoreMarketCap).mockResolvedValueOnce({
+            status: "error",
+            data: null,
+            message: "Calculation failed",
+        });
+
+        const request = new Request("http://localhost/api/sync");
+        const response = await POST(toNextRequest(request));
+        const payload = await response.json();
+
+        expect(response.status).toBe(500);
+        expect(payload.success).toBe(false);
+        expect(payload.data.marketCap.status).toBe("error");
+    });
+
+    it("returns auth error for unauthenticated manual sync requests", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({
+            session: null,
+            error: new Response(JSON.stringify({ success: false, error: "Authentication required" }), {
+                status: 401,
+                headers: { "content-type": "application/json" },
+            }),
+        } as never);
+
+        const request = new Request("http://localhost/api/sync");
+        const response = await POST(toNextRequest(request));
+
+        expect(response.status).toBe(401);
     });
 });
 
