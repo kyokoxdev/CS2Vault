@@ -191,9 +191,6 @@
     background: var(--surface-hover);
   }
 
-  .hideOnMobile {
-    display: none;
-  }
 }
 
 .cardList {
@@ -280,5 +277,12 @@
 
   .dataTable td {
     padding: 8px;
+  }
+}
+
+/* Must appear after .cardList to win the cascade at equal specificity */
+@media (max-width: 768px) {
+  .hideOnMobile {
+    display: none;
   }
 }
