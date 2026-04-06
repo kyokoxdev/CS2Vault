@@ -276,6 +276,44 @@
   font-style: italic;
 }
 
+.mobileCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobileCardTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mobileCardInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.mobileCardMetrics {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.mobileCardMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mobileCardLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary-60);
+}
+
 @media (max-width: 1200px) {
   .summaryRow {
     gap: 12px;
@@ -305,11 +343,14 @@
     width: 100%;
   }
 
-  /* Force table to be wide enough to scroll */
-  .inventoryTable :global(table) {
-    min-width: 800px;
-    display: table;
-    /* Ensure table layout */
+  /* Hide Category (col 2), Weapon Type (col 3), Rarity (col 4) on tablet */
+  .inventoryTable th:nth-child(2),
+  .inventoryTable td:nth-child(2),
+  .inventoryTable th:nth-child(3),
+  .inventoryTable td:nth-child(3),
+  .inventoryTable th:nth-child(4),
+  .inventoryTable td:nth-child(4) {
+    display: none;
   }
 
   .filterBar {
@@ -336,5 +377,11 @@
 
   .title {
     font-size: 24px;
+  }
+
+  /* Also hide Wear (col 5) on small phones */
+  .inventoryTable th:nth-child(5),
+  .inventoryTable td:nth-child(5) {
+    display: none;
   }
 }

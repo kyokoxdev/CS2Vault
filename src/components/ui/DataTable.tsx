@@ -4,7 +4,7 @@
  * and opt-in client-side column sorting.
  */
 
-import { type KeyboardEvent, ReactNode, useMemo, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
 import styles from "./DataTable.module.css";
 
 export interface Column<T> {
@@ -26,6 +26,7 @@ export interface DataTableProps<T> {
   getRowKey?: (row: T, index: number) => string | number;
   emptyMessage?: string;
   isLoading?: boolean;
+  mobileCardRenderer?: (row: T) => ReactNode;
 }
 
 function SkeletonRows({ columnCount }: { columnCount: number }) {
@@ -43,10 +44,24 @@ function SkeletonRows({ columnCount }: { columnCount: number }) {
   );
 }
 
+function SkeletonCards() {
+  return (
+    <div className={styles.cardList}>
+      {Array.from({ length: 4 }).map((_, idx) => (
+        // eslint-disable-next-line react/no-array-index-key -- static skeleton placeholders
+        <div key={`card-skeleton-${idx}`} className={styles.cardSkeleton}>
+          <div className={styles.shimmer} style={{ height: 20, width: "60%" }} />
+          <div className={styles.shimmer} style={{ height: 16, width: "40%", marginTop: 8 }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SortIndicator({ direction }: { direction: SortDirection | null }) {
   return (
     <span className={styles.sortIndicator} aria-hidden="true">
-      {direction === "asc" ? "▲" : direction === "desc" ? "▼" : "⇅"}
+      {direction === "asc" ? "\u25B2" : direction === "desc" ? "\u25BC" : "\u21C5"}
     </span>
   );
 }
@@ -75,9 +90,11 @@ export function DataTable<T>({
   getRowKey,
   emptyMessage = "No data available",
   isLoading = false,
+  mobileCardRenderer,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection | null>(null);
+  const [forceTableView, setForceTableView] = useState(false);
 
   const handleSort = (columnKey: string) => {
     if (sortKey !== columnKey) {
@@ -107,8 +124,10 @@ export function DataTable<T>({
     return sortDirection === "asc" ? "ascending" : "descending";
   };
 
-  return (
-    <div className={styles.tableScroll}>
+  const hasCardView = !!mobileCardRenderer;
+
+  const tableView = (
+    <div className={`${styles.tableScroll}${hasCardView && !forceTableView ? ` ${styles.hideOnMobile}` : ""}`}>
     <table className={styles.dataTable}>
       <thead>
         <tr>
@@ -201,6 +220,76 @@ export function DataTable<T>({
         )}
       </tbody>
     </table>
+    </div>
+  );
+
+  if (!hasCardView) return tableView;
+
+  const cardView = (
+    <div className={`${styles.cardList}${forceTableView ? ` ${styles.hideOnMobile}` : ""}`}>
+      {isLoading ? (
+        <SkeletonCards />
+      ) : data.length === 0 ? (
+        <div className={styles.emptyCell}>{emptyMessage}</div>
+      ) : (
+        sortedData.map((row, idx) => (
+          <div
+            key={getRowKey ? getRowKey(row, idx) : idx}
+            className={`${styles.card}${onRowClick ? ` ${styles.clickable}` : ""}`}
+            {...(onRowClick
+              ? {
+                  onClick: () => onRowClick(row),
+                  tabIndex: 0,
+                  role: "button",
+                  onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onRowClick(row);
+                    }
+                  },
+                }
+              : {})}
+          >
+            {mobileCardRenderer(row)}
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  return (
+    <div className={styles.dataTableWrapper}>
+      <div className={styles.viewToggle}>
+        <button
+          type="button"
+          className={`${styles.viewToggleBtn}${!forceTableView ? ` ${styles.viewToggleBtnActive}` : ""}`}
+          onClick={() => setForceTableView(false)}
+          aria-label="Card view"
+          aria-pressed={!forceTableView}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+            <rect x="1" y="1" width="6" height="6" rx="1" />
+            <rect x="9" y="1" width="6" height="6" rx="1" />
+            <rect x="1" y="9" width="6" height="6" rx="1" />
+            <rect x="9" y="9" width="6" height="6" rx="1" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={`${styles.viewToggleBtn}${forceTableView ? ` ${styles.viewToggleBtnActive}` : ""}`}
+          onClick={() => setForceTableView(true)}
+          aria-label="Table view"
+          aria-pressed={forceTableView}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+            <line x1="1" y1="3" x2="15" y2="3" />
+            <line x1="1" y1="8" x2="15" y2="8" />
+            <line x1="1" y1="13" x2="15" y2="13" />
+          </svg>
+        </button>
+      </div>
+      {tableView}
+      {cardView}
     </div>
   );
 }

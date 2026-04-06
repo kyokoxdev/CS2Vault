@@ -157,8 +157,119 @@
   }
 
   .dataTable td {
-    padding: 8px 10px;
+    padding: 10px;
     font-size: 12px;
+    min-height: 44px;
+  }
+
+  .tableScroll {
+    position: relative;
+  }
+
+  .tableScroll::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 24px;
+    background: linear-gradient(to left, var(--surface-2), transparent);
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.2s;
+  }
+
+  .dataTable th:first-child,
+  .dataTable td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background: var(--surface-2);
+  }
+
+  .dataTable tbody tr:hover td:first-child {
+    background: var(--surface-hover);
+  }
+
+  .hideOnMobile {
+    display: none;
+  }
+}
+
+.cardList {
+  display: none;
+}
+
+.dataTableWrapper {
+  position: relative;
+}
+
+.viewToggle {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .cardList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .card {
+    background: var(--surface-2);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: 12px;
+    transition: background 0.15s ease;
+  }
+
+  .card:hover {
+    background: var(--surface-hover);
+  }
+
+  .card.clickable:focus-visible {
+    outline: 2px solid var(--border-active);
+    outline-offset: -2px;
+  }
+
+  .cardSkeleton {
+    background: var(--surface-2);
+    border: 1px solid var(--border-primary);
+    border-radius: 8px;
+    padding: 16px;
+    animation: pulse 1.5s infinite;
+  }
+
+  .viewToggle {
+    display: flex;
+    justify-content: flex-end;
+    gap: 2px;
+    margin-bottom: 8px;
+  }
+
+  .viewToggleBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 1px solid var(--border-primary);
+    background: var(--surface-2);
+    color: var(--text-secondary-60);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .viewToggleBtn:hover {
+    color: var(--text-primary-90);
+    border-color: var(--text-secondary-60);
+  }
+
+  .viewToggleBtnActive {
+    background: var(--surface-3);
+    color: var(--text-primary-90);
+    border-color: var(--text-secondary-60);
   }
 }
 

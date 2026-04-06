@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { FaTimes, FaPlus, FaSpinner, FaSyncAlt, FaEye } from "react-icons/fa";
 import { WatchlistTable, type Item } from "@/components/market/WatchlistTable";
@@ -59,6 +59,8 @@ export default function WatchlistPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
   const priceRefreshIntervalMin = usePriceRefreshInterval();
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const fetchItems = useCallback(async (showLoading = true) => {
     try {
@@ -237,6 +239,39 @@ export default function WatchlistPage() {
       return next.size === prev.size ? prev : next;
     });
   }, [filteredItemIds]);
+
+  useEffect(() => {
+    const el = tableContainerRef.current;
+    if (!el) return;
+
+    const SWIPE_THRESHOLD = 50;
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!touchStartRef.current) return;
+      const dx = e.changedTouches[0].clientX - touchStartRef.current.x;
+      const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
+      touchStartRef.current = null;
+
+      if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dy) > Math.abs(dx)) return;
+
+      if (dx < 0) {
+        setCurrentPage((p) => Math.min(totalPages, p + 1));
+      } else {
+        setCurrentPage((p) => Math.max(1, p - 1));
+      }
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [totalPages]);
 
   const handleFilterChange = useCallback((field: string, value: string) => {
     setCurrentPage(1);
@@ -653,7 +688,7 @@ export default function WatchlistPage() {
         </div>
       )}
 
-      <div className={styles.tableContainer}>
+      <div className={styles.tableContainer} ref={tableContainerRef}>
         {itemsLoading ? (
           <div className={styles.loadingTable}>
             <DataTable columns={loadingColumns} data={[]} isLoading={true} />

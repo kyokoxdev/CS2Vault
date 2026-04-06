@@ -364,6 +364,15 @@
     max-width: 120px;
   }
 
+  .itemNameLink {
+    font-size: 12px;
+  }
+
+  .itemHashName {
+    display: none;
+  }
+}
+
 /* ── Checkbox column ────────────────────────────────────────── */
 
 .checkboxCell {
@@ -434,11 +443,62 @@
   border-color: var(--accent-primary, #3b82f6);
 }
 
-.itemNameLink {
-    font-size: 12px;
-  }
+/* ── Mobile card layout ─────────────────────────────────────── */
 
-  .itemHashName {
-    display: none;
-  }
+.mobileCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobileCardTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mobileCardImage {
+  width: 48px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--surface-3);
+  flex-shrink: 0;
+}
+
+.mobileCardImagePlaceholder {
+  width: 48px;
+  height: 36px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  flex-shrink: 0;
+}
+
+.mobileCardInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mobileCardBottom {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.mobileCardMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mobileCardLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary-60);
 }

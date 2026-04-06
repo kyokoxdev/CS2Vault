@@ -520,8 +520,9 @@
   }
 
   .paginationBtn {
-    min-width: 36px;
-    height: 36px;
+    min-width: 44px;
+    height: 44px;
+    font-size: 14px;
   }
 }
 

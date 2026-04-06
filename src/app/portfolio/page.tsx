@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { FaSpinner, FaBoxOpen } from "react-icons/fa";
 import styles from "./Portfolio.module.css";
 import { PortfolioFilters } from "@/components/portfolio/PortfolioFilters";
@@ -389,6 +389,71 @@ export default function PortfolioPage() {
     },
   ], [editingId, editPrice, handleUpdatePrice]);
 
+  const renderMobileCard = useCallback((item: PortfolioItem): ReactNode => {
+    return (
+      <div className={styles.mobileCard}>
+        <div className={styles.mobileCardTop}>
+          {item.imageUrl && (
+            <img src={item.imageUrl} alt={item.name} className={styles.itemImage} loading="lazy" width={48} height={36} />
+          )}
+          <div className={styles.mobileCardInfo}>
+            <div className={styles.itemName}>{item.name}</div>
+            {item.exterior && <div className={styles.itemExterior}>{item.exterior}</div>}
+          </div>
+        </div>
+        <div className={styles.mobileCardMetrics}>
+          <div className={styles.mobileCardMetric}>
+            <span className={styles.mobileCardLabel}>Price</span>
+            <span className={styles.priceCell}>
+              {item.currentPrice > 0 ? `$${item.currentPrice.toFixed(2)}` : "\u2014"}
+            </span>
+          </div>
+          <div className={styles.mobileCardMetric}>
+            <span className={styles.mobileCardLabel}>Cost</span>
+            {editingId === item.id ? (
+              <div className={styles.editCell}>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleUpdatePrice(item.id);
+                    if (e.key === "Escape") { setEditingId(null); setEditPrice(""); }
+                  }}
+                  className={styles.editInput}
+                />
+                <button type="button" onClick={() => handleUpdatePrice(item.id)} className={styles.editButton} aria-label="Confirm price">{"\u2713"}</button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setEditingId(item.id); setEditPrice(item.acquiredPrice?.toString() ?? ""); }}
+                className={styles.editLink}
+              >
+                {item.acquiredPrice != null ? `$${item.acquiredPrice.toFixed(2)}` : <span className={`${styles.textMuted} ${styles.textItalic}`}>Set</span>}
+              </button>
+            )}
+          </div>
+          <div className={styles.mobileCardMetric}>
+            <span className={styles.mobileCardLabel}>P&L</span>
+            {item.pnl != null ? (
+              <span className={item.pnl > 0 ? styles.pnlPositive : item.pnl < 0 ? styles.pnlNegative : styles.pnlNeutral}>
+                {item.pnl >= 0 ? "+" : ""}${item.pnl.toFixed(2)}
+                <span className={styles.pnlPercent}>
+                  {item.pnlPercent != null && `(${item.pnlPercent >= 0 ? "+" : ""}${item.pnlPercent.toFixed(1)}%)`}
+                </span>
+              </span>
+            ) : (
+              <span className={styles.textMuted}>{"\u2014"}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }, [editingId, editPrice, handleUpdatePrice]);
+
   if (loading) {
     return (
       <div className={styles.loadingState}>
@@ -497,6 +562,7 @@ export default function PortfolioPage() {
               data={portfolio?.items || []}
               isLoading={loading}
               emptyMessage="No items match your filters"
+              mobileCardRenderer={renderMobileCard}
             />
           </div>
         </>

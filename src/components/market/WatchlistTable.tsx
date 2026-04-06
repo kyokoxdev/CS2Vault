@@ -585,6 +585,72 @@ export function WatchlistTable({
     },
   ];
 
+  const renderMobileCard = useCallback((item: Item) => {
+    const itemNotes = getItemNotes(item);
+    return (
+      <div className={styles.mobileCard}>
+        <div className={styles.mobileCardTop}>
+          {item.imageUrl ? (
+            <img src={item.imageUrl} alt={item.name} className={styles.mobileCardImage} loading="lazy" width={48} height={36} />
+          ) : (
+            <div className={styles.mobileCardImagePlaceholder} />
+          )}
+          <div className={styles.mobileCardInfo}>
+            <Link
+              href={`/item/${item.id}?from=watchlist`}
+              className={styles.itemNameLink}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {item.name}
+            </Link>
+            {item.rarity && (
+              <Badge variant={RARITY_VARIANTS[item.rarity] ?? "neutral"} size="sm">
+                {item.rarity}
+              </Badge>
+            )}
+          </div>
+          <ActionMenu
+            itemId={item.id}
+            isWatched={item.isWatched}
+            hasNotes={!!itemNotes}
+            onToggleWatch={onToggleWatch}
+            onEditNote={handleOpenNoteEditor}
+            onAssignGroup={onAssignGroup}
+            onViewDetails={onViewDetails}
+          />
+        </div>
+        <div className={styles.mobileCardBottom}>
+          <div className={styles.mobileCardMetric}>
+            <span className={styles.mobileCardLabel}>Price</span>
+            <span className={`${styles.priceCell} ${item.currentPrice ? styles.pricePositive : ""}`}>
+              {item.currentPrice ? `$${item.currentPrice.toFixed(2)}` : "\u2014"}
+            </span>
+          </div>
+          <div className={styles.mobileCardMetric}>
+            <span className={styles.mobileCardLabel}>24h</span>
+            <PriceChangeCell value={item.priceChange24h} />
+          </div>
+          {item.sparkline.length > 0 && (
+            <div className={styles.mobileCardMetric}>
+              <SparklineChart
+                data={item.sparkline}
+                width={80}
+                height={24}
+                color={
+                  item.priceChange24h != null
+                    ? item.priceChange24h >= 0
+                      ? "#00C076"
+                      : "#FF4D4F"
+                    : undefined
+                }
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }, [getItemNotes, onToggleWatch, handleOpenNoteEditor, onAssignGroup, onViewDetails]);
+
   return (
     <DataTable
       columns={columns}
@@ -598,6 +664,7 @@ export function WatchlistTable({
         }
       }}
       emptyMessage="No items in watchlist. Add items above to start tracking."
+      mobileCardRenderer={renderMobileCard}
     />
   );
 }
