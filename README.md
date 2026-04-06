@@ -12,6 +12,8 @@
 
 Track prices, manage your inventory, and get AI-powered market insights.
 
+Current release: **v0.4.0**
+
 [Features](#features) · [Getting Started](#getting-started) · [Deployment](#deployment) · [License](#license)
 
 </div>
@@ -24,6 +26,8 @@ Track prices, manage your inventory, and get AI-powered market insights.
 |---------|-------------|
 | **Market Overview** | Real-time price tracking with CSFloat, Pricempire, and Steam as data sources |
 | **Portfolio Management** | Track your CS2 inventory value with historical price data |
+| **15-Minute Browser Refresh** | Refresh dashboard, watchlist, and portfolio prices from the saved settings interval while tabs stay open |
+| **Manual Market Cap Refresh** | Trigger a fresh weighted market-cap calculation directly from Settings |
 | **Top Movers** | See which items are gaining or losing value |
 | **AI Chat** | Market analysis powered by Google Gemini and OpenAI |
 | **News Feed** | Aggregated CS2 market news via RSS |
@@ -122,6 +126,12 @@ Open [http://localhost:3000](http://localhost:3000).
 
 </details>
 
+### Refresh Model
+
+- **Server background sync:** Vercel Hobby cron is limited to the daily `GET /api/sync` job configured in `vercel.json`.
+- **Open-tab refresh:** the app now uses the saved `priceRefreshIntervalMin` setting to refresh homepage, watchlist, and portfolio market data while the browser is open.
+- **Manual market-cap refresh:** Settings now includes a `Refresh Market Cap` action that forces a new weighted calculation immediately.
+
 ### Scripts
 
 | Command | Description |
@@ -177,9 +187,11 @@ npm run db:push:turso
 </details>
 
 <details>
-<summary><strong>4. Cron (automatic daily sync)</strong></summary>
+<summary><strong>4. Cron and refresh behavior</strong></summary>
 
 The `vercel.json` configures a cron job that hits `GET /api/sync` once per day (`0 0 * * *`). On cron-authenticated requests, this endpoint runs both the regular sync pipeline and market-cap recalculation (when stale). Set `CRON_SECRET` in Vercel so the cron request is authorized.
+
+For Vercel Hobby deployments, this daily cron remains the only server-side scheduler. To get more frequent updates, set `Browser Refresh Interval (Minutes)` in Settings (for example `15`). Open sessions will then refresh market data client-side every 15 minutes, and you can use the Settings page to force a market-cap refresh on demand.
 
 </details>
 
