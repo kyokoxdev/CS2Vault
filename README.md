@@ -25,8 +25,6 @@ Track prices, manage your inventory, and get AI-powered market insights.
 |---------|-------------|
 | **Market Overview** | Real-time price tracking with CSFloat, Pricempire, and Steam as data sources |
 | **Portfolio Management** | Track your CS2 inventory value with historical price data |
-| **15-Minute Browser Refresh** | Refresh dashboard, watchlist, and portfolio prices from the saved settings interval while tabs stay open |
-| **Manual Market Cap Refresh** | Trigger a fresh weighted market-cap calculation directly from Settings |
 | **Top Movers** | See which items are gaining or losing value |
 | **AI Chat** | Market analysis powered by Google Gemini and OpenAI |
 | **News Feed** | Aggregated CS2 market news via RSS |
