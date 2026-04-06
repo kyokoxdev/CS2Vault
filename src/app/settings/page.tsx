@@ -17,17 +17,36 @@ interface AppSettings {
     csgotraderSubProvider: string;
 }
 
+const API_KEY_FIELDS = ["openAiApiKey", "geminiApiKey", "csfloatApiKey"] as const;
+type ApiKeyField = typeof API_KEY_FIELDS[number];
+const SAVED_KEY_INDICATOR = "••••••••••••••••";
+
 export default function SettingsPage() {
     const [settings, setSettings] = useState<AppSettings | null>(null);
     const [saving, setSaving] = useState(false);
     const [refreshingMarketCap, setRefreshingMarketCap] = useState(false);
     const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+    const [savedKeyMasks, setSavedKeyMasks] = useState<Record<string, string>>({});
+    const [editingKeys, setEditingKeys] = useState<Set<string>>(new Set());
 
     useEffect(() => {
-        // Load initial settings
         fetch("/api/settings")
             .then(res => res.json())
-            .then(data => setSettings(data))
+            .then(data => {
+                const masks: Record<string, string> = {};
+                for (const key of API_KEY_FIELDS) {
+                    if (data[key]) {
+                        masks[key] = data[key];
+                    }
+                }
+                setSavedKeyMasks(masks);
+                setSettings({
+                    ...data,
+                    openAiApiKey: "",
+                    geminiApiKey: "",
+                    csfloatApiKey: "",
+                });
+            })
             .catch(err => console.error("Failed to load settings:", err));
     }, []);
 
@@ -36,20 +55,74 @@ export default function SettingsPage() {
         setSettings({ ...settings, [field]: value });
     };
 
+    const isKeySaved = (field: string): boolean => !!savedKeyMasks[field];
+    const isEditingKey = (field: string): boolean => editingKeys.has(field);
+
+    const getKeyDisplayValue = (field: ApiKeyField): string => {
+        if (isEditingKey(field)) return settings?.[field] as string ?? "";
+        if (isKeySaved(field)) return SAVED_KEY_INDICATOR;
+        return settings?.[field] as string ?? "";
+    };
+
+    const handleKeyFocus = (field: string) => {
+        setEditingKeys(prev => new Set(prev).add(field));
+    };
+
+    const handleKeyBlur = (field: ApiKeyField) => {
+        if (!settings?.[field]) {
+            setEditingKeys(prev => {
+                const next = new Set(prev);
+                next.delete(field);
+                return next;
+            });
+        }
+    };
+
+    const handleKeyChange = (field: ApiKeyField, value: string) => {
+        handleChange(field, value);
+    };
+
     const handleSave = async () => {
         if (!settings) return;
 
         setSaving(true);
         setMessage(null);
 
+        // Build payload: for untouched saved keys, send the masked value
+        // so the API's resolveApiKey() will skip them and preserve the real key
+        const payload = { ...settings };
+        for (const key of API_KEY_FIELDS) {
+            if (!isEditingKey(key) && isKeySaved(key)) {
+                (payload as Record<string, unknown>)[key] = savedKeyMasks[key];
+            }
+        }
+
         try {
             const res = await fetch("/api/settings", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(settings),
+                body: JSON.stringify(payload),
             });
 
             if (!res.ok) throw new Error("Failed to save settings");
+
+            const data = await res.json();
+
+            const newMasks: Record<string, string> = {};
+            for (const key of API_KEY_FIELDS) {
+                if (data[key]) {
+                    newMasks[key] = data[key];
+                }
+            }
+            setSavedKeyMasks(newMasks);
+            setEditingKeys(new Set());
+
+            setSettings({
+                ...data,
+                openAiApiKey: "",
+                geminiApiKey: "",
+                csfloatApiKey: "",
+            });
 
             setMessage({ text: "Settings saved successfully! The AI and Market engines have been updated.", type: "success" });
         } catch (error) {
@@ -130,8 +203,10 @@ export default function SettingsPage() {
                         <input
                             id="settings-gemini-key"
                             type="password"
-                            value={settings.geminiApiKey}
-                            onChange={(e) => handleChange("geminiApiKey", e.target.value)}
+                            value={getKeyDisplayValue("geminiApiKey")}
+                            onChange={(e) => handleKeyChange("geminiApiKey", e.target.value)}
+                            onFocus={() => handleKeyFocus("geminiApiKey")}
+                            onBlur={() => handleKeyBlur("geminiApiKey")}
                             placeholder="AIzaSy..."
                             className={styles.input}
                         />
@@ -142,8 +217,10 @@ export default function SettingsPage() {
                         <input
                             id="settings-openai-key"
                             type="password"
-                            value={settings.openAiApiKey}
-                            onChange={(e) => handleChange("openAiApiKey", e.target.value)}
+                            value={getKeyDisplayValue("openAiApiKey")}
+                            onChange={(e) => handleKeyChange("openAiApiKey", e.target.value)}
+                            onFocus={() => handleKeyFocus("openAiApiKey")}
+                            onBlur={() => handleKeyBlur("openAiApiKey")}
                             placeholder="sk-..."
                             className={styles.input}
                         />
@@ -208,8 +285,10 @@ export default function SettingsPage() {
                         <input
                             id="settings-csfloat-key"
                             type="password"
-                            value={settings.csfloatApiKey}
-                            onChange={(e) => handleChange("csfloatApiKey", e.target.value)}
+                            value={getKeyDisplayValue("csfloatApiKey")}
+                            onChange={(e) => handleKeyChange("csfloatApiKey", e.target.value)}
+                            onFocus={() => handleKeyFocus("csfloatApiKey")}
+                            onBlur={() => handleKeyBlur("csfloatApiKey")}
                             placeholder="Optional. Required if Feed is CSFloat..."
                             className={styles.input}
                         />
