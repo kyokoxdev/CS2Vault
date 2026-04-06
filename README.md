@@ -63,7 +63,7 @@ Track prices, manage your inventory, and get AI-powered market insights.
 - **Auth**: [NextAuth.js](https://next-auth.js.org) (Steam OpenID)
 - **Charts**: [TradingView Lightweight Charts](https://tradingview.github.io/lightweight-charts/)
 - **AI**: Google Gemini, OpenAI GPT
-- **Styling**: CSS Modules (dark theme, OKX-inspired design system)
+- **Styling**: CSS Modules (dark theme, more themes planned)
 
 ## Getting Started
 
