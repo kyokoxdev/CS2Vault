@@ -5,11 +5,17 @@ import styles from "./Toast.module.css";
 
 export type ToastVariant = "success" | "error" | "warning" | "info";
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastData {
   id: string;
   message: string;
   variant: ToastVariant;
   duration: number;
+  action?: ToastAction;
 }
 
 const VARIANT_ICONS: Record<ToastVariant, string> = {
@@ -54,6 +60,18 @@ export function Toast({ data, onDismiss }: ToastProps) {
     <div className={className} role="alert" aria-live="assertive">
       <span className={styles.icon}>{VARIANT_ICONS[data.variant]}</span>
       <span className={styles.message}>{data.message}</span>
+      {data.action && (
+        <button
+          type="button"
+          className={styles.actionBtn}
+          onClick={() => {
+            data.action!.onClick();
+            handleDismiss();
+          }}
+        >
+          {data.action.label}
+        </button>
+      )}
       <button
         type="button"
         className={styles.closeBtn}

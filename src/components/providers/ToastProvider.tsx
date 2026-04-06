@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Toast, type ToastVariant, type ToastData } from "@/components/ui/Toast";
+import { Toast, type ToastVariant, type ToastData, type ToastAction } from "@/components/ui/Toast";
 import styles from "@/components/ui/Toast.module.css";
 
 const DEFAULT_DURATIONS: Record<ToastVariant, number> = {
@@ -18,7 +18,7 @@ const DEFAULT_DURATIONS: Record<ToastVariant, number> = {
 };
 
 interface ToastContextValue {
-  addToast: (message: string, variant: ToastVariant, duration?: number) => void;
+  addToast: (message: string, variant: ToastVariant, duration?: number, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -37,10 +37,10 @@ export default function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastData[]>([]);
 
   const addToast = useCallback(
-    (message: string, variant: ToastVariant, duration?: number) => {
+    (message: string, variant: ToastVariant, duration?: number, action?: ToastAction) => {
       const id = `toast-${++toastCounter}-${Date.now()}`;
       const resolvedDuration = duration ?? DEFAULT_DURATIONS[variant];
-      setToasts((prev) => [...prev, { id, message, variant, duration: resolvedDuration }]);
+      setToasts((prev) => [...prev, { id, message, variant, duration: resolvedDuration, action }]);
     },
     [],
   );

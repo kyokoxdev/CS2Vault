@@ -1,5 +1,5 @@
 /**
- * POST /api/items/bulk — Bulk actions on items (unwatch, delete)
+ * POST /api/items/bulk — Bulk actions on items (unwatch, rewatch)
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -10,7 +10,7 @@ import { requireAuth } from "@/lib/auth/guard";
 const MAX_BULK_ITEMS = 100;
 
 const BulkActionSchema = z.object({
-    action: z.enum(["unwatch", "delete"]),
+    action: z.enum(["unwatch", "rewatch"]),
     itemIds: z
         .array(z.string())
         .min(1, "At least one item ID is required")
@@ -35,10 +35,10 @@ export async function POST(request: NextRequest) {
                 });
                 break;
 
-            case "delete":
+            case "rewatch":
                 result = await prisma.item.updateMany({
                     where: { id: { in: itemIds } },
-                    data: { isActive: false, isWatched: false },
+                    data: { isWatched: true },
                 });
                 break;
         }

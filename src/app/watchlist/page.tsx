@@ -357,56 +357,42 @@ export default function WatchlistPage() {
           const data = await res.json();
 
           if (data.success) {
-            addToast(
-              `Unwatched ${data.affected} item${data.affected !== 1 ? "s" : ""}`,
-              "success"
-            );
+            const affected = data.affected as number;
             setSelectedIds(new Set());
             await refreshWatchlistData(false);
+            addToast(
+              `Unwatched ${affected} item${affected !== 1 ? "s" : ""}`,
+              "success",
+              5000,
+              {
+                label: "Undo",
+                onClick: () => {
+                  void (async () => {
+                    try {
+                      const undoRes = await fetch("/api/items/bulk", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ action: "rewatch", itemIds }),
+                      });
+                      const undoData = await undoRes.json();
+                      if (undoData.success) {
+                        addToast(`Re-watched ${undoData.affected} item${undoData.affected !== 1 ? "s" : ""}`, "success");
+                        void refreshWatchlistData(false);
+                      } else {
+                        addToast("Failed to undo", "error");
+                      }
+                    } catch {
+                      addToast("Failed to undo", "error");
+                    }
+                  })();
+                },
+              },
+            );
           } else {
             addToast(data.error || "Failed to unwatch items", "error");
           }
         } catch {
           addToast("Network error unwatching items", "error");
-        } finally {
-          setBulkLoading(false);
-          setConfirmDialog((prev) => ({ ...prev, open: false }));
-        }
-      },
-    });
-  }, [selectedIds, addToast, refreshWatchlistData]);
-
-  const handleBulkDelete = useCallback(() => {
-    const itemIds = [...selectedIds];
-    const count = itemIds.length;
-    if (count === 0) return;
-
-    setConfirmDialog({
-      open: true,
-      title: "Delete Items",
-      message: `Are you sure? This will permanently delete ${count} item${count !== 1 ? "s" : ""}.`,
-      onConfirm: async () => {
-        setBulkLoading(true);
-        try {
-          const res = await fetch("/api/items/bulk", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "delete", itemIds }),
-          });
-          const data = await res.json();
-
-          if (data.success) {
-            addToast(
-              `Deleted ${data.affected} item${data.affected !== 1 ? "s" : ""}`,
-              "success"
-            );
-            setSelectedIds(new Set());
-            await refreshWatchlistData(false);
-          } else {
-            addToast(data.error || "Failed to delete items", "error");
-          }
-        } catch {
-          addToast("Network error deleting items", "error");
         } finally {
           setBulkLoading(false);
           setConfirmDialog((prev) => ({ ...prev, open: false }));
@@ -519,6 +505,31 @@ export default function WatchlistPage() {
       }
 
       await refreshWatchlistData(false);
+
+      if (current) {
+        addToast("Item unwatched", "success", 5000, {
+          label: "Undo",
+          onClick: () => {
+            void (async () => {
+              try {
+                const undoRes = await fetch(`/api/items/${id}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ isWatched: true }),
+                });
+                if (undoRes.ok) {
+                  addToast("Item re-watched", "success");
+                  void refreshWatchlistData(false);
+                } else {
+                  addToast("Failed to undo", "error");
+                }
+              } catch {
+                addToast("Failed to undo", "error");
+              }
+            })();
+          },
+        });
+      }
     } catch {
       addToast("Failed to update watchlist item", "error");
     }
@@ -632,14 +643,6 @@ export default function WatchlistPage() {
               ))}
             </select>
           )}
-          <button
-            type="button"
-            className={`${styles.bulkBtn} ${styles.bulkBtnDanger}`}
-            onClick={handleBulkDelete}
-            disabled={bulkLoading}
-          >
-            Delete ({selectedIds.size})
-          </button>
           <button
             type="button"
             className={styles.bulkClearBtn}

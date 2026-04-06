@@ -152,4 +152,68 @@ describe("Toast Component", () => {
     fireEvent.click(screen.getByText("Trigger"));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("renders action button when toast has an action", () => {
+    const onClick = vi.fn();
+    const data: ToastData = {
+      ...createToastData("success", 0),
+      action: { label: "Undo", onClick },
+    };
+
+    render(<Toast data={data} onDismiss={vi.fn()} />);
+    const actionBtn = screen.getByText("Undo");
+    expect(actionBtn).toBeInTheDocument();
+  });
+
+  it("calls action onClick and dismisses when action button is clicked", () => {
+    vi.useFakeTimers();
+    const onClick = vi.fn();
+    const onDismiss = vi.fn();
+    const data: ToastData = {
+      ...createToastData("success", 0),
+      action: { label: "Undo", onClick },
+    };
+
+    render(<Toast data={data} onDismiss={onDismiss} />);
+    fireEvent.click(screen.getByText("Undo"));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onDismiss).toHaveBeenCalledWith("test-toast-1");
+  });
+
+  it("does not render action button when toast has no action", () => {
+    render(<Toast data={createToastData()} onDismiss={vi.fn()} />);
+    expect(screen.queryByText("Undo")).not.toBeInTheDocument();
+  });
+
+  it("addToast with action renders toast with action button", () => {
+    const onClick = vi.fn();
+
+    function TestComponent() {
+      const { addToast } = useToast();
+      return (
+        <button
+          type="button"
+          onClick={() => addToast("Item unwatched", "success", 5000, { label: "Undo", onClick })}
+        >
+          Trigger
+        </button>
+      );
+    }
+
+    render(
+      <ToastProvider>
+        <TestComponent />
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByText("Trigger"));
+    expect(screen.getByText("Item unwatched")).toBeInTheDocument();
+    expect(screen.getByText("Undo")).toBeInTheDocument();
+  });
 });
