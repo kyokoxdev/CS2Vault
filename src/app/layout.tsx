@@ -28,6 +28,10 @@ export const metadata: Metadata = {
   title: "CS2Vault — Market Intelligence Dashboard",
   description:
     "Track CS2 item prices, manage your inventory, and get AI-powered market insights.",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({
