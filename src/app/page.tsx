@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { StatCard } from "@/components/ui/StatCard";
-import { TopMovers, type TopMover } from "@/components/market/TopMovers";
+import type { TopMover } from "@/components/market/TopMovers";
 import styles from "./MarketOverview.module.css";
-import { NewsFeed, type FeedItem } from "@/components/market/NewsFeed";
+import type { FeedItem } from "@/components/market/NewsFeed";
 import { Card } from "@/components/ui/Card";
 import {
   selectPreferredMarketCapSource,
@@ -14,6 +15,16 @@ import {
   type DashboardMarketSummary,
 } from "@/lib/market/market-cap-display";
 import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
+
+const TopMovers = dynamic(
+  () => import("@/components/market/TopMovers").then((m) => ({ default: m.TopMovers })),
+  { ssr: false }
+);
+
+const NewsFeed = dynamic(
+  () => import("@/components/market/NewsFeed").then((m) => ({ default: m.NewsFeed })),
+  { ssr: false }
+);
 
 interface SyncLog {
   id: number;

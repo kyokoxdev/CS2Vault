@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import styles from "./TopMovers.module.css";
-import SparklineChart from "@/components/charts/SparklineChart";
 import { Badge } from "@/components/ui/Badge";
 import { useReducedMotion } from "@/hooks/useMediaQuery";
 import { FaChartLine } from "react-icons/fa";
+
+const SparklineChart = dynamic(
+  () => import("@/components/charts/SparklineChart"),
+  { ssr: false }
+);
 
 const MotionLink = motion(Link);
 

@@ -207,17 +207,25 @@ async function computeTopMovers(
     });
 
     const localItemMap = new Map(localItems.map((item) => [item.marketHashName, item]));
+    const itemIdToHash = new Map(localItems.map((item) => [item.id, item.marketHashName]));
+
+    // Bulk-fetch all 24h snapshots in a single query (replaces N+1 per-item loop)
+    const allItemIds = localItems.map((item) => item.id);
+    const allSnapshots = allItemIds.length > 0
+        ? await prisma.priceSnapshot.findMany({
+            where: { itemId: { in: allItemIds }, timestamp: { gte: cutoff24h } },
+            orderBy: { timestamp: "asc" },
+            select: { itemId: true, price: true, timestamp: true },
+        })
+        : [];
 
     const snapshotsByHash = new Map<string, { price: number; timestamp: Date }[]>();
-    for (const item of localItems) {
-        const snapshots = await prisma.priceSnapshot.findMany({
-            where: { itemId: item.id, timestamp: { gte: cutoff24h } },
-            orderBy: { timestamp: "asc" },
-            select: { price: true, timestamp: true },
-        });
-        if (snapshots.length >= 1) {
-            snapshotsByHash.set(item.marketHashName, snapshots);
-        }
+    for (const snap of allSnapshots) {
+        const hash = itemIdToHash.get(snap.itemId);
+        if (!hash) continue;
+        const existing = snapshotsByHash.get(hash) ?? [];
+        existing.push({ price: snap.price, timestamp: snap.timestamp });
+        snapshotsByHash.set(hash, existing);
     }
 
     const movers: Mover[] = [];
@@ -269,12 +277,14 @@ async function computeTopMovers(
     return { gainers, losers, updatedAt: now.toISOString(), source: dataSource };
 }
 
+const CACHE_HEADERS = { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" };
+
 export async function GET() {
     try {
         const activeSource = await getActiveSource();
 
         if (memoryCache && Date.now() - memoryCacheAt < MEMORY_CACHE_MS && canUseMemoryCache(memoryCache, activeSource)) {
-            return NextResponse.json({ success: true, data: memoryCache });
+            return NextResponse.json({ success: true, data: memoryCache }, { headers: CACHE_HEADERS });
         }
 
         const existingCache = await loadCachedData();
@@ -282,7 +292,7 @@ export async function GET() {
         if (canUsePersistentCache(existingCache, activeSource)) {
             memoryCache = existingCache;
             memoryCacheAt = Date.now();
-            return NextResponse.json({ success: true, data: existingCache });
+            return NextResponse.json({ success: true, data: existingCache }, { headers: CACHE_HEADERS });
         }
 
         const data = await computeTopMovers(existingCache, activeSource);
@@ -299,14 +309,14 @@ export async function GET() {
             memoryCacheAt = 0;
         }
 
-        return NextResponse.json({ success: true, data });
+        return NextResponse.json({ success: true, data }, { headers: CACHE_HEADERS });
     } catch (error) {
         console.error("[API /market/top-movers]", error);
         
         const activeSource = await getActiveSource();
         const fallbackCache = await loadCachedData();
         if (canUsePersistentCache(fallbackCache, activeSource)) {
-            return NextResponse.json({ success: true, data: fallbackCache });
+            return NextResponse.json({ success: true, data: fallbackCache }, { headers: CACHE_HEADERS });
         }
         
         return NextResponse.json(

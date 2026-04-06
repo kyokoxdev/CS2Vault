@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { csfloatQueue } from "@/lib/api-queue";
 import { isSyncLocked } from "@/lib/market/sync-lock";
+import { prisma } from "@/lib/db";
 
 const CSFLOAT_BASE_URL = "https://csfloat.com/api/v1";
 const CSFLOAT_PAGE_LIMIT = 50;
@@ -15,16 +16,41 @@ const BASE_TURNOVER_DAYS = 30;
 const MIN_TURNOVER_DAYS = 7;
 const MAX_TURNOVER_DAYS = 90;
 
-let cachedSummary:
-    | {
-        marketCapUsd: number | null;
-        source: string;
-        sampleSize: number;
-        computedAt: string;
-        status: "ok" | "missing_key" | "no_data" | "error";
-    }
-    | null = null;
+interface SummaryData {
+    marketCapUsd: number | null;
+    source: string;
+    sampleSize: number;
+    computedAt: string;
+    status: "ok" | "missing_key" | "no_data" | "error";
+}
+
+let cachedSummary: SummaryData | null = null;
 let cachedAt = 0;
+
+const DB_CACHE_ID = "market-summary";
+
+async function loadDbCache(): Promise<{ data: SummaryData; updatedAt: Date } | null> {
+    try {
+        const row = await prisma.bulkPriceCache.findUnique({ where: { id: DB_CACHE_ID } });
+        if (!row) return null;
+        const data = JSON.parse(row.data) as SummaryData;
+        return { data, updatedAt: row.updatedAt };
+    } catch {
+        return null;
+    }
+}
+
+async function saveDbCache(data: SummaryData): Promise<void> {
+    try {
+        await prisma.bulkPriceCache.upsert({
+            where: { id: DB_CACHE_ID },
+            create: { id: DB_CACHE_ID, data: JSON.stringify(data), updatedAt: new Date() },
+            update: { data: JSON.stringify(data), updatedAt: new Date() },
+        });
+    } catch (err) {
+        console.warn("[Market Summary] Failed to persist DB cache:", err);
+    }
+}
 
 interface CSFloatListing {
     id?: string;
@@ -175,13 +201,28 @@ export async function GET() {
             return NextResponse.json({
                 success: true,
                 data: cachedSummary,
+            }, {
+                headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=300" },
+            });
+        }
+
+        const dbCache = await loadDbCache();
+        if (dbCache && Date.now() - dbCache.updatedAt.getTime() < CSFLOAT_CACHE_MS) {
+            cachedSummary = dbCache.data;
+            cachedAt = dbCache.updatedAt.getTime();
+            return NextResponse.json({
+                success: true,
+                data: dbCache.data,
+            }, {
+                headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=300" },
             });
         }
 
         if (await isSyncLocked()) {
+            const fallback = cachedSummary ?? dbCache?.data ?? { marketCapUsd: null, source: "csfloat", status: "no_data" as const };
             return NextResponse.json({
                 success: true,
-                data: cachedSummary ?? { marketCapUsd: null, source: "csfloat", status: "no_data" },
+                data: fallback,
             });
         }
 
@@ -269,18 +310,23 @@ export async function GET() {
             });
         }
 
-        cachedSummary = {
+        const computedSummary: SummaryData = {
             marketCapUsd,
             source: "csfloat",
             sampleSize: sampled,
             computedAt: new Date().toISOString(),
             status: "ok",
         };
+        cachedSummary = computedSummary;
         cachedAt = Date.now();
+
+        await saveDbCache(computedSummary);
 
         return NextResponse.json({
             success: true,
-            data: cachedSummary,
+            data: computedSummary,
+        }, {
+            headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=300" },
         });
     } catch (error) {
         console.warn("[API /market/summary]", error);

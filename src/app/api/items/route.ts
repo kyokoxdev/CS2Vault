@@ -227,6 +227,8 @@ export async function GET(request: NextRequest) {
                 offset: query.offset,
                 hasMore: query.offset + formatted.length < total,
             },
+        }, {
+            headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },
         });
     } catch (error) {
         if (error instanceof z.ZodError) {

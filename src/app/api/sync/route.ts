@@ -108,6 +108,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             success: true,
             data: { logs },
+        }, {
+            headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },
         });
     } catch (error) {
         console.error("[API /sync GET]", error);

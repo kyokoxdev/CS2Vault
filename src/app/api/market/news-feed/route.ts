@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { fetchSteamNews } from "@/lib/news/steam-news";
 import { detectSignificantChanges } from "@/lib/market/price-activity";
 import { fetchRssFeeds } from "@/lib/news/rss-feeds";
+import { prisma } from "@/lib/db";
 
 export type FeedItem = {
   id: string;
@@ -64,6 +65,31 @@ interface FeedData {
 let cachedData: FeedData | null = null;
 let cachedAt = 0;
 const CACHE_MS = 5 * 60 * 1000;
+
+const DB_CACHE_ID = "news-feed";
+
+async function loadDbCache(): Promise<{ data: FeedData; updatedAt: Date } | null> {
+    try {
+        const row = await prisma.bulkPriceCache.findUnique({ where: { id: DB_CACHE_ID } });
+        if (!row) return null;
+        const data = JSON.parse(row.data) as FeedData;
+        return { data, updatedAt: row.updatedAt };
+    } catch {
+        return null;
+    }
+}
+
+async function saveDbCache(data: FeedData): Promise<void> {
+    try {
+        await prisma.bulkPriceCache.upsert({
+            where: { id: DB_CACHE_ID },
+            create: { id: DB_CACHE_ID, data: JSON.stringify(data), updatedAt: new Date() },
+            update: { data: JSON.stringify(data), updatedAt: new Date() },
+        });
+    } catch (err) {
+        console.warn("[News Feed] Failed to persist DB cache:", err);
+    }
+}
 
 async function buildFeed(limit: number): Promise<FeedData> {
   const results = await Promise.allSettled([
@@ -156,6 +182,23 @@ export async function GET(request: Request) {
           items: cachedData.items.slice(0, limit),
           updatedAt: cachedData.updatedAt,
         },
+      }, {
+        headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=240" },
+      });
+    }
+
+    const dbCache = await loadDbCache();
+    if (dbCache && Date.now() - dbCache.updatedAt.getTime() < CACHE_MS) {
+      cachedData = dbCache.data;
+      cachedAt = dbCache.updatedAt.getTime();
+      return NextResponse.json({
+        success: true,
+        data: {
+          items: dbCache.data.items.slice(0, limit),
+          updatedAt: dbCache.data.updatedAt,
+        },
+      }, {
+        headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=240" },
       });
     }
 
@@ -163,7 +206,11 @@ export async function GET(request: Request) {
     cachedData = data;
     cachedAt = Date.now();
 
-    return NextResponse.json({ success: true, data });
+    await saveDbCache(data);
+
+    return NextResponse.json({ success: true, data }, {
+      headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=240" },
+    });
   } catch (error) {
     console.error("[API /market/news-feed]", error);
     return NextResponse.json(
