@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import pkg from "../../../package.json";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -70,7 +71,7 @@ export default function DashboardShell({
             <aside className={`${styles.sidebar}${sidebarOpen ? ` ${styles.open}` : ""}`}>
                 <div className={styles.sidebarBrand}>
                     <h1>CS2Vault</h1>
-                    <span className={styles.version}>v0.4</span>
+                    <span className={styles.version}>v{pkg.version}</span>
                 </div>
 
                 <nav className={styles.sidebarNav}>
