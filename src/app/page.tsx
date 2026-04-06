@@ -8,6 +8,11 @@ import { TopMovers, type TopMover } from "@/components/market/TopMovers";
 import styles from "./MarketOverview.module.css";
 import { NewsFeed, type FeedItem } from "@/components/market/NewsFeed";
 import { Card } from "@/components/ui/Card";
+import {
+  selectPreferredMarketCapSource,
+  type DashboardLegacyMarketCap,
+  type DashboardMarketSummary,
+} from "@/lib/market/market-cap-display";
 
 interface SyncLog {
   id: number;
@@ -17,31 +22,17 @@ interface SyncLog {
   timestamp: string;
 }
 
-interface MarketSummary {
-  marketCapUsd: number | null;
-  source: string;
-  sampleSize?: number;
-  computedAt?: string;
-  status?: "ok" | "missing_key" | "no_data" | "error";
-}
-
 export default function MarketOverview() {
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [watchlistPerf, setWatchlistPerf] = useState<{ avg24h: number | null; count: number }>({ avg24h: null, count: 0 });
-  const [marketSummary, setMarketSummary] = useState<MarketSummary | null>(null);
+  const [marketSummary, setMarketSummary] = useState<DashboardMarketSummary | null>(null);
   const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[]; source?: string; cached?: boolean; updatedAt?: string }>({ gainers: [], losers: [] });
   const [topMoversLoading, setTopMoversLoading] = useState(true);
   const [portfolioValue, setPortfolioValue] = useState<number | null>(null);
   const [portfolioChange24h, setPortfolioChange24h] = useState<number | null>(null);
   const [portfolioLoading, setPortfolioLoading] = useState(true);
 
-  const [csgotraderMarketCap, setCsgotraderMarketCap] = useState<{
-    totalMarketCap: number | null;
-    itemCount?: number;
-    provider: string;
-    source?: string;
-    status: string;
-  } | null>(null);
+  const [csgotraderMarketCap, setCsgotraderMarketCap] = useState<DashboardLegacyMarketCap | null>(null);
 
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
@@ -146,15 +137,16 @@ export default function MarketOverview() {
     try {
       const res = await fetch("/api/market/market-cap");
       const data = await res.json();
-      if (data.success) {
-        setCsgotraderMarketCap({
-          totalMarketCap: data.data?.totalMarketCap ?? null,
-          itemCount: data.data?.itemCount,
-          provider: data.data?.provider ?? "csgotrader-csfloat",
-          source: data.data?.source,
-          status: data.status ?? "ok",
-        });
-      }
+        if (data.success) {
+          setCsgotraderMarketCap({
+            totalMarketCap: data.data?.totalMarketCap ?? null,
+            itemCount: data.data?.itemCount,
+            provider: data.data?.provider ?? "csgotrader-csfloat",
+            source: data.data?.source,
+            timestamp: data.data?.timestamp,
+            status: data.status ?? "ok",
+          });
+        }
     } catch (err) {
       console.warn("Market cap fetch error:", err);
     }
@@ -208,26 +200,36 @@ export default function MarketOverview() {
   }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
   const lastSync = syncLogs[0];
+  const marketCapPreference = selectPreferredMarketCapSource(csgotraderMarketCap, marketSummary);
+  const staleLegacyTimestamp = csgotraderMarketCap?.timestamp
+    ? new Date(csgotraderMarketCap.timestamp).toLocaleString()
+    : null;
   
-  const marketCapValue = csgotraderMarketCap?.totalMarketCap
+  const marketCapValue = marketCapPreference === "legacy_fresh" && csgotraderMarketCap?.totalMarketCap
     ? `$${csgotraderMarketCap.totalMarketCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : marketSummary?.marketCapUsd
+    : marketCapPreference === "summary" && marketSummary?.marketCapUsd
       ? `$${marketSummary.marketCapUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-      : "N/A";
+      : marketCapPreference === "legacy_stale" && csgotraderMarketCap?.totalMarketCap
+        ? `$${csgotraderMarketCap.totalMarketCap.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+        : "N/A";
     
-  const marketCapSubLabel = csgotraderMarketCap?.totalMarketCap
-    ? csgotraderMarketCap.itemCount
+  const marketCapSubLabel = marketCapPreference === "legacy_fresh"
+    ? csgotraderMarketCap?.itemCount
       ? `Source: CSGOTrader CSFloat • ${csgotraderMarketCap.itemCount.toLocaleString()} items`
       : "Source: CSGOTrader CSFloat"
-    : marketSummary?.marketCapUsd
-      ? `Source: CSFloat${marketSummary.sampleSize ? ` \u2022 ${marketSummary.sampleSize} items` : ""}`
-      : csgotraderMarketCap?.status === "no_data"
-        ? "Waiting for daily calculation"
-        : marketSummary?.status === "missing_key"
-          ? "Set CSFLOAT_API_KEY"
-          : marketSummary?.status === "error"
-            ? "CSFloat unavailable"
-            : "No data returned";
+    : marketCapPreference === "summary"
+      ? `Source: CSFloat${marketSummary?.sampleSize ? ` \u2022 ${marketSummary.sampleSize} items` : ""}`
+      : marketCapPreference === "legacy_stale"
+        ? staleLegacyTimestamp
+          ? `Stale CSGOTrader snapshot from ${staleLegacyTimestamp}`
+          : "Stale CSGOTrader snapshot — waiting for recalculation"
+        : csgotraderMarketCap?.status === "no_data"
+          ? "Waiting for daily calculation"
+          : marketSummary?.status === "missing_key"
+            ? "Set CSFLOAT_API_KEY"
+            : marketSummary?.status === "error"
+              ? "CSFloat unavailable"
+              : "No data returned";
 
   return (
     <div className={styles.page}>
