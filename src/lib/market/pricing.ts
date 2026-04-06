@@ -398,12 +398,9 @@ export async function writePriceSnapshotsForItems(
 
     const pricedCount = snapshotsToCreate.length;
 
-    // Aggregate candles after all writes (skip during inventory sync for speed)
     if (!options.skipCandleAggregation && pricedCount > 0) {
         const uniqueItemIds = [...new Set(snapshotsToCreate.map((s) => s.itemId))];
-        for (const itemId of uniqueItemIds) {
-            await aggregateAllIntervals(itemId);
-        }
+        await Promise.all(uniqueItemIds.map((id) => aggregateAllIntervals(id)));
     }
 
     return {

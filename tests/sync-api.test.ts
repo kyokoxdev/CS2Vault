@@ -7,6 +7,7 @@ vi.mock("@/lib/market/scheduler", () => ({
 
 vi.mock("@/lib/market/sync", () => ({
     getRecentSyncLogs: vi.fn(),
+    getLatestPriceUpdate: vi.fn(),
 }));
 
 vi.mock("@/lib/market/market-cap", () => ({
@@ -19,7 +20,7 @@ vi.mock("@/lib/auth/guard", () => ({
 }));
 
 import { triggerManualSync } from "@/lib/market/scheduler";
-import { getRecentSyncLogs } from "@/lib/market/sync";
+import { getRecentSyncLogs, getLatestPriceUpdate } from "@/lib/market/sync";
 import {
     calculateAndStoreMarketCap,
     shouldRecalculate,
@@ -47,6 +48,9 @@ describe("GET /api/sync", () => {
         vi.mocked(getRecentSyncLogs).mockResolvedValueOnce([
             { id: 1, status: "success" },
         ] as never);
+        vi.mocked(getLatestPriceUpdate).mockResolvedValueOnce(
+            new Date("2026-04-01T12:00:00.000Z")
+        );
 
         const request = new Request("http://localhost/api/sync");
         const response = await GET(toNextRequest(request));
@@ -55,6 +59,7 @@ describe("GET /api/sync", () => {
         expect(response.status).toBe(200);
         expect(payload.success).toBe(true);
         expect(payload.data.logs).toHaveLength(1);
+        expect(payload.data.lastPriceUpdate).toBe("2026-04-01T12:00:00.000Z");
         expect(triggerManualSync).not.toHaveBeenCalled();
     });
 
@@ -235,6 +240,21 @@ describe("GET /api/sync", () => {
         const response = await POST(toNextRequest(request));
 
         expect(response.status).toBe(401);
+    });
+
+    it("returns 401 when cron auth header is present but wrong", async () => {
+        const request = new Request("http://localhost/api/sync", {
+            headers: {
+                authorization: "Bearer wrong-secret",
+            },
+        });
+
+        const response = await GET(toNextRequest(request));
+        const payload = await response.json();
+
+        expect(response.status).toBe(401);
+        expect(payload.success).toBe(false);
+        expect(triggerManualSync).not.toHaveBeenCalled();
     });
 });
 

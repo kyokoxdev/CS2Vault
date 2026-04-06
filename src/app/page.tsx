@@ -31,11 +31,14 @@ interface SyncLog {
   status: string;
   itemCount: number;
   duration: number | null;
+  error: string | null;
   timestamp: string;
 }
 
 export default function MarketOverview() {
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
+  const [lastPriceUpdate, setLastPriceUpdate] = useState<string | null>(null);
+  const [syncInProgress, setSyncInProgress] = useState(false);
   const [watchlistPerf, setWatchlistPerf] = useState<{ avg24h: number | null; count: number }>({ avg24h: null, count: 0 });
   const [marketSummary, setMarketSummary] = useState<DashboardMarketSummary | null>(null);
   const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[]; source?: string }>({ gainers: [], losers: [] });
@@ -75,6 +78,9 @@ export default function MarketOverview() {
       const data = await res.json();
       if (data.success) {
         setSyncLogs(data.data.logs);
+        if (data.data.lastPriceUpdate) {
+          setLastPriceUpdate(data.data.lastPriceUpdate);
+        }
       }
     } catch (err) {
       console.warn("Sync logs fetch error:", err);
@@ -171,6 +177,27 @@ export default function MarketOverview() {
     fetchMarketCap();
   }, [fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
+  const handleSyncNow = useCallback(async () => {
+    if (syncInProgress) return;
+    setSyncInProgress(true);
+    try {
+      const res = await fetch("/api/sync", { method: "POST" });
+      const data = await res.json();
+      if (!data.success) {
+        console.warn("Sync failed:", data.error ?? data);
+      }
+      await fetchSyncLogs();
+      fetchWatchlistPerformance();
+      fetchMarketSummary();
+      fetchTopMovers();
+      fetchMarketCap();
+    } catch (err) {
+      console.warn("Sync trigger error:", err);
+    } finally {
+      setSyncInProgress(false);
+    }
+  }, [syncInProgress, fetchSyncLogs, fetchWatchlistPerformance, fetchMarketSummary, fetchTopMovers, fetchMarketCap]);
+
   const { status: authStatus } = useSession();
 
   useEffect(() => {
@@ -209,6 +236,7 @@ export default function MarketOverview() {
   }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap, priceRefreshIntervalMin]);
 
   const lastSync = syncLogs[0];
+  const displayTimestamp = lastPriceUpdate ?? lastSync?.timestamp;
 
   const getRelativeTime = (timestamp: string) => {
     const diffMs = Date.now() - new Date(timestamp).getTime();
@@ -221,8 +249,9 @@ export default function MarketOverview() {
     return `${diffDays}d ago`;
   };
 
-  const isStale = lastSync
-    ? (Date.now() - new Date(lastSync.timestamp).getTime()) > (priceRefreshIntervalMin ?? 15) * 60 * 1000
+  const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+  const isStale = displayTimestamp
+    ? (Date.now() - new Date(displayTimestamp).getTime()) > STALE_THRESHOLD_MS
     : false;
   const marketCapPreference = selectPreferredMarketCapSource(csgotraderMarketCap, marketSummary);
   const staleLegacyTimestamp = csgotraderMarketCap?.timestamp
@@ -321,13 +350,23 @@ export default function MarketOverview() {
           <div className={styles.statCardContent}>
             <div className={styles.statLabel}>Last Updated</div>
             <div className={`${styles.statValueSmall}${isStale ? ` ${styles.statValueStale}` : ''}`}>
-               {lastSync
-                  ? getRelativeTime(lastSync.timestamp)
+               {displayTimestamp
+                  ? getRelativeTime(displayTimestamp)
                   : "Never"}
             </div>
             <div className={styles.statSubtext}>
-               {lastSync ? `${lastSync.itemCount} items • ${lastSync.duration != null ? lastSync.duration + 'ms' : '—'}` : ""}
+               {lastSync?.status === "failed"
+                 ? `Last sync failed${lastSync.error ? `: ${lastSync.error}` : ''}`
+                 : lastSync ? `${lastSync.itemCount} items synced` : ""}
             </div>
+            <button
+              type="button"
+              className={styles.syncNowBtn}
+              onClick={handleSyncNow}
+              disabled={syncInProgress}
+            >
+              {syncInProgress ? "Syncing..." : "Sync Now"}
+            </button>
           </div>
         </Card>
       </div>

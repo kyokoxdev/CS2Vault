@@ -154,6 +154,31 @@
   font-family: var(--font-mono);
 }
 
+.syncNowBtn {
+  margin-top: 6px;
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-primary-90);
+  background-color: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.syncNowBtn:hover:not(:disabled) {
+  background-color: var(--surface-2);
+  border-color: var(--text-secondary-60);
+}
+
+.syncNowBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .statCardLink {
   text-decoration: none;
   color: inherit;

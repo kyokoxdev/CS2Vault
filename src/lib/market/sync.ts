@@ -135,26 +135,35 @@ async function runSyncInner(overrideSource: MarketSource | undefined, startTime:
             return result;
         }
 
-        // Store price snapshots
-        let storedCount = 0;
+        const snapshotsToCreate: Array<{
+            itemId: string;
+            price: number;
+            volume: number | null;
+            source: string;
+            timestamp: Date;
+        }> = [];
+
         for (const item of items) {
             const priceData = prices.get(item.marketHashName);
             if (priceData && priceData.price > 0) {
-                await prisma.priceSnapshot.create({
-                    data: {
-                        itemId: item.id,
-                        price: priceData.price,
-                        volume: priceData.volume,
-                        source: priceData.source,
-                        timestamp: priceData.timestamp,
-                    },
+                snapshotsToCreate.push({
+                    itemId: item.id,
+                    price: priceData.price,
+                    volume: priceData.volume ?? null,
+                    source: priceData.source,
+                    timestamp: priceData.timestamp,
                 });
-                storedCount++;
-
-                // Aggregate candlesticks for this item
-                await aggregateAllIntervals(item.id);
             }
         }
+
+        if (snapshotsToCreate.length > 0) {
+            await prisma.priceSnapshot.createMany({ data: snapshotsToCreate });
+        }
+
+        const storedCount = snapshotsToCreate.length;
+
+        const uniqueItemIds = [...new Set(snapshotsToCreate.map((s) => s.itemId))];
+        await Promise.all(uniqueItemIds.map((id) => aggregateAllIntervals(id)));
 
         const result: SyncResult = {
             type: "market_prices",
@@ -203,4 +212,15 @@ export async function getRecentSyncLogs(limit: number = 20) {
         orderBy: { timestamp: "desc" },
         take: limit,
     });
+}
+
+/**
+ * Get the timestamp of the most recent price snapshot across all items.
+ */
+export async function getLatestPriceUpdate(): Promise<Date | null> {
+    const latest = await prisma.priceSnapshot.findFirst({
+        orderBy: { timestamp: "desc" },
+        select: { timestamp: true },
+    });
+    return latest?.timestamp ?? null;
 }

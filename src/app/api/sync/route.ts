@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { triggerManualSync } from "@/lib/market/scheduler";
 import { requireAuth } from "@/lib/auth/guard";
 import { calculateAndStoreMarketCap, shouldRecalculate } from "@/lib/market/market-cap";
-import { getRecentSyncLogs } from "@/lib/market/sync";
+import { getRecentSyncLogs, getLatestPriceUpdate } from "@/lib/market/sync";
 
 interface MarketCapRefreshResult {
     attempted: boolean;
@@ -87,6 +87,14 @@ export async function GET(request: NextRequest) {
         const authHeader = request.headers.get("authorization");
         const cronSecret = process.env.CRON_SECRET;
 
+        // Reject explicitly when an auth header is present but doesn't match
+        if (cronSecret && authHeader && authHeader !== `Bearer ${cronSecret}`) {
+            return NextResponse.json(
+                { success: false, error: "Unauthorized — invalid CRON_SECRET" },
+                { status: 401 }
+            );
+        }
+
         if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
             const { syncResult, marketCapResult, hasFailure } = await runSyncWithMarketCapRefresh();
 
@@ -104,10 +112,11 @@ export async function GET(request: NextRequest) {
 
         // Normal GET — return sync logs
         const logs = await getRecentSyncLogs(20);
+        const lastPriceUpdate = await getLatestPriceUpdate();
 
         return NextResponse.json({
             success: true,
-            data: { logs },
+            data: { logs, lastPriceUpdate },
         }, {
             headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },
         });
