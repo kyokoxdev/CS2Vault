@@ -17,10 +17,11 @@ const settingsSchema = z.object({
     csfloatApiKey: z.string().max(256).optional(),
 });
 
-function maskApiKey(key: string | null | undefined): string {
-    if (!key || key.length < 8) return "";
-    const prefix = key.slice(0, 4);
-    const suffix = key.slice(-4);
+function maskApiKey(key: string | null | undefined, envFallback?: string): string {
+    const effective = key || envFallback;
+    if (!effective || effective.length < 8) return "";
+    const prefix = effective.slice(0, 4);
+    const suffix = effective.slice(-4);
     return `${prefix}...${suffix}`;
 }
 
@@ -44,9 +45,9 @@ export async function GET() {
                 syncIntervalMin: 5,
                 priceRefreshIntervalMin: 15,
                 csgotraderSubProvider: "csfloat",
-                openAiApiKey: "",
-                geminiApiKey: "",
-                csfloatApiKey: "",
+                openAiApiKey: maskApiKey(null, process.env.OPENAI_API_KEY),
+                geminiApiKey: maskApiKey(null, process.env.GEMINI_API_KEY),
+                csfloatApiKey: maskApiKey(null, process.env.CSFLOAT_API_KEY),
             });
         }
 
@@ -56,9 +57,9 @@ export async function GET() {
             activeAIProvider: settings.activeAIProvider,
             syncIntervalMin: settings.syncIntervalMin,
             priceRefreshIntervalMin: settings.priceRefreshIntervalMin ?? 15,
-            openAiApiKey: maskApiKey(settings.openAiApiKey),
-            geminiApiKey: maskApiKey(settings.geminiApiKey),
-            csfloatApiKey: maskApiKey(settings.csfloatApiKey),
+            openAiApiKey: maskApiKey(settings.openAiApiKey, process.env.OPENAI_API_KEY),
+            geminiApiKey: maskApiKey(settings.geminiApiKey, process.env.GEMINI_API_KEY),
+            csfloatApiKey: maskApiKey(settings.csfloatApiKey, process.env.CSFLOAT_API_KEY),
         });
     } catch (error) {
         console.error("[Settings API GET Error]", { userId, error });
@@ -101,17 +102,18 @@ export async function PATCH(request: Request) {
 
 		function resolveApiKey(
 			incoming: string | undefined,
-			existingValue: string | null | undefined
+			existingValue: string | null | undefined,
+			envFallback?: string
 		): string | null | undefined {
 			if (incoming === undefined) return undefined;
 			if (incoming === "") return null;
-			if (incoming === maskApiKey(existingValue)) return undefined;
+			if (incoming === maskApiKey(existingValue, envFallback)) return undefined;
 			return incoming;
 		}
 
-		const resolvedOpenAi = resolveApiKey(openAiApiKey, existing?.openAiApiKey);
-		const resolvedGemini = resolveApiKey(geminiApiKey, existing?.geminiApiKey);
-		const resolvedCsfloat = resolveApiKey(csfloatApiKey, existing?.csfloatApiKey);
+		const resolvedOpenAi = resolveApiKey(openAiApiKey, existing?.openAiApiKey, process.env.OPENAI_API_KEY);
+		const resolvedGemini = resolveApiKey(geminiApiKey, existing?.geminiApiKey, process.env.GEMINI_API_KEY);
+		const resolvedCsfloat = resolveApiKey(csfloatApiKey, existing?.csfloatApiKey, process.env.CSFLOAT_API_KEY);
         // Upsert to ensure singleton exists
         const updated = await prisma.appSettings.upsert({
             where: { id: "singleton" },
@@ -150,9 +152,9 @@ export async function PATCH(request: Request) {
             activeAIProvider: updated.activeAIProvider,
             syncIntervalMin: updated.syncIntervalMin,
             priceRefreshIntervalMin: updated.priceRefreshIntervalMin ?? 15,
-            openAiApiKey: maskApiKey(updated.openAiApiKey),
-            geminiApiKey: maskApiKey(updated.geminiApiKey),
-            csfloatApiKey: maskApiKey(updated.csfloatApiKey),
+            openAiApiKey: maskApiKey(updated.openAiApiKey, process.env.OPENAI_API_KEY),
+            geminiApiKey: maskApiKey(updated.geminiApiKey, process.env.GEMINI_API_KEY),
+            csfloatApiKey: maskApiKey(updated.csfloatApiKey, process.env.CSFLOAT_API_KEY),
             csgotraderSubProvider: updated.csgotraderSubProvider,
         });
     } catch (error) {

@@ -70,7 +70,7 @@ export default function DashboardShell({
             <aside className={`${styles.sidebar}${sidebarOpen ? ` ${styles.open}` : ""}`}>
                 <div className={styles.sidebarBrand}>
                     <h1>CS2Vault</h1>
-                    <span className={styles.version}>v0.3</span>
+                    <span className={styles.version}>v0.4</span>
                 </div>
 
                 <nav className={styles.sidebarNav}>
