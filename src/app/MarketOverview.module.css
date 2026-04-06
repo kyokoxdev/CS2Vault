@@ -144,6 +144,10 @@
   font-family: var(--font-numeric);
 }
 
+.statValueStale {
+  color: var(--warning, #e0a030);
+}
+
 .statSubtext {
   font-size: 10px;
   color: var(--text-secondary-60);

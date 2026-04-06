@@ -38,7 +38,7 @@ export default function MarketOverview() {
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [watchlistPerf, setWatchlistPerf] = useState<{ avg24h: number | null; count: number }>({ avg24h: null, count: 0 });
   const [marketSummary, setMarketSummary] = useState<DashboardMarketSummary | null>(null);
-  const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[]; source?: string; cached?: boolean; updatedAt?: string }>({ gainers: [], losers: [] });
+  const [topMovers, setTopMovers] = useState<{ gainers: TopMover[]; losers: TopMover[]; source?: string }>({ gainers: [], losers: [] });
   const [topMoversLoading, setTopMoversLoading] = useState(true);
   const [portfolioValue, setPortfolioValue] = useState<number | null>(null);
   const [portfolioChange24h, setPortfolioChange24h] = useState<number | null>(null);
@@ -103,8 +103,6 @@ export default function MarketOverview() {
           gainers: data.data.gainers,
           losers: data.data.losers,
           source: data.data.source,
-          cached: data.data.cached,
-          updatedAt: data.data.updatedAt,
         });
       }
     } catch (err) {
@@ -211,6 +209,21 @@ export default function MarketOverview() {
   }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap, priceRefreshIntervalMin]);
 
   const lastSync = syncLogs[0];
+
+  const getRelativeTime = (timestamp: string) => {
+    const diffMs = Date.now() - new Date(timestamp).getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "Just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDays = Math.floor(diffHr / 24);
+    return `${diffDays}d ago`;
+  };
+
+  const isStale = lastSync
+    ? (Date.now() - new Date(lastSync.timestamp).getTime()) > (priceRefreshIntervalMin ?? 15) * 60 * 1000
+    : false;
   const marketCapPreference = selectPreferredMarketCapSource(csgotraderMarketCap, marketSummary);
   const staleLegacyTimestamp = csgotraderMarketCap?.timestamp
     ? new Date(csgotraderMarketCap.timestamp).toLocaleString()
@@ -306,10 +319,10 @@ export default function MarketOverview() {
         
         <Card padding="md">
           <div className={styles.statCardContent}>
-            <div className={styles.statLabel}>Last Sync</div>
-            <div className={styles.statValueSmall}>
+            <div className={styles.statLabel}>Last Updated</div>
+            <div className={`${styles.statValueSmall}${isStale ? ` ${styles.statValueStale}` : ''}`}>
                {lastSync
-                  ? new Date(lastSync.timestamp).toLocaleTimeString()
+                  ? getRelativeTime(lastSync.timestamp)
                   : "Never"}
             </div>
             <div className={styles.statSubtext}>
@@ -323,8 +336,6 @@ export default function MarketOverview() {
         gainers={topMovers.gainers}
         losers={topMovers.losers}
         source={topMovers.source}
-        cached={topMovers.cached}
-        updatedAt={topMovers.updatedAt}
         isLoading={topMoversLoading}
       />
 

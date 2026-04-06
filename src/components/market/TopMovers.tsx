@@ -28,8 +28,6 @@ interface TopMoversProps {
   losers: TopMover[];
   isLoading?: boolean;
   source?: string;
-  cached?: boolean;
-  updatedAt?: string;
 }
 
 const itemVariants = {
@@ -37,13 +35,8 @@ const itemVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
-export function TopMovers({ gainers, losers, isLoading = false, source, cached, updatedAt }: TopMoversProps) {
+export function TopMovers({ gainers, losers, isLoading = false, source }: TopMoversProps) {
   const reducedMotion = useReducedMotion();
-
-  const formatUpdatedAt = (isoString: string) => {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
 
   const renderSkeletons = () => (
     <>
@@ -136,11 +129,6 @@ export function TopMovers({ gainers, losers, isLoading = false, source, cached, 
       {source === 'watchlist' && (
         <div className={styles.fallbackNotice}>
           Live market data unavailable — showing watchlist items only
-        </div>
-      )}
-      {cached && updatedAt && source !== 'watchlist' && (
-        <div className={styles.cachedNotice}>
-          Showing cached data from {formatUpdatedAt(updatedAt)}
         </div>
       )}
       <div className={styles.container}>
