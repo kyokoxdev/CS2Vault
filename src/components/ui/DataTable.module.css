@@ -6,13 +6,13 @@
 .dataTable {
   width: 100%;
   border-collapse: collapse;
-  background: var(--surface-0);
+  background: var(--surface-2);
 }
 
 .dataTable thead {
   position: sticky;
   top: 0;
-  background: var(--surface-0);
+  background: var(--surface-2);
   z-index: 10;
 }
 
