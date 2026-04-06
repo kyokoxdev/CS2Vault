@@ -12,7 +12,6 @@
 
 Track prices, manage your inventory, and get AI-powered market insights.
 
-Current release: **v0.4.0**
 
 [Features](#features) · [Getting Started](#getting-started) · [Deployment](#deployment) · [License](#license)
 
