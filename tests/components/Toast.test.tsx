@@ -216,4 +216,104 @@ describe("Toast Component", () => {
     expect(screen.getByText("Item unwatched")).toBeInTheDocument();
     expect(screen.getByText("Undo")).toBeInTheDocument();
   });
+
+  it("returns a toast id and updates an existing toast", () => {
+    function TestComponent() {
+      const { addToast, updateToast } = useToast();
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            const toastId = addToast("Refreshing prices 0/2", "info", 0);
+            updateToast(toastId, {
+              message: "Refreshing prices 1/2",
+              variant: "success",
+              duration: 4000,
+            });
+          }}
+        >
+          Update Toast
+        </button>
+      );
+    }
+
+    render(
+      <ToastProvider>
+        <TestComponent />
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByText("Update Toast"));
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Refreshing prices 1/2");
+    expect(alert).toHaveClass("variantSuccess");
+  });
+
+  it("updated sticky toast auto-dismisses after duration is added", () => {
+    vi.useFakeTimers();
+
+    function TestComponent() {
+      const { addToast, updateToast } = useToast();
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            const toastId = addToast("Refreshing prices 0/2", "info", 0);
+            updateToast(toastId, {
+              message: "Refreshed prices 2/2",
+              variant: "success",
+              duration: 1000,
+            });
+          }}
+        >
+          Complete Toast
+        </button>
+      );
+    }
+
+    render(
+      <ToastProvider>
+        <TestComponent />
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByText("Complete Toast"));
+    expect(screen.getByText("Refreshed prices 2/2")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("dismissToast removes an existing toast", () => {
+    function TestComponent() {
+      const { addToast, dismissToast } = useToast();
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            const toastId = addToast("Temporary toast", "info", 0);
+            dismissToast(toastId);
+          }}
+        >
+          Dismiss Toast
+        </button>
+      );
+    }
+
+    render(
+      <ToastProvider>
+        <TestComponent />
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByText("Dismiss Toast"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });
