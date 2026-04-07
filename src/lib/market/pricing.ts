@@ -39,6 +39,20 @@ export interface PriceWriteOptions {
     skipCandleAggregation?: boolean;
 }
 
+export interface PriceWriteChunkProgress {
+    completed: number;
+    total: number;
+    pricedCount: number;
+    batchRequested: number;
+    batchPriced: number;
+    provider: MarketSource;
+}
+
+export interface ChunkedPriceWriteOptions extends PriceWriteOptions {
+    chunkSize?: number;
+    onProgress?: (progress: PriceWriteChunkProgress) => Promise<void> | void;
+}
+
 const DEFAULT_STEAM_BATCH_SIZE = 25;
 const DEFAULT_MIN_AGE_MINUTES = 5;
 
@@ -412,5 +426,74 @@ export async function writePriceSnapshotsForItems(
         skippedRecent,
         limitedTo,
         fallbackAvailable: false,
+    };
+}
+
+export async function writePriceSnapshotsForItemsInChunks(
+    itemIdByHash: Map<string, string>,
+    options: ChunkedPriceWriteOptions = {}
+): Promise<PriceSnapshotWriteResult> {
+    const entries = [...itemIdByHash.entries()];
+    const attemptedProvider = options.overrideSource ?? "csfloat";
+
+    if (entries.length === 0) {
+        return {
+            totalCandidates: 0,
+            totalRequested: 0,
+            pricedCount: 0,
+            provider: attemptedProvider,
+            attemptedProvider,
+            skippedRecent: 0,
+            fallbackAvailable: false,
+        };
+    }
+
+    const requestedChunkSize = options.chunkSize ?? getSteamBatchSize();
+    const chunkSize = clampNumber(requestedChunkSize, 1, 200);
+    let totalRequested = 0;
+    let pricedCount = 0;
+    let totalCandidates = entries.length;
+    let skippedRecent = 0;
+    let provider: MarketSource = attemptedProvider;
+    let fallbackAvailable = false;
+    let failureReason: string | undefined;
+    let completed = 0;
+
+    for (let index = 0; index < entries.length; index += chunkSize) {
+        const chunkEntries = entries.slice(index, index + chunkSize);
+        const chunkResult = await writePriceSnapshotsForItems(new Map(chunkEntries), {
+            ...options,
+            maxItems: chunkEntries.length,
+            allowSteamLimit: false,
+        });
+
+        totalCandidates = Math.max(totalCandidates, chunkResult.totalCandidates + index);
+        totalRequested += chunkResult.totalRequested;
+        pricedCount += chunkResult.pricedCount;
+        skippedRecent += chunkResult.skippedRecent;
+        provider = chunkResult.provider;
+        fallbackAvailable = fallbackAvailable || chunkResult.fallbackAvailable;
+        failureReason = failureReason ?? chunkResult.failureReason;
+        completed += chunkEntries.length;
+
+        await options.onProgress?.({
+            completed,
+            total: entries.length,
+            pricedCount,
+            batchRequested: chunkResult.totalRequested,
+            batchPriced: chunkResult.pricedCount,
+            provider: chunkResult.provider,
+        });
+    }
+
+    return {
+        totalCandidates,
+        totalRequested,
+        pricedCount,
+        provider,
+        attemptedProvider,
+        skippedRecent,
+        fallbackAvailable,
+        ...(failureReason ? { failureReason } : {}),
     };
 }

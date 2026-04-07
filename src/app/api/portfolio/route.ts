@@ -88,7 +88,6 @@ export async function GET(request: NextRequest) {
             distinct: ["itemId"],
         });
         const price24hAgoMap = new Map(oldestSnapshots24h.map((p) => [p.itemId, p.price]));
-
         let totalCurrentValue = 0;
         let totalAcquiredValue = 0;
         let totalValue24hAgo = 0;
@@ -117,12 +116,12 @@ export async function GET(request: NextRequest) {
             }
 
             return {
-                id: inv.id,
-                itemId: inv.item.id,
-                assetId: inv.assetId,
-                name: inv.item.name,
-                marketHashName: inv.item.marketHashName,
-                category: inv.item.category,
+                 id: inv.id,
+                 itemId: inv.item.id,
+                 assetId: inv.assetId,
+                 name: inv.item.name,
+                 marketHashName: inv.item.marketHashName,
+                 category: inv.item.category,
                 isWatched: inv.item.isWatched,
                 type: inv.item.category === "weapon"
                     ? normalizeItemType(inv.item.type)

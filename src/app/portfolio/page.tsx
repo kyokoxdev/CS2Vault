@@ -59,6 +59,22 @@ interface PortfolioData {
   };
 }
 
+interface RefreshPricesOptions {
+  fallback?: string;
+  silent?: boolean;
+}
+
+interface StreamRefreshEvent {
+  total?: number;
+  completed?: number;
+  pricedCount?: number;
+  provider?: string | null;
+  fallbackAvailable?: boolean;
+  failureReason?: string | null;
+  attemptedProvider?: string | null;
+  message?: string;
+}
+
 const RARITY_VARIANTS: Record<string, string> = {
   "Contraband": "contraband",
   "Covert": "covert",
@@ -164,7 +180,7 @@ function PortfolioActionMenu({
 }
 
 export default function PortfolioPage() {
-  const { addToast } = useToast();
+  const { addToast, updateToast, dismissToast } = useToast();
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -180,17 +196,22 @@ export default function PortfolioPage() {
     attemptedProvider: string;
     source: "sync" | "prices";
   } | null>(null);
-  const refreshRef = useRef<((fallback?: string) => Promise<void>) | null>(null);
+  const refreshRef = useRef<((options?: RefreshPricesOptions) => Promise<void>) | null>(null);
+  const refreshInFlightRef = useRef(false);
   const priceRefreshIntervalMin = usePriceRefreshInterval();
 
-  const fetchPortfolio = useCallback(async () => {
+  const fetchPortfolio = useCallback(async (options?: { bypassCache?: boolean }) => {
     try {
       const params = new URLSearchParams();
       if (categoryFilter) params.set("category", categoryFilter);
       if (rarityFilter) params.set("rarity", rarityFilter);
       if (searchFilter) params.set("search", searchFilter);
       if (priceFilter && priceFilter !== "all") params.set("price", priceFilter);
-      const res = await fetch(`/api/portfolio?${params.toString()}`);
+      if (options?.bypassCache) {
+        params.set("_ts", `${Date.now()}`);
+      }
+      const query = params.toString();
+      const res = await fetch(`/api/portfolio${query ? `?${query}` : ""}`, options?.bypassCache ? { cache: "no-store" } : undefined);
       const data = await res.json();
       if (data.success) {
         setPortfolio(data.data);
@@ -220,7 +241,7 @@ export default function PortfolioPage() {
           ? ` • Priced ${coverage.priced}/${coverage.total}${limitLabel}`
           : "";
         addToast(`Synced ${data.data.synced} items from Steam${coverageLabel}`, "success");
-        await fetchPortfolio();
+        await fetchPortfolio({ bypassCache: true });
 
         if (data.data?.fallbackAvailable && data.data?.failureReason) {
           setFallbackInfo({
@@ -238,33 +259,163 @@ export default function PortfolioPage() {
     setSyncing(false);
   }, [fetchPortfolio, addToast]);
 
-  const handleRefreshPrices = useCallback(async (fallback?: string) => {
-    setRefreshingPrices(true);
-    try {
-      const url = fallback ? `/api/portfolio/prices?fallback=${fallback}` : "/api/portfolio/prices";
-      const res = await fetch(url, { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        const limited = data.data?.priceLimitedTo;
-        const limitLabel = limited ? ` (limited to ${limited})` : "";
-        addToast(`Refreshed prices for ${data.data.pricedCount ?? 0} items${limitLabel}`, "success");
-        await fetchPortfolio();
+  const handleRefreshPrices = useCallback(async (options?: RefreshPricesOptions) => {
+    if (refreshInFlightRef.current) {
+      return;
+    }
 
-        if (data.data?.fallbackAvailable && data.data?.failureReason) {
-          setFallbackInfo({
-            failureReason: data.data.failureReason,
-            attemptedProvider: data.data.attemptedProvider ?? "unknown",
-            source: "prices",
-          });
+    refreshInFlightRef.current = true;
+    setRefreshingPrices(true);
+    const fallback = options?.fallback;
+    const silent = options?.silent ?? false;
+    let progressToastId: string | null = null;
+    let totalItems = 0;
+    let pricedCount = 0;
+    let completedCount = 0;
+    let firstFailureReason: string | null = null;
+    let firstFailureAttemptedProvider: string | null = null;
+
+    try {
+      const streamUrl = fallback ? `/api/portfolio/prices?fallback=${fallback}` : "/api/portfolio/prices";
+      const response = await fetch(streamUrl, {
+        method: "GET",
+        headers: { Accept: "text/event-stream" },
+        cache: "no-store",
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error("Failed to start portfolio price refresh");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let streamCompleted = false;
+
+      const handleStreamEvent = (type: string, data: StreamRefreshEvent) => {
+        if (type === "start") {
+          totalItems = data.total ?? 0;
+          pricedCount = data.pricedCount ?? 0;
+          completedCount = 0;
+
+          if (!silent && totalItems > 0) {
+            progressToastId = addToast(`Refreshing all portfolio prices 0/${totalItems}`, "info", 0);
+          } else if (!silent && totalItems === 0) {
+            addToast("No portfolio items available to refresh", "info");
+          }
+          return;
         }
-      } else {
-        addToast(data.error, "error");
+
+        if (type === "progress") {
+          completedCount = data.completed ?? completedCount;
+          pricedCount = data.pricedCount ?? pricedCount;
+          if (progressToastId) {
+            updateToast(progressToastId, {
+              message: `Refreshing all portfolio prices ${completedCount}/${totalItems || data.total || completedCount}`,
+            });
+          }
+          return;
+        }
+
+        if (type === "complete") {
+          totalItems = data.total ?? totalItems;
+          pricedCount = data.pricedCount ?? pricedCount;
+          if (!firstFailureReason && data.fallbackAvailable && data.failureReason) {
+            firstFailureReason = data.failureReason;
+            firstFailureAttemptedProvider = data.attemptedProvider ?? "unknown";
+          }
+
+          if (progressToastId) {
+            updateToast(progressToastId, {
+              message: totalItems > 0
+                ? `Refreshed ${pricedCount}/${totalItems} portfolio items`
+                : "No portfolio items available to refresh",
+              variant: "success",
+              duration: 4000,
+            });
+          } else if (!silent && totalItems > 0) {
+            addToast(`Refreshed ${pricedCount}/${totalItems} portfolio items`, "success");
+          }
+
+          streamCompleted = true;
+          return;
+        }
+
+        if (type === "error") {
+          throw new Error(data.message ?? "Failed to refresh portfolio prices");
+        }
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+
+        let boundaryIndex = buffer.indexOf("\n\n");
+        while (boundaryIndex !== -1) {
+          const rawEvent = buffer.slice(0, boundaryIndex);
+          buffer = buffer.slice(boundaryIndex + 2);
+
+          const lines = rawEvent.split("\n");
+          let type = "message";
+          const dataLines: string[] = [];
+
+          for (const line of lines) {
+            if (line.startsWith("event: ")) {
+              type = line.slice(7).trim();
+            }
+            if (line.startsWith("data: ")) {
+              dataLines.push(line.slice(6));
+            }
+          }
+
+          const eventData = dataLines.length > 0
+            ? JSON.parse(dataLines.join("\n")) as StreamRefreshEvent
+            : {};
+
+          handleStreamEvent(type, eventData);
+          boundaryIndex = buffer.indexOf("\n\n");
+        }
+
+        if (done) {
+          break;
+        }
+      }
+
+      await fetchPortfolio({ bypassCache: true });
+
+      if (!streamCompleted && progressToastId) {
+        dismissToast(progressToastId);
+      }
+
+      if (!silent && firstFailureReason) {
+        setFallbackInfo({
+          failureReason: firstFailureReason,
+          attemptedProvider: firstFailureAttemptedProvider ?? "unknown",
+          source: "prices",
+        });
       }
     } catch (err) {
-      addToast(`${err}`, "error");
+      if (progressToastId) {
+        if (completedCount > 0 || pricedCount > 0) {
+          updateToast(progressToastId, {
+            message: `Partially refreshed ${pricedCount}/${totalItems || completedCount} portfolio items before an error`,
+            variant: "warning",
+            duration: 5000,
+          });
+          await fetchPortfolio({ bypassCache: true });
+        } else {
+          dismissToast(progressToastId);
+        }
+      }
+
+      if (!silent) {
+        addToast(`${err}`, "error");
+      }
+    } finally {
+      refreshInFlightRef.current = false;
+      setRefreshingPrices(false);
     }
-    setRefreshingPrices(false);
-  }, [fetchPortfolio, addToast]);
+  }, [fetchPortfolio, addToast, updateToast, dismissToast]);
 
   refreshRef.current = handleRefreshPrices;
 
@@ -312,7 +463,7 @@ export default function PortfolioPage() {
 
     const intervalMs = priceRefreshIntervalMin * 60 * 1000;
     const timer = setInterval(() => {
-      refreshRef.current?.();
+      refreshRef.current?.({ silent: true });
     }, intervalMs);
 
     return () => clearInterval(timer);
@@ -721,7 +872,7 @@ export default function PortfolioPage() {
             if (fallbackInfo.source === "sync") {
               handleSync("steam");
             } else {
-              handleRefreshPrices("steam");
+              handleRefreshPrices({ fallback: "steam" });
             }
           }}
           onDismiss={() => setFallbackInfo(null)}
