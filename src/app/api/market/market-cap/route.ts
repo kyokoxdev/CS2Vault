@@ -28,7 +28,7 @@ export async function GET() {
                 : null,
             message: result.message,
         }, {
-            headers: { "Cache-Control": "public, max-age=300, stale-while-revalidate=600" },
+            headers: { "Cache-Control": "private, no-cache" },
         });
     } catch (error) {
         console.error("[API /market/market-cap]", error);
