@@ -281,6 +281,81 @@
   font-style: italic;
 }
 
+.actionMenuWrapper {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.actionMenuTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary-60);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+
+.actionMenuTrigger:hover {
+  background: var(--surface-3);
+  border-color: var(--border-primary);
+  color: var(--text-primary-90);
+}
+
+.actionMenuDropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 50;
+  min-width: 200px;
+  padding: 4px 0;
+  margin-top: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.actionMenuDropdownUp {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+
+.actionMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary-90);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.actionMenuItem:hover {
+  background: var(--surface-3);
+}
+
+.actionMenuIcon {
+  width: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary-60);
+}
+
 .mobileCard {
   display: flex;
   flex-direction: column;
@@ -358,6 +433,22 @@
 
   .filterBar {
     flex-wrap: wrap;
+  }
+
+  .actionMenuTrigger {
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+  }
+
+  .actionMenuItem {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .actionMenuDropdown {
+    min-width: 200px;
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { FaSpinner, FaBoxOpen } from "react-icons/fa";
+import { useRouter } from "next/navigation";
 import styles from "./Portfolio.module.css";
 import { PortfolioFilters } from "@/components/portfolio/PortfolioFilters";
 import { StatCard } from "@/components/ui/StatCard";
@@ -13,6 +14,7 @@ import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
 
 interface PortfolioItem {
   id: string;
+  itemId: string;
   assetId: string;
   name: string;
   marketHashName: string;
@@ -28,6 +30,7 @@ interface PortfolioItem {
   floatValue: number | null;
   wearQuality: string | null;
   acquiredAt: string;
+  isWatched: boolean;
 }
 
 interface PortfolioData {
@@ -74,6 +77,91 @@ const RARITY_VARIANTS: Record<string, string> = {
   "Exotic": "classified",
   "Extraordinary": "covert",
 };
+
+function PortfolioActionMenu({
+  item,
+  onToggleWatchlist,
+  onViewDetails,
+}: {
+  item: PortfolioItem;
+  onToggleWatchlist: (item: PortfolioItem) => void;
+  onViewDetails: (item: PortfolioItem) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const close = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        close();
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open, close]);
+
+  const handleToggle = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpen((prev) => {
+      if (!prev && triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        setOpenUpward(spaceBelow < 160);
+      }
+      return !prev;
+    });
+  }, []);
+
+  return (
+    <div className={styles.actionMenuWrapper} ref={menuRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={styles.actionMenuTrigger}
+        onClick={handleToggle}
+        aria-label="Item actions"
+        aria-expanded={open}
+      >
+        &#x22EF;
+      </button>
+      {open && (
+        <div className={`${styles.actionMenuDropdown}${openUpward ? ` ${styles.actionMenuDropdownUp}` : ""}`} role="menu">
+          <button
+            type="button"
+            className={styles.actionMenuItem}
+            role="menuitem"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleWatchlist(item);
+              close();
+            }}
+          >
+            <span className={styles.actionMenuIcon}>{item.isWatched ? "\u2715" : "\u2606"}</span>
+            {item.isWatched ? "Remove from Watchlist" : "Add to Watchlist"}
+          </button>
+          <button
+            type="button"
+            className={styles.actionMenuItem}
+            role="menuitem"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetails(item);
+              close();
+            }}
+          >
+            <span className={styles.actionMenuIcon}>{"\u2197"}</span>
+            View Details
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function PortfolioPage() {
   const { addToast } = useToast();
@@ -179,6 +267,45 @@ export default function PortfolioPage() {
   }, [fetchPortfolio, addToast]);
 
   refreshRef.current = handleRefreshPrices;
+
+  const router = useRouter();
+
+  const handleToggleWatchlist = useCallback(async (item: PortfolioItem) => {
+    const newState = !item.isWatched;
+    try {
+      const res = await fetch(`/api/items/${item.itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isWatched: newState }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast(
+          newState
+            ? `Added "${item.name}" to watchlist`
+            : `Removed "${item.name}" from watchlist`,
+          "success",
+        );
+        setPortfolio((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            items: prev.items.map((i) =>
+              i.id === item.id ? { ...i, isWatched: newState } : i
+            ),
+          };
+        });
+      } else {
+        addToast(data.error ?? "Failed to update watchlist", "error");
+      }
+    } catch (err) {
+      addToast(`${err}`, "error");
+    }
+  }, [addToast]);
+
+  const handleViewDetails = useCallback((item: PortfolioItem) => {
+    router.push(`/item/${item.itemId}?from=portfolio`);
+  }, [router]);
 
   useEffect(() => {
     if (priceRefreshIntervalMin <= 0) return;
@@ -387,7 +514,19 @@ export default function PortfolioPage() {
           <span className={styles.textMuted}>—</span>
         ),
     },
-  ], [editingId, editPrice, handleUpdatePrice]);
+    {
+      key: "actions",
+      header: "",
+      width: "48px",
+      render: (_, item) => (
+        <PortfolioActionMenu
+          item={item}
+          onToggleWatchlist={handleToggleWatchlist}
+          onViewDetails={handleViewDetails}
+        />
+      ),
+    },
+  ], [editingId, editPrice, handleUpdatePrice, handleToggleWatchlist, handleViewDetails]);
 
   const renderMobileCard = useCallback((item: PortfolioItem): ReactNode => {
     return (
@@ -400,6 +539,11 @@ export default function PortfolioPage() {
             <div className={styles.itemName}>{item.name}</div>
             {item.exterior && <div className={styles.itemExterior}>{item.exterior}</div>}
           </div>
+          <PortfolioActionMenu
+            item={item}
+            onToggleWatchlist={handleToggleWatchlist}
+            onViewDetails={handleViewDetails}
+          />
         </div>
         <div className={styles.mobileCardMetrics}>
           <div className={styles.mobileCardMetric}>
@@ -452,7 +596,7 @@ export default function PortfolioPage() {
         </div>
       </div>
     );
-  }, [editingId, editPrice, handleUpdatePrice]);
+  }, [editingId, editPrice, handleUpdatePrice, handleToggleWatchlist, handleViewDetails]);
 
   if (loading) {
     return (

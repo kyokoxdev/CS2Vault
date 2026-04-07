@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
                         rarity: true,
                         exterior: true,
                         imageUrl: true,
+                        isWatched: true,
                     },
                 },
             },
@@ -117,10 +118,12 @@ export async function GET(request: NextRequest) {
 
             return {
                 id: inv.id,
+                itemId: inv.item.id,
                 assetId: inv.assetId,
                 name: inv.item.name,
                 marketHashName: inv.item.marketHashName,
                 category: inv.item.category,
+                isWatched: inv.item.isWatched,
                 type: inv.item.category === "weapon"
                     ? normalizeItemType(inv.item.type)
                     : null,
