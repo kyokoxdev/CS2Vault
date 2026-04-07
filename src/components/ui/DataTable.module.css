@@ -1,11 +1,17 @@
 .tableScroll {
   overflow-x: auto;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  flex: 1;
+  min-height: 0;
 }
 
 .dataTable {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   background: var(--surface-2);
 }
 
@@ -39,6 +45,10 @@
 
 .dataTable tbody tr:hover {
   background: var(--surface-hover);
+}
+
+.dataTable tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .clickable {
@@ -237,6 +247,10 @@
 
 .dataTableWrapper {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 /* ── View toggle (cards / table) ────────────────────────────── */

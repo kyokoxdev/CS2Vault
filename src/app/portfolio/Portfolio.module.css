@@ -2,6 +2,8 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  flex: 1;
+  min-height: 0;
 }
 
 .header {
@@ -94,7 +96,10 @@
 }
 
 .inventoryTable {
-  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .emptyState {
@@ -338,8 +343,6 @@
   }
 
   .inventoryTable {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     width: 100%;
   }
 
