@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useToast } from "@/components/providers/ToastProvider";
 import { GroupManager } from "./GroupManager";
 import styles from "./WatchlistGroups.module.css";
@@ -43,6 +44,15 @@ export function WatchlistGroups({
   const [newColor, setNewColor] = useState<string>(PRESET_COLORS[0]);
   const [creating, setCreating] = useState(false);
   const [managerGroupId, setManagerGroupId] = useState<string | null>(null);
+  const [managerPosition, setManagerPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+
+  const handleCloseManager = useCallback(() => {
+    setManagerGroupId(null);
+    setManagerPosition(null);
+  }, []);
 
   const handleCreate = useCallback(async () => {
     const trimmed = newName.trim();
@@ -79,55 +89,62 @@ export function WatchlistGroups({
     }
   }, [newName, newColor, groups.length, addToast, onGroupsChange]);
 
-  return (
-    <div className={styles.tabBar}>
-      <button
-        type="button"
-        className={`${styles.tab} ${activeGroupId === null ? styles.tabActive : ""}`}
-        onClick={() => onGroupSelect(null)}
-      >
-        All Items
-      </button>
+  const managerGroup = managerGroupId
+    ? groups.find((g) => g.id === managerGroupId) ?? null
+    : null;
 
-      {groups.map((group) => (
-        <div key={group.id} style={{ position: "relative" }}>
-          <button
-            type="button"
-            className={`${styles.tab} ${activeGroupId === group.id ? styles.tabActive : ""}`}
-            onClick={() => onGroupSelect(group.id)}
-          >
-            {group.color && (
-              <span
-                className={styles.tabDot}
-                style={{ backgroundColor: group.color }}
-              />
-            )}
-            {group.name}
-            <span className={styles.tabCount}>{group._count.items}</span>
+  return (
+    <>
+      <div className={styles.tabBar}>
+        <button
+          type="button"
+          className={`${styles.tab} ${activeGroupId === null ? styles.tabActive : ""}`}
+          onClick={() => onGroupSelect(null)}
+        >
+          All Items
+        </button>
+
+        {groups.map((group) => (
+          <div key={group.id}>
             <button
               type="button"
-              className={styles.tabGear}
-              onClick={(e) => {
-                e.stopPropagation();
-                setManagerGroupId(
-                  managerGroupId === group.id ? null : group.id
-                );
-              }}
+              className={`${styles.tab} ${activeGroupId === group.id ? styles.tabActive : ""}`}
+              onClick={() => onGroupSelect(group.id)}
             >
-              &#9881;
+              {group.color && (
+                <span
+                  className={styles.tabDot}
+                  style={{ backgroundColor: group.color }}
+                />
+              )}
+              {group.name}
+              <span className={styles.tabCount}>{group._count.items}</span>
+              <button
+                type="button"
+                className={styles.tabGear}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (managerGroupId === group.id) {
+                    setManagerGroupId(null);
+                    setManagerPosition(null);
+                  } else {
+                    const tabEl = e.currentTarget.parentElement;
+                    if (tabEl) {
+                      const rect = tabEl.getBoundingClientRect();
+                      setManagerPosition({
+                        top: rect.bottom + 6,
+                        left: Math.min(rect.left, window.innerWidth - 276),
+                      });
+                    }
+                    setManagerGroupId(group.id);
+                  }
+                }}
+              >
+                &#9881;
+              </button>
             </button>
-          </button>
-
-          {managerGroupId === group.id && (
-            <GroupManager
-              group={group}
-              groups={groups}
-              onClose={() => setManagerGroupId(null)}
-              onGroupsChange={onGroupsChange}
-            />
-          )}
-        </div>
-      ))}
+          </div>
+        ))}
 
       {showNewForm ? (
         <div className={styles.inlineForm}>
@@ -190,5 +207,36 @@ export function WatchlistGroups({
         </button>
       )}
     </div>
+
+      {managerGroup && managerPosition && createPortal(
+        <>
+          <div
+            className={styles.popoverOverlay}
+            onClick={handleCloseManager}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") handleCloseManager();
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Close group settings"
+          />
+          <div
+            className={styles.popoverPortal}
+            style={{
+              '--popover-top': `${managerPosition.top}px`,
+              '--popover-left': `${managerPosition.left}px`,
+            } as React.CSSProperties}
+          >
+            <GroupManager
+              group={managerGroup}
+              groups={groups}
+              onClose={handleCloseManager}
+              onGroupsChange={onGroupsChange}
+            />
+          </div>
+        </>,
+        document.body
+      )}
+    </>
   );
 }
