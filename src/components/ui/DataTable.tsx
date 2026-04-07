@@ -4,7 +4,8 @@
  * and opt-in client-side column sorting.
  */
 
-import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import styles from "./DataTable.module.css";
 
 export interface Column<T> {
@@ -92,9 +93,18 @@ export function DataTable<T>({
   isLoading = false,
   mobileCardRenderer,
 }: DataTableProps<T>) {
+  const isMobile = useIsMobile();
+  const hasSetInitialView = useRef(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection | null>(null);
-  const [forceTableView, setForceTableView] = useState(false);
+  const [forceTableView, setForceTableView] = useState(true);
+
+  useEffect(() => {
+    if (!hasSetInitialView.current) {
+      hasSetInitialView.current = true;
+      if (isMobile) setForceTableView(false);
+    }
+  }, [isMobile]);
 
   const handleSort = (columnKey: string) => {
     if (sortKey !== columnKey) {
@@ -127,7 +137,7 @@ export function DataTable<T>({
   const hasCardView = !!mobileCardRenderer;
 
   const tableView = (
-    <div className={`${styles.tableScroll}${hasCardView && !forceTableView ? ` ${styles.hideOnMobile}` : ""}`}>
+    <div className={`${styles.tableScroll}${hasCardView && !forceTableView ? ` ${styles.viewHidden}` : ""}`}>
     <table className={styles.dataTable}>
       <thead>
         <tr>
@@ -226,7 +236,7 @@ export function DataTable<T>({
   if (!hasCardView) return tableView;
 
   const cardView = (
-    <div className={`${styles.cardList}${forceTableView ? ` ${styles.hideOnMobile}` : ""}`}>
+    <div className={`${styles.cardList}${forceTableView ? ` ${styles.viewHidden}` : ""}`}>
       {isLoading ? (
         <SkeletonCards />
       ) : data.length === 0 ? (

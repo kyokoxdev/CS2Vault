@@ -193,81 +193,89 @@
 
 }
 
+/* ── Card list view ─────────────────────────────────────────── */
+
 .cardList {
-  display: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Desktop: show cards in a responsive grid */
+@media (min-width: 769px) {
+  .cardList {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+  }
+}
+
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 12px;
+  transition: background 0.15s ease;
+}
+
+.card:hover {
+  background: var(--surface-hover);
+}
+
+.card.clickable:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: -2px;
+}
+
+.cardSkeleton {
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 16px;
+  animation: pulse 1.5s infinite;
 }
 
 .dataTableWrapper {
   position: relative;
 }
 
+/* ── View toggle (cards / table) ────────────────────────────── */
+
 .viewToggle {
-  display: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-bottom: 8px;
 }
 
-@media (max-width: 768px) {
-  .cardList {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
+.viewToggleBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid var(--border-primary);
+  background: var(--surface-2);
+  color: var(--text-secondary-60);
+  cursor: pointer;
+  transition: all 0.15s;
+}
 
-  .card {
-    background: var(--surface-2);
-    border: 1px solid var(--border-primary);
-    border-radius: 8px;
-    padding: 12px;
-    transition: background 0.15s ease;
-  }
+.viewToggleBtn:hover {
+  color: var(--text-primary-90);
+  border-color: var(--text-secondary-60);
+}
 
-  .card:hover {
-    background: var(--surface-hover);
-  }
+.viewToggleBtnActive {
+  background: var(--surface-3);
+  color: var(--text-primary-90);
+  border-color: var(--text-secondary-60);
+}
 
-  .card.clickable:focus-visible {
-    outline: 2px solid var(--border-active);
-    outline-offset: -2px;
-  }
-
-  .cardSkeleton {
-    background: var(--surface-2);
-    border: 1px solid var(--border-primary);
-    border-radius: 8px;
-    padding: 16px;
-    animation: pulse 1.5s infinite;
-  }
-
-  .viewToggle {
-    display: flex;
-    justify-content: flex-end;
-    gap: 2px;
-    margin-bottom: 8px;
-  }
-
-  .viewToggleBtn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 6px;
-    border: 1px solid var(--border-primary);
-    background: var(--surface-2);
-    color: var(--text-secondary-60);
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .viewToggleBtn:hover {
-    color: var(--text-primary-90);
-    border-color: var(--text-secondary-60);
-  }
-
-  .viewToggleBtnActive {
-    background: var(--surface-3);
-    color: var(--text-primary-90);
-    border-color: var(--text-secondary-60);
-  }
+/* Universal hide class — works at all breakpoints */
+.viewHidden {
+  display: none !important;
 }
 
 @media (max-width: 480px) {
@@ -280,9 +288,4 @@
   }
 }
 
-/* Must appear after .cardList to win the cascade at equal specificity */
-@media (max-width: 768px) {
-  .hideOnMobile {
-    display: none;
-  }
-}
+
