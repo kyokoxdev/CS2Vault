@@ -151,6 +151,14 @@ model TopMoversCache {
   updatedAt DateTime @default(now())
 }
 
+/// Stores the last-request timestamp (ms since epoch) per API queue.
+/// Used by the global rate limiter so concurrent serverless isolates
+/// respect the same per-provider request cadence.
+model RateLimitState {
+  queueName     String @id
+  lastRequestMs Float  @default(0)
+}
+
 model WatchlistGroup {
   id        String      @id @default(cuid())
   name      String

@@ -4,6 +4,8 @@
  * Supports configurable delay between requests and max concurrent requests.
  */
 
+import { acquireGlobalSlot } from "@/lib/rate-limit-store";
+
 interface QueuedRequest<T> {
     execute: () => Promise<T>;
     resolve: (value: T) => void;
@@ -22,17 +24,23 @@ export class ApiRequestQueue {
     private dailyRequestCount = 0;
     private dailyResetTime = Date.now();
     private maxDailyRequests: number;
+    private queueName: string | null;
+    private useGlobalRateLimit: boolean;
 
     constructor(options: {
-        minDelayMs?: number;     // Min delay between requests (default 500ms)
-        maxRetries?: number;     // Max retries on 429 (default 3)
+        minDelayMs?: number;
+        maxRetries?: number;
         backoffMultiplier?: number;
         maxDailyRequests?: number;
+        queueName?: string;
+        useGlobalRateLimit?: boolean;
     } = {}) {
         this.minDelayMs = options.minDelayMs ?? 500;
         this.maxRetries = options.maxRetries ?? 3;
         this.backoffMultiplier = options.backoffMultiplier ?? 2;
         this.maxDailyRequests = options.maxDailyRequests ?? Infinity;
+        this.queueName = options.queueName ?? null;
+        this.useGlobalRateLimit = options.useGlobalRateLimit ?? false;
     }
 
     /**
@@ -75,10 +83,14 @@ export class ApiRequestQueue {
             const request = this.queue.shift();
             if (!request) break;
 
-            // Wait for minimum delay
-            const elapsed = Date.now() - this.lastRequestTime;
-            if (elapsed < this.minDelayMs) {
-                await this.sleep(this.minDelayMs - elapsed);
+            // Enforce delay — DB-backed global limiter or in-memory fallback
+            if (this.useGlobalRateLimit && this.queueName) {
+                await acquireGlobalSlot(this.queueName, this.minDelayMs);
+            } else {
+                const elapsed = Date.now() - this.lastRequestTime;
+                if (elapsed < this.minDelayMs) {
+                    await this.sleep(this.minDelayMs - elapsed);
+                }
             }
 
             // Count this request once (not per retry)
@@ -188,6 +200,8 @@ export function isRateLimitError(error: unknown): boolean {
 
 /** Pricempire: 30K/month ≈ 1K/day, conservative 1 req/s */
 export const pricempireQueue = new ApiRequestQueue({
+    queueName: "pricempire",
+    useGlobalRateLimit: true,
     minDelayMs: 1000,
     maxRetries: 3,
     maxDailyRequests: 1000,
@@ -195,13 +209,17 @@ export const pricempireQueue = new ApiRequestQueue({
 
 /** CSFloat: no published limits, conservative 1 req/2s */
 export const csfloatQueue = new ApiRequestQueue({
+    queueName: "csfloat",
+    useGlobalRateLimit: true,
     minDelayMs: 2000,
-    maxRetries: 2,
+    maxRetries: 4,
     maxDailyRequests: 5000,
 });
 
 /** Steam Market: ~20 req/min, 1 req/3s to be safe */
 export const steamQueue = new ApiRequestQueue({
+    queueName: "steam",
+    useGlobalRateLimit: true,
     minDelayMs: 3000,
     maxRetries: 3,
     maxDailyRequests: 500,
@@ -209,6 +227,8 @@ export const steamQueue = new ApiRequestQueue({
 
 /** CSGOTrader: bulk JSON fetch, conservative 1 req/5s */
 export const csgotraderQueue = new ApiRequestQueue({
+    queueName: "csgotrader",
+    useGlobalRateLimit: true,
     minDelayMs: 5000,
     maxRetries: 3,
     maxDailyRequests: 1000,
