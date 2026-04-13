@@ -16,7 +16,7 @@ const RATE_LIMIT_MAX_REQUESTS = 10;
 const ChatRequestSchema = z.object({
     messages: z.array(z.object({
         role: z.enum(["user", "assistant"]),
-        content: z.string().min(1).max(MAX_CONTENT_LENGTH),
+        content: z.string().min(1),
         imageBase64: z.string().max(MAX_IMAGE_BASE64_LENGTH).optional()
     })).min(1).max(MAX_MESSAGES),
     provider: z.enum(["gemini-pro", "gemini-flash", "openai"]).optional(),
@@ -57,6 +57,12 @@ export async function POST(request: NextRequest) {
 
         const body = await request.json();
         const { messages, provider } = ChatRequestSchema.parse(body);
+
+        // Validate latest user message length (assistant messages in history can be longer)
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg.role === "user" && lastMsg.content.length > MAX_CONTENT_LENGTH) {
+            return new Response("Message too long", { status: 400 });
+        }
 
         const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
         const preferredProvider = (provider ?? settings?.activeAIProvider ?? "gemini-pro") as AIProviderName;
