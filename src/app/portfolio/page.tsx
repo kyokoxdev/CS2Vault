@@ -518,6 +518,7 @@ export default function PortfolioPage() {
     {
       key: "name",
       header: "Item",
+      sticky: true,
       render: (_, item) => (
         <div className={styles.itemCell}>
           {item.imageUrl && (

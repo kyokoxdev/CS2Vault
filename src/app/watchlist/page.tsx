@@ -572,8 +572,8 @@ export default function WatchlistPage() {
 
   const loadingColumns = useMemo<Column<Record<string, never>>[]>(() => (
     [
-      { key: "select", header: "", width: "40px" },
-      { key: "image", header: "", width: "72px" },
+      { key: "select", header: "", width: "40px", sticky: true },
+      { key: "image", header: "", width: "72px", sticky: true },
       { key: "name", header: "Item" },
       { key: "category", header: "Category", width: "120px" },
       { key: "type", header: "Type", width: "120px" },

@@ -383,6 +383,7 @@ export function WatchlistTable({
               </label>
             ),
             width: "40px",
+            sticky: true,
             render: (_: unknown, item: Item) => (
               <label
                 className={styles.checkboxCell}
@@ -409,6 +410,7 @@ export function WatchlistTable({
       key: "imageUrl",
       header: "",
       width: "72px",
+      sticky: true,
       render: (_, item) => (
         <div className={styles.imageCell}>
           {item.imageUrl ? (
