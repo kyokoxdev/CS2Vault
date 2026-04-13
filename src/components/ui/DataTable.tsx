@@ -100,9 +100,9 @@ export function DataTable<T>({
   const [forceTableView, setForceTableView] = useState(true);
 
   useEffect(() => {
-    if (!hasSetInitialView.current) {
+    if (!hasSetInitialView.current && isMobile) {
       hasSetInitialView.current = true;
-      if (isMobile) setForceTableView(false);
+      setForceTableView(false);
     }
   }, [isMobile]);
 
