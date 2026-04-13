@@ -265,7 +265,7 @@ export async function calculateAndStoreMarketCap(): Promise<MarketCapResult> {
             },
         });
 
-        await cleanupOldSnapshots(7);
+        await cleanupOldSnapshots(365);
 
         return {
             data: {
