@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/auth/guard";
 import { z } from "zod/v4";
 import { resetProviders } from "@/lib/market/init";
+import { encryptApiKey, decryptApiKey } from "@/lib/auth/api-keys";
 
 // Zod schema for settings validation
 const settingsSchema = z.object({
@@ -54,9 +55,9 @@ export async function GET() {
             csgotraderSubProvider: settings.csgotraderSubProvider ?? "csfloat",
             activeAIProvider: settings.activeAIProvider,
             priceRefreshIntervalMin: settings.priceRefreshIntervalMin ?? 15,
-            openAiApiKey: maskApiKey(settings.openAiApiKey, process.env.OPENAI_API_KEY),
-            geminiApiKey: maskApiKey(settings.geminiApiKey, process.env.GEMINI_API_KEY),
-            csfloatApiKey: maskApiKey(settings.csfloatApiKey, process.env.CSFLOAT_API_KEY),
+            openAiApiKey: maskApiKey(decryptApiKey(settings.openAiApiKey), process.env.OPENAI_API_KEY),
+            geminiApiKey: maskApiKey(decryptApiKey(settings.geminiApiKey), process.env.GEMINI_API_KEY),
+            csfloatApiKey: maskApiKey(decryptApiKey(settings.csfloatApiKey), process.env.CSFLOAT_API_KEY),
         });
     } catch (error) {
         console.error("[Settings API GET Error]", { userId, error });
@@ -103,8 +104,9 @@ export async function PATCH(request: Request) {
 		): string | null | undefined {
 			if (incoming === undefined) return undefined;
 			if (incoming === "") return null;
-			if (incoming === maskApiKey(existingValue, envFallback)) return undefined;
-			return incoming;
+			const decryptedExisting = decryptApiKey(existingValue);
+			if (incoming === maskApiKey(decryptedExisting, envFallback)) return undefined;
+			return encryptApiKey(incoming);
 		}
 
 		const resolvedOpenAi = resolveApiKey(openAiApiKey, existing?.openAiApiKey, process.env.OPENAI_API_KEY);
@@ -145,9 +147,9 @@ export async function PATCH(request: Request) {
             activeMarketSource: updated.activeMarketSource,
             activeAIProvider: updated.activeAIProvider,
             priceRefreshIntervalMin: updated.priceRefreshIntervalMin ?? 15,
-            openAiApiKey: maskApiKey(updated.openAiApiKey, process.env.OPENAI_API_KEY),
-            geminiApiKey: maskApiKey(updated.geminiApiKey, process.env.GEMINI_API_KEY),
-            csfloatApiKey: maskApiKey(updated.csfloatApiKey, process.env.CSFLOAT_API_KEY),
+            openAiApiKey: maskApiKey(decryptApiKey(updated.openAiApiKey), process.env.OPENAI_API_KEY),
+            geminiApiKey: maskApiKey(decryptApiKey(updated.geminiApiKey), process.env.GEMINI_API_KEY),
+            csfloatApiKey: maskApiKey(decryptApiKey(updated.csfloatApiKey), process.env.CSFLOAT_API_KEY),
             csgotraderSubProvider: updated.csgotraderSubProvider,
         });
     } catch (error) {

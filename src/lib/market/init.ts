@@ -12,6 +12,7 @@ import { steamProvider } from "@/lib/market/steam";
 import { csgotraderProvider } from "@/lib/market/csgotrader";
 import { prisma } from "@/lib/db";
 import { resolveMarketSource } from "@/lib/market/source";
+import { decryptApiKey } from "@/lib/auth/api-keys";
 
 let initialized = false;
 let initializationSignature: string | null = null;
@@ -22,7 +23,7 @@ function buildInitializationSignature(activeMarketSource: string | null | undefi
 
 export async function initializeMarketProviders(): Promise<void> {
     const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
-    const csfloatKey = settings?.csfloatApiKey || process.env.CSFLOAT_API_KEY;
+    const csfloatKey = decryptApiKey(settings?.csfloatApiKey) || process.env.CSFLOAT_API_KEY;
     const initializationKey = buildInitializationSignature(settings?.activeMarketSource, Boolean(csfloatKey));
 
     if (initialized && initializationSignature === initializationKey) {
