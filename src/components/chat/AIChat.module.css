@@ -11,7 +11,7 @@
 
 .header {
     padding: 16px 24px;
-    border-bottom: 1px solid var(--border-primary);
+    border-bottom: none;
     background: var(--surface-2);
     display: flex;
     align-items: center;
@@ -39,6 +39,118 @@
     font-size: 12px;
     color: var(--text-secondary-60);
     margin-top: 2px;
+}
+
+.tabBar {
+    display: flex;
+    align-items: stretch;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border-primary);
+    padding: 0 8px;
+    gap: 0;
+    min-height: 40px;
+}
+
+.tabsScroll {
+    display: flex;
+    align-items: stretch;
+    overflow-x: auto;
+    flex: 1;
+    gap: 0;
+    scrollbar-width: none;
+}
+
+.tabsScroll::-webkit-scrollbar {
+    display: none;
+}
+
+.tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary-60);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--transition-fast);
+    max-width: 180px;
+    flex-shrink: 0;
+}
+
+.tab:hover {
+    color: var(--text-primary-90);
+    background: var(--surface-hover);
+}
+
+.tabActive {
+    color: var(--text-primary-90);
+    border-bottom-color: var(--text-primary-90);
+}
+
+.tabTitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 130px;
+}
+
+.tabClose {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-size: 8px;
+    color: var(--text-secondary-60);
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    opacity: 0;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+    padding: 0;
+}
+
+.tab:hover .tabClose {
+    opacity: 1;
+}
+
+.tabClose:hover {
+    color: var(--bear);
+    background: rgba(255, 77, 79, 0.15);
+}
+
+.newChatBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin: auto 4px;
+    font-size: 12px;
+    color: var(--text-secondary-60);
+    background: transparent;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+.newChatBtn:hover {
+    color: var(--text-primary-90);
+    background: var(--surface-hover);
+    border-color: var(--border-active);
+}
+
+.newChatBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .providerSelect {
@@ -325,6 +437,11 @@
     margin-bottom: 4px;
 }
 
+.modelSelect {
+    min-width: 140px;
+    height: 48px;
+}
+
 /* ── Mobile breakpoints ── */
 @media (max-width: 768px) {
     .header {
@@ -344,6 +461,15 @@
     .inputArea {
         padding: 12px 16px;
     }
+
+    .tabBar {
+        padding: 0 4px;
+    }
+
+    .tab {
+        padding: 8px 10px;
+        max-width: 140px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -361,15 +487,22 @@
     .message {
         max-width: 90%;
     }
+
+    .tab {
+        max-width: 120px;
+        padding: 6px 8px;
+        font-size: 11px;
+    }
+
+    .tabTitle {
+        max-width: 90px;
+    }
+
+    .tabClose {
+        opacity: 1;
+    }
 }
 
-/* Model selector in input area (near send button) */
-.modelSelect {
-    min-width: 140px;
-    height: 48px;
-}
-
-/* History loading state */
 .historyLoading {
     display: flex;
     justify-content: center;

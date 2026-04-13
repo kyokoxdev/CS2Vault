@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
-import { FaSpinner, FaBoxOpen, FaChartPie, FaChevronDown } from "react-icons/fa";
+import { FaSpinner, FaBoxOpen, FaChartPie, FaChevronDown, FaTimes } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import styles from "./Portfolio.module.css";
 import { PortfolioFilters } from "@/components/portfolio/PortfolioFilters";
@@ -11,6 +11,8 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { FallbackToast } from "@/components/ui/FallbackToast";
 import { useToast } from "@/components/providers/ToastProvider";
 import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
+
+type PortfolioTab = "active" | "sold";
 
 interface PortfolioItem {
   id: string;
@@ -31,6 +33,33 @@ interface PortfolioItem {
   wearQuality: string | null;
   acquiredAt: string;
   isWatched: boolean;
+}
+
+interface SoldItem {
+  id: string;
+  itemId: string;
+  assetId: string;
+  name: string;
+  marketHashName: string;
+  category: string;
+  rarity: string | null;
+  exterior: string | null;
+  imageUrl: string | null;
+  acquiredPrice: number | null;
+  soldPrice: number | null;
+  realizedPnl: number;
+  pnlPercent: number;
+  acquiredAt: string;
+  soldAt: string;
+}
+
+interface SoldData {
+  totalSoldValue: number;
+  totalAcquiredValue: number;
+  totalRealizedPnL: number;
+  realizedPnLPercent: number;
+  soldCount: number;
+  items: SoldItem[];
 }
 
 interface PortfolioData {
@@ -98,15 +127,7 @@ const RARITY_VARIANTS: Record<string, string> = {
   "Extraordinary": "covert",
 };
 
-function PortfolioActionMenu({
-  item,
-  onToggleWatchlist,
-  onViewDetails,
-}: {
-  item: PortfolioItem;
-  onToggleWatchlist: (item: PortfolioItem) => void;
-  onViewDetails: (item: PortfolioItem) => void;
-}) {
+function useDropdownMenu() {
   const [open, setOpen] = useState(false);
   const [openUpward, setOpenUpward] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -137,6 +158,137 @@ function PortfolioActionMenu({
     });
   }, []);
 
+  return { open, openUpward, menuRef, triggerRef, close, handleToggle };
+}
+
+function MarkAsSoldModal({
+  item,
+  onClose,
+  onConfirm,
+}: {
+  item: PortfolioItem;
+  onClose: () => void;
+  onConfirm: (id: string, soldPrice: number, soldAt: string) => void;
+}) {
+  const [soldPrice, setSoldPrice] = useState(
+    item.currentPrice > 0 ? item.currentPrice.toFixed(2) : ""
+  );
+  const [soldDate, setSoldDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const price = parseFloat(soldPrice);
+    if (isNaN(price) || price < 0 || !soldDate) return;
+    setSubmitting(true);
+    onConfirm(item.id, price, new Date(soldDate).toISOString());
+  };
+
+  const pnlPreview = (() => {
+    const price = parseFloat(soldPrice);
+    if (isNaN(price) || !item.acquiredPrice) return null;
+    return price - item.acquiredPrice;
+  })();
+
+  return (
+    <div
+      className={styles.modalOverlay}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Mark as Sold"
+      onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+    >
+      <button type="button" className={styles.modalOverlayBackdrop} onClick={onClose} aria-label="Close dialog" />
+      <div className={styles.modal}>
+        <div className={styles.modalHeader}>
+          <h3 className={styles.modalTitle}>Mark as Sold</h3>
+          <button type="button" className={styles.modalClose} onClick={onClose}>
+            <FaTimes />
+          </button>
+        </div>
+
+        <div className={styles.modalItemInfo}>
+          {item.imageUrl && (
+            <img src={item.imageUrl} alt={item.name} className={styles.modalItemImage} />
+          )}
+          <div>
+            <div className={styles.modalItemName}>{item.name}</div>
+            {item.exterior && <div className={styles.modalItemSub}>{item.exterior}</div>}
+            {item.acquiredPrice != null && (
+              <div className={styles.modalItemSub}>Cost basis: ${item.acquiredPrice.toFixed(2)}</div>
+            )}
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className={styles.modalForm}>
+          <label className={styles.modalLabel}>
+            Sold Price (USD)
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={soldPrice}
+              onChange={(e) => setSoldPrice(e.target.value)}
+              className={styles.modalInput}
+              required
+            />
+          </label>
+          <label className={styles.modalLabel}>
+            Sold Date
+            <input
+              type="date"
+              value={soldDate}
+              onChange={(e) => setSoldDate(e.target.value)}
+              className={styles.modalInput}
+              required
+            />
+          </label>
+
+          {pnlPreview !== null && (
+            <div className={`${styles.modalPnlPreview} ${pnlPreview >= 0 ? styles.pnlPositive : styles.pnlNegative}`}>
+              Realized P&L: {pnlPreview >= 0 ? "+" : ""}${pnlPreview.toFixed(2)}
+              {item.acquiredPrice && item.acquiredPrice > 0 && (
+                <span className={styles.pnlPercent}>
+                  ({((pnlPreview / item.acquiredPrice) * 100) >= 0 ? "+" : ""}
+                  {((pnlPreview / item.acquiredPrice) * 100).toFixed(1)}%)
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className={styles.modalActions}>
+            <button type="button" className={styles.modalCancelBtn} onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className={styles.modalConfirmBtn}
+              disabled={submitting || !soldPrice || !soldDate}
+            >
+              {submitting ? "Saving..." : "Confirm Sale"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioActionMenu({
+  item,
+  onToggleWatchlist,
+  onViewDetails,
+  onMarkAsSold,
+}: {
+  item: PortfolioItem;
+  onToggleWatchlist: (item: PortfolioItem) => void;
+  onViewDetails: (item: PortfolioItem) => void;
+  onMarkAsSold: (item: PortfolioItem) => void;
+}) {
+  const { open, openUpward, menuRef, triggerRef, close, handleToggle } = useDropdownMenu();
+
   return (
     <div className={styles.actionMenuWrapper} ref={menuRef}>
       <button
@@ -151,6 +303,19 @@ function PortfolioActionMenu({
       </button>
       {open && (
         <div className={`${styles.actionMenuDropdown}${openUpward ? ` ${styles.actionMenuDropdownUp}` : ""}`} role="menu">
+          <button
+            type="button"
+            className={styles.actionMenuItem}
+            role="menuitem"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMarkAsSold(item);
+              close();
+            }}
+          >
+            <span className={styles.actionMenuIcon}>{"\u{1F4B0}"}</span>
+            Mark as Sold
+          </button>
           <button
             type="button"
             className={styles.actionMenuItem}
@@ -183,10 +348,55 @@ function PortfolioActionMenu({
   );
 }
 
+function SoldActionMenu({
+  item,
+  onUndoSold,
+}: {
+  item: SoldItem;
+  onUndoSold: (item: SoldItem) => void;
+}) {
+  const { open, openUpward, menuRef, triggerRef, close, handleToggle } = useDropdownMenu();
+
+  return (
+    <div className={styles.actionMenuWrapper} ref={menuRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={styles.actionMenuTrigger}
+        onClick={handleToggle}
+        aria-label="Item actions"
+        aria-expanded={open}
+      >
+        &#x22EF;
+      </button>
+      {open && (
+        <div className={`${styles.actionMenuDropdown}${openUpward ? ` ${styles.actionMenuDropdownUp}` : ""}`} role="menu">
+          <button
+            type="button"
+            className={styles.actionMenuItem}
+            role="menuitem"
+            onClick={(e) => {
+              e.stopPropagation();
+              onUndoSold(item);
+              close();
+            }}
+          >
+            <span className={styles.actionMenuIcon}>{"\u21A9"}</span>
+            Undo Sale
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PortfolioPage() {
   const { addToast, updateToast } = useToast();
+  const [activeTab, setActiveTab] = useState<PortfolioTab>("active");
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
+  const [soldData, setSoldData] = useState<SoldData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [soldLoading, setSoldLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState("");
@@ -196,6 +406,7 @@ export default function PortfolioPage() {
   const [searchFilter, setSearchFilter] = useState("");
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [sellModalItem, setSellModalItem] = useState<PortfolioItem | null>(null);
   const [fallbackInfo, setFallbackInfo] = useState<{
     failureReason: string;
     attemptedProvider: string;
@@ -228,9 +439,30 @@ export default function PortfolioPage() {
     }
   }, [categoryFilter, rarityFilter, searchFilter, priceFilter]);
 
+  const fetchSoldItems = useCallback(async () => {
+    setSoldLoading(true);
+    try {
+      const res = await fetch("/api/portfolio/sold");
+      const data = await res.json();
+      if (data.success) {
+        setSoldData(data.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch sold items:", err);
+    } finally {
+      setSoldLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchPortfolio();
   }, [fetchPortfolio]);
+
+  useEffect(() => {
+    if (activeTab === "sold" && !soldData) {
+      fetchSoldItems();
+    }
+  }, [activeTab, soldData, fetchSoldItems]);
 
   const handleSync = useCallback(async (fallback?: string) => {
     setSyncing(true);
@@ -405,6 +637,47 @@ export default function PortfolioPage() {
   const handleViewDetails = useCallback((item: PortfolioItem) => {
     router.push(`/item/${item.itemId}?from=portfolio`);
   }, [router]);
+
+  const handleMarkAsSold = useCallback(async (id: string, soldPrice: number, soldAt: string) => {
+    try {
+      const res = await fetch(`/api/inventory/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ soldPrice, soldAt }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast("Item marked as sold", "success");
+        setSellModalItem(null);
+        await fetchPortfolio({ bypassCache: true });
+        setSoldData(null);
+      } else {
+        addToast(data.error ?? "Failed to mark as sold", "error");
+      }
+    } catch (err) {
+      addToast(`${err}`, "error");
+    }
+  }, [fetchPortfolio, addToast]);
+
+  const handleUndoSold = useCallback(async (item: SoldItem) => {
+    try {
+      const res = await fetch(`/api/inventory/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ soldPrice: null, soldAt: null }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast(`"${item.name}" moved back to active`, "success");
+        await fetchSoldItems();
+        await fetchPortfolio({ bypassCache: true });
+      } else {
+        addToast(data.error ?? "Failed to undo sale", "error");
+      }
+    } catch (err) {
+      addToast(`${err}`, "error");
+    }
+  }, [fetchSoldItems, fetchPortfolio, addToast]);
 
   useEffect(() => {
     if (priceRefreshIntervalMin <= 0) return;
@@ -623,6 +896,7 @@ export default function PortfolioPage() {
           item={item}
           onToggleWatchlist={handleToggleWatchlist}
           onViewDetails={handleViewDetails}
+          onMarkAsSold={setSellModalItem}
         />
       ),
     },
@@ -643,6 +917,7 @@ export default function PortfolioPage() {
             item={item}
             onToggleWatchlist={handleToggleWatchlist}
             onViewDetails={handleViewDetails}
+            onMarkAsSold={setSellModalItem}
           />
         </div>
         <div className={styles.mobileCardMetrics}>
@@ -698,6 +973,120 @@ export default function PortfolioPage() {
     );
   }, [editingId, editPrice, handleUpdatePrice, handleToggleWatchlist, handleViewDetails]);
 
+  const soldColumns = useMemo<Column<SoldItem>[]>(() => [
+    {
+      key: "name",
+      header: "Item",
+      sticky: true,
+      render: (_, item) => (
+        <div className={styles.itemCell}>
+          {item.imageUrl && (
+            <img src={item.imageUrl} alt={item.name} className={styles.itemImage} loading="lazy" width={64} height={48} />
+          )}
+          <div>
+            <div className={styles.itemName}>{item.name}</div>
+            {item.exterior && <div className={styles.itemExterior}>{item.exterior}</div>}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "acquiredPrice",
+      header: "Cost Basis",
+      align: "right",
+      render: (_, item) =>
+        item.acquiredPrice != null ? (
+          <span className={styles.priceCell}>${item.acquiredPrice.toFixed(2)}</span>
+        ) : (
+          <span className={styles.textMuted}>{"\u2014"}</span>
+        ),
+    },
+    {
+      key: "soldPrice",
+      header: "Sold Price",
+      align: "right",
+      render: (_, item) =>
+        item.soldPrice != null ? (
+          <span className={styles.priceCell}>${item.soldPrice.toFixed(2)}</span>
+        ) : (
+          <span className={styles.textMuted}>{"\u2014"}</span>
+        ),
+    },
+    {
+      key: "realizedPnl",
+      header: "Realized P&L",
+      align: "right",
+      render: (_, item) => (
+        <span className={item.realizedPnl > 0 ? styles.pnlPositive : item.realizedPnl < 0 ? styles.pnlNegative : styles.pnlNeutral}>
+          {item.realizedPnl >= 0 ? "+" : ""}${item.realizedPnl.toFixed(2)}
+          {item.pnlPercent !== 0 && (
+            <span className={styles.pnlPercent}>
+              ({item.pnlPercent >= 0 ? "+" : ""}{item.pnlPercent.toFixed(1)}%)
+            </span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "soldAt",
+      header: "Sold Date",
+      render: (_, item) => (
+        <span className={styles.dateCell}>
+          {item.soldAt ? new Date(item.soldAt).toLocaleDateString() : "\u2014"}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      width: "48px",
+      render: (_, item) => (
+        <SoldActionMenu item={item} onUndoSold={handleUndoSold} />
+      ),
+    },
+  ], [handleUndoSold]);
+
+  const renderSoldMobileCard = useCallback((item: SoldItem): ReactNode => {
+    return (
+      <div className={styles.mobileCard}>
+        <div className={styles.mobileCardTop}>
+          {item.imageUrl && (
+            <img src={item.imageUrl} alt={item.name} className={styles.itemImage} loading="lazy" width={48} height={36} />
+          )}
+          <div className={styles.mobileCardInfo}>
+            <div className={styles.itemName}>{item.name}</div>
+            {item.exterior && <div className={styles.itemExterior}>{item.exterior}</div>}
+          </div>
+          <SoldActionMenu item={item} onUndoSold={handleUndoSold} />
+        </div>
+        <div className={styles.mobileCardMetrics}>
+          <div className={styles.mobileCardMetric}>
+            <span className={styles.mobileCardLabel}>Cost</span>
+            <span className={styles.priceCell}>
+              {item.acquiredPrice != null ? `$${item.acquiredPrice.toFixed(2)}` : "\u2014"}
+            </span>
+          </div>
+          <div className={styles.mobileCardMetric}>
+            <span className={styles.mobileCardLabel}>Sold</span>
+            <span className={styles.priceCell}>
+              {item.soldPrice != null ? `$${item.soldPrice.toFixed(2)}` : "\u2014"}
+            </span>
+          </div>
+          <div className={styles.mobileCardMetric}>
+            <span className={styles.mobileCardLabel}>P&L</span>
+            <span className={item.realizedPnl > 0 ? styles.pnlPositive : item.realizedPnl < 0 ? styles.pnlNegative : styles.pnlNeutral}>
+              {item.realizedPnl >= 0 ? "+" : ""}${item.realizedPnl.toFixed(2)}
+            </span>
+          </div>
+          <div className={styles.mobileCardMetric}>
+            <span className={styles.mobileCardLabel}>Date</span>
+            <span>{item.soldAt ? new Date(item.soldAt).toLocaleDateString() : "\u2014"}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }, [handleUndoSold]);
+
   if (loading) {
     return (
       <div className={styles.loadingState}>
@@ -720,6 +1109,10 @@ export default function PortfolioPage() {
     ? (portfolio?.filteredCount ?? portfolio?.itemCount ?? 0)
     : (portfolio?.itemCount ?? 0);
 
+  const realizedPnL = soldData?.totalRealizedPnL ?? 0;
+  const unrealizedPnL = totals?.unrealizedPnL ?? 0;
+  const totalPnL = unrealizedPnL + realizedPnL;
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -730,110 +1123,209 @@ export default function PortfolioPage() {
           </p>
         </div>
         <div className={styles.headerActions}>
-          <button
-            type="button"
-            onClick={() => handleRefreshPrices()}
-            disabled={refreshingPrices}
-            className={styles.refreshButton}
-          >
-            {refreshingPrices ? "Refreshing..." : "Refresh Prices"}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSync()}
-            disabled={syncing}
-            className={styles.syncButton}
-          >
-            {syncing ? "Syncing..." : "Sync from Steam"}
-          </button>
+          {activeTab === "active" && (
+            <>
+              <button
+                type="button"
+                onClick={() => handleRefreshPrices()}
+                disabled={refreshingPrices}
+                className={styles.refreshButton}
+              >
+                {refreshingPrices ? "Refreshing..." : "Refresh Prices"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSync()}
+                disabled={syncing}
+                className={styles.syncButton}
+              >
+                {syncing ? "Syncing..." : "Sync from Steam"}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      <PortfolioFilters
-        category={categoryFilter}
-        rarity={rarityFilter}
-        search={searchFilter}
-        price={priceFilter}
-        filterOptions={portfolio?.filterOptions}
-        itemCount={itemCount}
-        onChange={handleFilterChange}
-        onClear={handleClearFilters}
-      />
+      <div className={styles.tabBar} role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "active"}
+          className={`${styles.tabButton} ${activeTab === "active" ? styles.tabButtonActive : ""}`}
+          onClick={() => setActiveTab("active")}
+        >
+          Active
+          {portfolio && portfolio.itemCount > 0 && (
+            <span className={styles.tabBadge}>{portfolio.itemCount}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "sold"}
+          className={`${styles.tabButton} ${activeTab === "sold" ? styles.tabButtonActive : ""}`}
+          onClick={() => setActiveTab("sold")}
+        >
+          Sold
+          {soldData && soldData.soldCount > 0 && (
+            <span className={styles.tabBadge}>{soldData.soldCount}</span>
+          )}
+        </button>
+      </div>
 
-      {isEmpty ? (
-        <div className={`${styles.emptyState} card`}>
-          <div className={styles.emptyIcon}><FaBoxOpen /></div>
-          <h3 className={styles.emptyTitle}>No inventory items yet</h3>
-          <p className={styles.emptyDescription}>
-            Sync your Steam CS2 inventory to start tracking your portfolio value and profit/loss.
-          </p>
-          <button
-            type="button"
-            onClick={() => handleSync()}
-            disabled={syncing}
-            className={styles.syncButton}
-          >
-            Sync from Steam
-          </button>
-        </div>
-      ) : (
+      {activeTab === "active" && (
         <>
-          <div className={`${styles.summarySection}${summaryExpanded ? ` ${styles.summarySectionExpanded}` : ""}`}>
-            <button
-              type="button"
-              className={styles.summaryToggle}
-              onClick={() => setSummaryExpanded((prev) => !prev)}
-              aria-expanded={summaryExpanded}
-            >
-              <span className={styles.summaryToggleLeft}>
-                <FaChartPie className={styles.summaryToggleIcon} />
-                <span>Summary</span>
-              </span>
-              <span className={styles.summaryToggleRight}>
-                <span className={styles.summaryToggleValue}>
-                  ${totals?.totalCurrentValue?.toFixed(2) ?? '0.00'}
-                </span>
-                {(totals?.totalAcquiredValue ?? 0) > 0 && (
-                  <span className={(totals?.unrealizedPnL ?? 0) >= 0 ? styles.pnlPositive : styles.pnlNegative}>
-                    {(totals?.unrealizedPnL ?? 0) >= 0 ? "+" : ""}{totals?.unrealizedPnLPercent?.toFixed(1) ?? '0.0'}%
+          <PortfolioFilters
+            category={categoryFilter}
+            rarity={rarityFilter}
+            search={searchFilter}
+            price={priceFilter}
+            filterOptions={portfolio?.filterOptions}
+            itemCount={itemCount}
+            onChange={handleFilterChange}
+            onClear={handleClearFilters}
+          />
+
+          {isEmpty ? (
+            <div className={`${styles.emptyState} card`}>
+              <div className={styles.emptyIcon}><FaBoxOpen /></div>
+              <h3 className={styles.emptyTitle}>No inventory items yet</h3>
+              <p className={styles.emptyDescription}>
+                Sync your Steam CS2 inventory to start tracking your portfolio value and profit/loss.
+              </p>
+              <button
+                type="button"
+                onClick={() => handleSync()}
+                disabled={syncing}
+                className={styles.syncButton}
+              >
+                Sync from Steam
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className={`${styles.summarySection}${summaryExpanded ? ` ${styles.summarySectionExpanded}` : ""}`}>
+                <button
+                  type="button"
+                  className={styles.summaryToggle}
+                  onClick={() => setSummaryExpanded((prev) => !prev)}
+                  aria-expanded={summaryExpanded}
+                >
+                  <span className={styles.summaryToggleLeft}>
+                    <FaChartPie className={styles.summaryToggleIcon} />
+                    <span>Summary</span>
                   </span>
-                )}
-                <FaChevronDown className={`${styles.summaryChevron}${summaryExpanded ? ` ${styles.summaryChevronOpen}` : ""}`} />
-              </span>
-            </button>
+                  <span className={styles.summaryToggleRight}>
+                    <span className={styles.summaryToggleValue}>
+                      ${totals?.totalCurrentValue?.toFixed(2) ?? '0.00'}
+                    </span>
+                    {(totals?.totalAcquiredValue ?? 0) > 0 && (
+                      <span className={(totals?.unrealizedPnL ?? 0) >= 0 ? styles.pnlPositive : styles.pnlNegative}>
+                        {(totals?.unrealizedPnL ?? 0) >= 0 ? "+" : ""}{totals?.unrealizedPnLPercent?.toFixed(1) ?? '0.0'}%
+                      </span>
+                    )}
+                    <FaChevronDown className={`${styles.summaryChevron}${summaryExpanded ? ` ${styles.summaryChevronOpen}` : ""}`} />
+                  </span>
+                </button>
+                <div className={styles.summaryRow}>
+                  <StatCard
+                    label="Total Value"
+                    value={`$${totals?.totalCurrentValue?.toFixed(2) ?? '0.00'}`}
+                    prefix=""
+                  />
+                  <StatCard
+                    label="Cost Basis"
+                    value={(totals?.totalAcquiredValue ?? 0) > 0 ? `$${totals?.totalAcquiredValue?.toFixed(2) ?? '0.00'}` : "\u2014"}
+                  />
+                  <StatCard
+                    label="Unrealized P&L"
+                    value={(totals?.totalAcquiredValue ?? 0) > 0 ? `${unrealizedPnL >= 0 ? "+" : ""}$${unrealizedPnL.toFixed(2)}` : "\u2014"}
+                    change={totals?.unrealizedPnLPercent ?? 0}
+                    prefix=""
+                  />
+                  <StatCard
+                    label="Realized P&L"
+                    value={realizedPnL !== 0 ? `${realizedPnL >= 0 ? "+" : ""}$${realizedPnL.toFixed(2)}` : "\u2014"}
+                    change={soldData?.realizedPnLPercent ?? 0}
+                    prefix=""
+                  />
+                  <StatCard
+                    label="Total P&L"
+                    value={(totals?.totalAcquiredValue ?? 0) > 0 || realizedPnL !== 0
+                      ? `${totalPnL >= 0 ? "+" : ""}$${totalPnL.toFixed(2)}`
+                      : "\u2014"}
+                    prefix=""
+                  />
+                </div>
+              </div>
+
+              <div className={styles.inventoryTable}>
+                <DataTable
+                  columns={columns}
+                  data={portfolio?.items || []}
+                  isLoading={loading}
+                  emptyMessage="No items match your filters"
+                  mobileCardRenderer={renderMobileCard}
+                />
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {activeTab === "sold" && (
+        <>
+          {soldData && soldData.soldCount > 0 && (
             <div className={styles.summaryRow}>
               <StatCard
-                label="Total Value"
-                value={`$${totals?.totalCurrentValue?.toFixed(2) ?? '0.00'}`}
+                label="Total Sold Value"
+                value={`$${soldData.totalSoldValue.toFixed(2)}`}
                 prefix=""
               />
               <StatCard
                 label="Cost Basis"
-                value={(totals?.totalAcquiredValue ?? 0) > 0 ? `$${totals?.totalAcquiredValue?.toFixed(2) ?? '0.00'}` : "\u2014"}
+                value={soldData.totalAcquiredValue > 0 ? `$${soldData.totalAcquiredValue.toFixed(2)}` : "\u2014"}
               />
               <StatCard
-                label="Unrealized P&L"
-                value={(totals?.totalAcquiredValue ?? 0) > 0 ? `${(totals?.unrealizedPnL ?? 0) >= 0 ? "+" : ""}$${totals?.unrealizedPnL?.toFixed(2) ?? '0.00'}` : "\u2014"}
-                change={totals?.unrealizedPnLPercent ?? 0}
+                label="Realized P&L"
+                value={`${soldData.totalRealizedPnL >= 0 ? "+" : ""}$${soldData.totalRealizedPnL.toFixed(2)}`}
+                change={soldData.realizedPnLPercent}
                 prefix=""
               />
               <StatCard
-                label="Items"
-                value={itemCount}
+                label="Items Sold"
+                value={soldData.soldCount}
               />
             </div>
-          </div>
+          )}
 
           <div className={styles.inventoryTable}>
-            <DataTable
-              columns={columns}
-              data={portfolio?.items || []}
-              isLoading={loading}
-              emptyMessage="No items match your filters"
-              mobileCardRenderer={renderMobileCard}
-            />
+            {soldLoading ? (
+              <div className={styles.loadingState}>
+                <div className={styles.loadingContent}>
+                  <div className={styles.loadingIcon}><FaSpinner style={{ animation: "spin 1s linear infinite" }} /></div>
+                  <div>Loading sold items...</div>
+                </div>
+              </div>
+            ) : (
+              <DataTable
+                columns={soldColumns}
+                data={soldData?.items || []}
+                isLoading={false}
+                emptyMessage="No sold items yet. Mark items as sold from the Active tab."
+                mobileCardRenderer={renderSoldMobileCard}
+              />
+            )}
           </div>
         </>
+      )}
+
+      {sellModalItem && (
+        <MarkAsSoldModal
+          item={sellModalItem}
+          onClose={() => setSellModalItem(null)}
+          onConfirm={handleMarkAsSold}
+        />
       )}
 
       {fallbackInfo && (

@@ -20,6 +20,7 @@ const ChatRequestSchema = z.object({
         imageBase64: z.string().max(MAX_IMAGE_BASE64_LENGTH).optional()
     })).min(1).max(MAX_MESSAGES),
     provider: z.enum(["gemini-pro", "gemini-flash", "openai"]).optional(),
+    sessionId: z.string().optional(),
 });
 
 initAIProviders();
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { messages, provider } = ChatRequestSchema.parse(body);
+        const { messages, provider, sessionId } = ChatRequestSchema.parse(body);
 
         // Validate latest user message length (assistant messages in history can be longer)
         const lastMsg = messages[messages.length - 1];
@@ -73,11 +74,26 @@ export async function POST(request: NextRequest) {
         await prisma.chatMessage.create({
             data: {
                 userId,
+                sessionId: sessionId ?? undefined,
                 role: "user",
                 content: latestUserMessage.content,
                 metadata: hasImage ? JSON.stringify({ hasImage: true }) : undefined,
             }
         });
+
+        if (sessionId) {
+            const sessionMsgCount = await prisma.chatMessage.count({
+                where: { sessionId, role: "user" },
+            });
+            const updateData: { updatedAt: Date; title?: string } = { updatedAt: new Date() };
+            if (sessionMsgCount === 1) {
+                updateData.title = latestUserMessage.content.slice(0, 80) || "New Chat";
+            }
+            await prisma.chatSession.update({
+                where: { id: sessionId },
+                data: updateData,
+            }).catch(() => {});
+        }
 
         const context = await buildMarketContext(userId, latestUserMessage.content);
         context.userQuery = latestUserMessage.content;
@@ -103,6 +119,7 @@ export async function POST(request: NextRequest) {
                         await prisma.chatMessage.create({
                             data: {
                                 userId,
+                                sessionId: sessionId ?? undefined,
                                 role: "assistant",
                                 content: fullAssistantResponse,
                                 metadata: JSON.stringify({ provider: preferredProvider }),

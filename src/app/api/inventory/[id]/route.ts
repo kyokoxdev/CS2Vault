@@ -9,8 +9,8 @@ import { z } from "zod";
 import { requireAuth } from "@/lib/auth/guard";
 
 const UpdateSchema = z.object({
-    acquiredPrice: z.number().min(0).optional(),
-    soldPrice: z.number().min(0).optional(),
+    acquiredPrice: z.number().min(0).optional().nullable(),
+    soldPrice: z.number().min(0).optional().nullable(),
     soldAt: z.string().datetime().optional().nullable(),
 });
 
@@ -37,8 +37,12 @@ export async function PATCH(
         const updated = await prisma.inventoryItem.update({
             where: { id },
             data: {
-                acquiredPrice: data.acquiredPrice ?? existing.acquiredPrice,
-                soldPrice: data.soldPrice ?? existing.soldPrice,
+                acquiredPrice: data.acquiredPrice !== undefined
+                    ? data.acquiredPrice
+                    : existing.acquiredPrice,
+                soldPrice: data.soldPrice !== undefined
+                    ? data.soldPrice
+                    : existing.soldPrice,
                 soldAt: data.soldAt !== undefined
                     ? (data.soldAt ? new Date(data.soldAt) : null)
                     : existing.soldAt,

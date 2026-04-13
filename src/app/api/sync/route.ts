@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/guard";
 import { initializeMarketProviders } from "@/lib/market/init";
 import { runSync, getRecentSyncLogs, getLatestPriceUpdate } from "@/lib/market/sync";
+import { prisma } from "@/lib/db";
 import type { MarketSource } from "@/types";
 
 function getRequestSearchParams(request: NextRequest): URLSearchParams {
@@ -22,6 +23,21 @@ function getRequestSearchParams(request: NextRequest): URLSearchParams {
 async function runPriceSync(overrideSource?: MarketSource) {
     await initializeMarketProviders();
     return runSync(overrideSource);
+}
+
+const SOLD_ITEM_RETENTION_DAYS = 60;
+
+async function cleanupOldSoldItems() {
+    const cutoff = new Date(Date.now() - SOLD_ITEM_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const result = await prisma.inventoryItem.deleteMany({
+        where: {
+            soldAt: { not: null, lt: cutoff },
+        },
+    });
+    if (result.count > 0) {
+        console.log(`[Sync Cleanup] Deleted ${result.count} sold items older than ${SOLD_ITEM_RETENTION_DAYS} days`);
+    }
+    return result.count;
 }
 
 export async function POST(request: NextRequest) {
@@ -68,12 +84,15 @@ export async function GET(request: NextRequest) {
         }
 
         if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
-            const syncResult = await runPriceSync();
+            const [syncResult, cleanedCount] = await Promise.all([
+                runPriceSync(),
+                cleanupOldSoldItems(),
+            ]);
 
             return NextResponse.json(
                 {
                     success: syncResult.status !== "failed",
-                    data: { sync: syncResult },
+                    data: { sync: syncResult, soldItemsCleaned: cleanedCount },
                 },
                 { status: syncResult.status === "failed" ? 500 : 200 }
             );

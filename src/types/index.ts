@@ -65,10 +65,19 @@ export interface ChatMessageData {
 export interface MarketContext {
     topGainers: { name: string; changePercent: number; price: number }[];
     topLosers: { name: string; changePercent: number; price: number }[];
+    marketOverview?: {
+        totalMarketCap: number;
+        trackedItemCount: number;
+        watchlistCount: number;
+        priceSource: string;
+        lastSyncAge?: string;
+    };
     portfolioSummary?: {
         totalValue: number;
         unrealizedPnL: number;
+        realizedPnL: number;
         itemCount: number;
+        soldCount: number;
     };
     inventory?: {
         name: string;
@@ -76,13 +85,37 @@ export interface MarketContext {
         currentPrice: number;
         acquiredPrice: number;
         pnl: number;
+        rarity?: string;
+        exterior?: string;
+    }[];
+    watchlist?: {
+        name: string;
+        currentPrice: number;
+        changePercent: number;
+        rarity?: string;
+    }[];
+    soldItems?: {
+        name: string;
+        acquiredPrice: number;
+        soldPrice: number;
+        realizedPnl: number;
+        soldAt: string;
     }[];
     contextError?: boolean;
     targetedItemData?: {
         name: string;
         currentPrice: number;
+        rarity?: string;
+        exterior?: string;
+        category?: string;
         history30Days: { date: string, price: number }[];
+        ohlcv7Days?: { date: string; open: number; high: number; low: number; close: number; volume: number }[];
     };
+    newsHeadlines?: {
+        title: string;
+        source: string;
+        date: string;
+    }[];
     userQuery: string;
 }
 

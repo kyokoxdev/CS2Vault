@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { FaRobot, FaTimes, FaPlus, FaArrowRight, FaStop } from "react-icons/fa";
 import styles from "./AIChat.module.css";
@@ -13,9 +13,22 @@ const MAX_IMAGE_SIZE_MB = 5;
 const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 const MAX_CONTEXT_MESSAGES = 30;
 
+const WELCOME_MESSAGE: ChatMessageData = {
+    role: "assistant",
+    content: "Hello! I am your CS2 Market Agent.\nAsk me about your portfolio, market movers, or item prices.",
+};
+
 type ChatMessage = ChatMessageData & {
     id: string;
 };
+
+interface ChatSessionData {
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    _count?: { messages: number };
+}
 
 function createChatMessage(message: ChatMessageData): ChatMessage {
     return {
@@ -25,6 +38,10 @@ function createChatMessage(message: ChatMessageData): ChatMessage {
 }
 
 export default function AIChat() {
+    const [sessions, setSessions] = useState<ChatSessionData[]>([]);
+    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+    const [sessionsLoading, setSessionsLoading] = useState(true);
+
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -34,34 +51,62 @@ export default function AIChat() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const streamAbortControllerRef = useRef<AbortController | null>(null);
     const isMountedRef = useRef(true);
-    const [historyLoading, setHistoryLoading] = useState(true);
+    const [historyLoading, setHistoryLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const tabsContainerRef = useRef<HTMLDivElement>(null);
+
+    const loadHistory = useCallback(async (sessionId: string) => {
+        setHistoryLoading(true);
+        try {
+            const res = await fetch(`/api/chat/history?sessionId=${sessionId}`);
+            const data = await res.json();
+            if (data.success && data.data && data.data.length > 0) {
+                setMessages(data.data.map((m: { role: string; content: string }) => createChatMessage({
+                    role: m.role as "user" | "assistant",
+                    content: m.content,
+                })));
+            } else {
+                setMessages([createChatMessage(WELCOME_MESSAGE)]);
+            }
+        } catch {
+            setMessages([createChatMessage({
+                role: "assistant",
+                content: "Hello! I am your CS2 Market Agent.\nNote: Could not load chat history. You can still start a new conversation.",
+            })]);
+        } finally {
+            setHistoryLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        setHistoryLoading(true);
-        fetch("/api/chat/history")
+        setSessionsLoading(true);
+        fetch("/api/chat/sessions")
             .then(res => res.json())
-            .then(data => {
+            .then(async (data) => {
                 if (data.success && data.data && data.data.length > 0) {
-                    setMessages(data.data.map((m: { role: string; content: string }) => createChatMessage({
-                        role: m.role as "user" | "assistant",
-                        content: m.content
-                    })));
+                    setSessions(data.data);
+                    const firstSession = data.data[0];
+                    setActiveSessionId(firstSession.id);
+                    await loadHistory(firstSession.id);
                 } else {
-                    setMessages([createChatMessage({
-                        role: "assistant",
-                        content: "Hello! I am your CS2 Market Agent.\nAsk me about your portfolio, market movers, or item prices."
-                    })]);
+                    const createRes = await fetch("/api/chat/sessions", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ title: "New Chat" }),
+                    });
+                    const createData = await createRes.json();
+                    if (createData.success) {
+                        setSessions([createData.data]);
+                        setActiveSessionId(createData.data.id);
+                        setMessages([createChatMessage(WELCOME_MESSAGE)]);
+                    }
                 }
             })
             .catch(() => {
-                setMessages([createChatMessage({
-                    role: "assistant",
-                    content: "Hello! I am your CS2 Market Agent.\nNote: Could not load chat history. You can still start a new conversation."
-                })]);
+                setMessages([createChatMessage(WELCOME_MESSAGE)]);
             })
-            .finally(() => setHistoryLoading(false));
-    }, []);
+            .finally(() => setSessionsLoading(false));
+    }, [loadHistory]);
 
     useEffect(() => {
         return () => {
@@ -76,13 +121,76 @@ export default function AIChat() {
         }
     }, [messages]);
 
+    const handleSwitchSession = async (sessionId: string) => {
+        if (sessionId === activeSessionId || isLoading) return;
+        streamAbortControllerRef.current?.abort();
+        setActiveSessionId(sessionId);
+        setInput("");
+        setAttachedImage(null);
+        setError(null);
+        await loadHistory(sessionId);
+    };
+
+    const handleNewChat = async () => {
+        if (isLoading) return;
+        try {
+            const res = await fetch("/api/chat/sessions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title: "New Chat" }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setSessions(prev => [data.data, ...prev]);
+                setActiveSessionId(data.data.id);
+                setMessages([createChatMessage(WELCOME_MESSAGE)]);
+                setInput("");
+                setAttachedImage(null);
+                setError(null);
+                requestAnimationFrame(() => {
+                    tabsContainerRef.current?.scrollTo({ left: 0, behavior: "smooth" });
+                });
+            }
+        } catch {
+            setError("Failed to create new chat session.");
+        }
+    };
+
+    const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
+        e.stopPropagation();
+        if (isLoading) return;
+
+        try {
+            const res = await fetch(`/api/chat/sessions/${sessionId}`, { method: "DELETE" });
+            const data = await res.json();
+            if (!data.success) return;
+
+            const remaining = sessions.filter(s => s.id !== sessionId);
+
+            if (remaining.length === 0) {
+                await handleNewChat();
+                return;
+            }
+
+            setSessions(remaining);
+
+            if (activeSessionId === sessionId) {
+                const nextSession = remaining[0];
+                setActiveSessionId(nextSession.id);
+                await loadHistory(nextSession.id);
+            }
+        } catch {
+            setError("Failed to delete chat session.");
+        }
+    };
+
     const handleStop = () => {
         streamAbortControllerRef.current?.abort();
     };
 
     const handleSubmit = async (e?: React.FormEvent) => {
         e?.preventDefault();
-        if ((!input.trim() && !attachedImage) || isLoading) return;
+        if ((!input.trim() && !attachedImage) || isLoading || !activeSessionId) return;
 
         streamAbortControllerRef.current?.abort();
         const controller = new AbortController();
@@ -101,21 +209,27 @@ export default function AIChat() {
         setAttachedImage(null);
         setIsLoading(true);
 
+        const isFirstMessage = messages.length <= 1 && messages[0]?.role === "assistant";
+        if (isFirstMessage) {
+            const newTitle = userMessagePayload.content.slice(0, 80) || "New Chat";
+            setSessions(prev => prev.map(s =>
+                s.id === activeSessionId ? { ...s, title: newTitle } : s
+            ));
+        }
+
         try {
-            // Cap context window and strip imageBase64 from historical messages
             const contextMessages = [...messages, userMessagePayload]
                 .slice(-MAX_CONTEXT_MESSAGES)
                 .map(({ role, content, imageBase64 }, idx, arr) => ({
                     role,
                     content,
-                    // Only include imageBase64 on the latest user message
                     ...(idx === arr.length - 1 && imageBase64 ? { imageBase64 } : {}),
                 }));
 
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ messages: contextMessages, provider }),
+                body: JSON.stringify({ messages: contextMessages, provider, sessionId: activeSessionId }),
                 signal: controller.signal,
             });
 
@@ -232,8 +346,46 @@ export default function AIChat() {
                 </div>
             </div>
 
+            <div className={styles.tabBar} role="tablist" aria-label="Chat sessions">
+                <div className={styles.tabsScroll} ref={tabsContainerRef}>
+                    {!sessionsLoading && sessions.map((s) => (
+                        <button
+                            key={s.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={s.id === activeSessionId}
+                            className={`${styles.tab} ${s.id === activeSessionId ? styles.tabActive : ""}`}
+                            onClick={() => handleSwitchSession(s.id)}
+                            title={s.title}
+                        >
+                            <span className={styles.tabTitle}>{s.title}</span>
+                            {sessions.length > 1 && (
+                                <button
+                                    type="button"
+                                    className={styles.tabClose}
+                                    onClick={(e) => handleDeleteSession(e, s.id)}
+                                    aria-label={`Delete ${s.title}`}
+                                >
+                                    <FaTimes />
+                                </button>
+                            )}
+                        </button>
+                    ))}
+                </div>
+                <button
+                    type="button"
+                    className={styles.newChatBtn}
+                    onClick={handleNewChat}
+                    disabled={isLoading}
+                    aria-label="New chat"
+                    title="New chat"
+                >
+                    <FaPlus />
+                </button>
+            </div>
+
             <div className={styles.messages} role="log" aria-live="polite" aria-busy={isLoading}>
-                {historyLoading && (
+                {(historyLoading || sessionsLoading) && (
                     <div className={styles.historyLoading}>
                         <div className={styles.dot} aria-hidden="true"></div>
                         <div className={styles.dot} aria-hidden="true"></div>
@@ -241,7 +393,7 @@ export default function AIChat() {
                         <span className={styles.loadingText}>Loading chat history...</span>
                     </div>
                 )}
-                {!historyLoading && messages.map((msg) => (
+                {!historyLoading && !sessionsLoading && messages.map((msg) => (
                     <div
                         key={msg.id}
                         className={`${styles.message} ${msg.role === 'user' ? styles.messageUser : styles.messageAssistant}`}
@@ -254,12 +406,12 @@ export default function AIChat() {
                 ))}
 
                 {isLoading && messages[messages.length - 1]?.content === "" && (
-                    <div role="status" aria-live="polite" className={styles.messageLoading}>
+                    <output aria-live="polite" className={styles.messageLoading}>
                         <div className={styles.dot} aria-hidden="true"></div>
                         <div className={styles.dot} aria-hidden="true"></div>
                         <div className={styles.dot} aria-hidden="true"></div>
                         <span className={styles.loadingText}>Fetching market context...</span>
-                    </div>
+                    </output>
                 )}
                 <div ref={messagesEndRef} />
             </div>

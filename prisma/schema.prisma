@@ -14,6 +14,7 @@ model User {
   avatarUrl      String?
   createdAt      DateTime        @default(now())
   lastLogin      DateTime        @default(now())
+  chatSessions   ChatSession[]
   chatMessages   ChatMessage[]
   inventoryItems InventoryItem[]
 }
@@ -85,16 +86,31 @@ model InventoryItem {
   @@index([userId])
 }
 
-model ChatMessage {
-  id        String   @id @default(cuid())
+model ChatSession {
+  id        String        @id @default(cuid())
   userId    String
+  title     String        @default("New Chat")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @default(now())
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model ChatMessage {
+  id        String       @id @default(cuid())
+  userId    String
+  sessionId String?
   role      String
   content   String
   metadata  String?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session   ChatSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([sessionId, createdAt])
 }
 
 model SyncLog {
