@@ -210,6 +210,6 @@ NODE_OPTIONS=--max-old-space-size=4096 npm run build
 
 ## License
 
-MIT © [kyokoxdev](https://github.com/kyokoxdev)
+GPL v3
 
 </div>
