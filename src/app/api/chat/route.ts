@@ -7,17 +7,42 @@ import { buildMarketContext } from "@/lib/ai/context";
 import { z } from "zod";
 import type { ChatMessageData, AIProviderName } from "@/types";
 
+const MAX_CONTENT_LENGTH = 4000;
+const MAX_IMAGE_BASE64_LENGTH = 7_000_000; // ~5MB in base64
+const MAX_MESSAGES = 50;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 10;
+
 const ChatRequestSchema = z.object({
     messages: z.array(z.object({
         role: z.enum(["user", "assistant"]),
-        content: z.string().min(1),
-        imageBase64: z.string().optional()
-    })).min(1),
+        content: z.string().min(1).max(MAX_CONTENT_LENGTH),
+        imageBase64: z.string().max(MAX_IMAGE_BASE64_LENGTH).optional()
+    })).min(1).max(MAX_MESSAGES),
     provider: z.enum(["gemini-pro", "gemini-flash", "openai"]).optional(),
 });
 
-// Initialize providers exactly once
 initAIProviders();
+
+// Per-user rate limiting (in-memory, resets on cold start)
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(userId: string): boolean {
+    const now = Date.now();
+    const entry = rateLimitMap.get(userId);
+
+    if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+        rateLimitMap.set(userId, { count: 1, windowStart: now });
+        return true;
+    }
+
+    if (entry.count >= RATE_LIMIT_MAX_REQUESTS) {
+        return false;
+    }
+
+    entry.count++;
+    return true;
+}
 
 export async function POST(request: NextRequest) {
     try {
@@ -26,34 +51,35 @@ export async function POST(request: NextRequest) {
 
         const userId = session.user.id;
 
+        if (!checkRateLimit(userId)) {
+            return new Response("Rate limit exceeded. Please wait a moment before sending another message.", { status: 429 });
+        }
+
         const body = await request.json();
         const { messages, provider } = ChatRequestSchema.parse(body);
 
-        // Get preferred provider from settings
         const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
-        const preferredProvider = (provider as AIProviderName) || (settings?.activeAIProvider as AIProviderName) || "gemini-pro";
+        const preferredProvider = (provider ?? settings?.activeAIProvider ?? "gemini-pro") as AIProviderName;
 
         const latestUserMessage = messages[messages.length - 1];
+        const hasImage = !!latestUserMessage.imageBase64;
 
-        // Persist user's latest message IMMEDIATELY (history is already loaded via client)
         await prisma.chatMessage.create({
             data: {
                 userId,
                 role: "user",
                 content: latestUserMessage.content,
+                metadata: hasImage ? JSON.stringify({ hasImage: true }) : undefined,
             }
         });
 
-        // Build context
         const context = await buildMarketContext(userId, latestUserMessage.content);
         context.userQuery = latestUserMessage.content;
 
-        // Get the async generator from our registry
         const aiGenerator = await chatWithFallback(preferredProvider, messages as ChatMessageData[], context);
 
         const encoder = new TextEncoder();
 
-        // Create a ReadableStream that consumes the async generator
         const stream = new ReadableStream({
             async start(controller) {
                 let fullAssistantResponse = "";
@@ -67,13 +93,13 @@ export async function POST(request: NextRequest) {
                     controller.enqueue(encoder.encode("\n\n*Error: An issue occurred while generating the response.*"));
                 } finally {
                     controller.close();
-                    // Persist the full assistant message after stream ends!
                     if (fullAssistantResponse.trim()) {
                         await prisma.chatMessage.create({
                             data: {
                                 userId,
                                 role: "assistant",
                                 content: fullAssistantResponse,
+                                metadata: JSON.stringify({ provider: preferredProvider }),
                             }
                         }).catch(e => console.error("Failed to persist assistant message", e));
                     }
