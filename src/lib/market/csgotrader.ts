@@ -1,4 +1,4 @@
-import type { CSGOTraderSubProvider, MarketDataProvider, PriceData, RateLimitConfig } from "@/types";
+import type { BulkPriceFetchOptions, CSGOTraderSubProvider, MarketDataProvider, PriceData, RateLimitConfig } from "@/types";
 import { csgotraderQueue } from "@/lib/api-queue";
 import { prisma } from "@/lib/db";
 import {
@@ -93,7 +93,7 @@ export const csgotraderProvider: MarketDataProvider = {
         };
     },
 
-    async fetchBulkPrices(items: string[]): Promise<Map<string, PriceData>> {
+    async fetchBulkPrices(items: string[], _options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>> {
         const result = new Map<string, PriceData>();
         const subProvider = await getSubProvider();
         const prices = await getCachedPrices(subProvider);

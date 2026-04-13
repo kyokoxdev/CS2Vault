@@ -37,6 +37,7 @@ export interface PriceWriteOptions {
     allowSteamLimit?: boolean;
     allowFallback?: boolean;
     skipCandleAggregation?: boolean;
+    bulkOnly?: boolean;
 }
 
 export interface PriceWriteChunkProgress {
@@ -308,7 +309,7 @@ export async function writePriceSnapshotsForItems(
     }
     let prices: Map<string, PriceData>;
     try {
-        prices = await provider.fetchBulkPrices(hashNames);
+        prices = await provider.fetchBulkPrices(hashNames, { bulkOnly: options.bulkOnly });
     } catch (error) {
         if (options.allowFallback && provider.name !== "steam") {
             provider = getMarketProvider("steam");
@@ -331,7 +332,7 @@ export async function writePriceSnapshotsForItems(
                     fallbackAvailable: false,
                 };
             }
-            prices = await provider.fetchBulkPrices(hashNames);
+            prices = await provider.fetchBulkPrices(hashNames, { bulkOnly: options.bulkOnly });
         } else {
             return {
                 totalCandidates: entries.length,
@@ -369,7 +370,7 @@ export async function writePriceSnapshotsForItems(
                     fallbackAvailable: false,
                 };
             }
-            prices = await provider.fetchBulkPrices(hashNames);
+            prices = await provider.fetchBulkPrices(hashNames, { bulkOnly: options.bulkOnly });
         } else {
             return {
                 totalCandidates: entries.length,

@@ -72,5 +72,6 @@ describe("GET /api/portfolio/prices", () => {
     expect(bodyText).toContain("event: complete");
     expect(bodyText).toContain('"completed":1');
     expect(bodyText).toContain('"pricedCount":2');
+    expect(bodyText).toContain('"skippedRecent":0');
   });
 });

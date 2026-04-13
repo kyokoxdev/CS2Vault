@@ -64,15 +64,19 @@ interface RefreshPricesOptions {
   silent?: boolean;
 }
 
-interface StreamRefreshEvent {
-  total?: number;
-  completed?: number;
-  pricedCount?: number;
-  provider?: string | null;
-  fallbackAvailable?: boolean;
-  failureReason?: string | null;
-  attemptedProvider?: string | null;
-  message?: string;
+interface PriceRefreshResponse {
+  success: boolean;
+  data?: {
+    pricedCount: number;
+    priceSource: string | null;
+    priceCoverage: { total: number; priced: number; candidates: number };
+    priceSkippedRecent: number;
+    priceLimitedTo: number | null;
+    fallbackAvailable: boolean;
+    failureReason: string | null;
+    attemptedProvider: string | null;
+  };
+  error?: string;
 }
 
 const RARITY_VARIANTS: Record<string, string> = {
@@ -180,7 +184,7 @@ function PortfolioActionMenu({
 }
 
 export default function PortfolioPage() {
-  const { addToast, updateToast, dismissToast } = useToast();
+  const { addToast, updateToast } = useToast();
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -270,160 +274,96 @@ export default function PortfolioPage() {
     const fallback = options?.fallback;
     const silent = options?.silent ?? false;
     let progressToastId: string | null = null;
-    let totalItems = 0;
-    let pricedCount = 0;
-    let completedCount = 0;
-    let firstFailureReason: string | null = null;
-    let firstFailureAttemptedProvider: string | null = null;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
 
     try {
-      const streamUrl = fallback ? `/api/portfolio/prices?fallback=${fallback}` : "/api/portfolio/prices";
+      if (!silent) {
+        progressToastId = addToast("Refreshing portfolio prices\u2026", "info", 0);
+      }
 
-      const response = await fetch(streamUrl, {
-        method: "GET",
-        headers: { Accept: "text/event-stream" },
-        cache: "no-store",
-        signal: controller.signal,
+      const url = fallback
+        ? `/api/portfolio/prices?fallback=${fallback}`
+        : "/api/portfolio/prices";
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skipCandleAggregation: true,
+          bulkOnly: true,
+        }),
+        signal: AbortSignal.timeout(30_000),
       });
 
-      if (!response.ok || !response.body) {
-        throw new Error("Failed to start portfolio price refresh");
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let streamCompleted = false;
-
-      const handleStreamEvent = (type: string, data: StreamRefreshEvent) => {
-        if (type === "start") {
-          totalItems = data.total ?? 0;
-          pricedCount = data.pricedCount ?? 0;
-          completedCount = 0;
-
-          if (!silent && totalItems > 0) {
-            progressToastId = addToast(`Refreshing all portfolio prices 0/${totalItems}`, "info", 0);
-          } else if (!silent && totalItems === 0) {
-            addToast("No portfolio items available to refresh", "info");
-          }
-          return;
-        }
-
-        if (type === "progress") {
-          completedCount = data.completed ?? completedCount;
-          pricedCount = data.pricedCount ?? pricedCount;
-          if (progressToastId) {
-            updateToast(progressToastId, {
-              message: `Refreshing all portfolio prices ${completedCount}/${totalItems || data.total || completedCount}`,
-            });
-          }
-          return;
-        }
-
-        if (type === "complete") {
-          totalItems = data.total ?? totalItems;
-          pricedCount = data.pricedCount ?? pricedCount;
-          if (!firstFailureReason && data.fallbackAvailable && data.failureReason) {
-            firstFailureReason = data.failureReason;
-            firstFailureAttemptedProvider = data.attemptedProvider ?? "unknown";
-          }
-
-          if (progressToastId) {
-            const hasFailure = pricedCount === 0 && data.failureReason;
-            updateToast(progressToastId, {
-              message: totalItems > 0
-                ? `Refreshed ${pricedCount}/${totalItems} portfolio items`
-                : "No portfolio items available to refresh",
-              variant: hasFailure ? "warning" : "success",
-              duration: 4000,
-            });
-          } else if (!silent && totalItems > 0) {
-            const hasFailure = pricedCount === 0 && data.failureReason;
-            addToast(`Refreshed ${pricedCount}/${totalItems} portfolio items`, hasFailure ? "warning" : "success");
-          }
-
-          streamCompleted = true;
-          return;
-        }
-
-        if (type === "error") {
-          throw new Error(data.message ?? "Failed to refresh portfolio prices");
-        }
-      };
-
-      while (true) {
-        const { value, done } = await reader.read();
-        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
-
-        let boundaryIndex = buffer.indexOf("\n\n");
-        while (boundaryIndex !== -1) {
-          const rawEvent = buffer.slice(0, boundaryIndex);
-          buffer = buffer.slice(boundaryIndex + 2);
-
-          const lines = rawEvent.split("\n");
-          let type = "message";
-          const dataLines: string[] = [];
-
-          for (const line of lines) {
-            if (line.startsWith("event: ")) {
-              type = line.slice(7).trim();
-            }
-            if (line.startsWith("data: ")) {
-              dataLines.push(line.slice(6));
-            }
-          }
-
-          const eventData = dataLines.length > 0
-            ? JSON.parse(dataLines.join("\n")) as StreamRefreshEvent
-            : {};
-
-          handleStreamEvent(type, eventData);
-          boundaryIndex = buffer.indexOf("\n\n");
-        }
-
-        if (done) {
-          break;
-        }
+      const payload = (await response.json()) as PriceRefreshResponse;
+      if (!payload.success || !payload.data) {
+        throw new Error(payload.error ?? "Failed to refresh portfolio prices");
       }
+
+      const { pricedCount, priceCoverage, priceSkippedRecent, fallbackAvailable, failureReason, attemptedProvider } = payload.data;
+      const total = priceCoverage.total;
 
       await fetchPortfolio({ bypassCache: true });
 
-      if (!streamCompleted && progressToastId) {
-        dismissToast(progressToastId);
+      if (progressToastId) {
+        if (priceSkippedRecent > 0 && pricedCount === 0) {
+          updateToast(progressToastId, {
+            message: "All prices are up to date",
+            variant: "success",
+            duration: 3000,
+          });
+        } else if (pricedCount > 0) {
+          updateToast(progressToastId, {
+            message: `Refreshed ${pricedCount}/${total} portfolio prices`,
+            variant: "success",
+            duration: 4000,
+          });
+        } else if (failureReason) {
+          updateToast(progressToastId, {
+            message: `Price refresh failed: ${failureReason}`,
+            variant: "warning",
+            duration: 5000,
+          });
+        } else {
+          updateToast(progressToastId, {
+            message: total === 0
+              ? "No portfolio items to refresh"
+              : `Refreshed 0/${total} portfolio prices`,
+            variant: total === 0 ? "info" : "warning",
+            duration: 4000,
+          });
+        }
       }
 
-      if (!silent && firstFailureReason) {
+      if (!silent && failureReason && fallbackAvailable) {
         setFallbackInfo({
-          failureReason: firstFailureReason,
-          attemptedProvider: firstFailureAttemptedProvider ?? "unknown",
+          failureReason,
+          attemptedProvider: attemptedProvider ?? "unknown",
           source: "prices",
         });
       }
     } catch (err) {
       if (progressToastId) {
-        if (completedCount > 0 || pricedCount > 0) {
-          updateToast(progressToastId, {
-            message: `Partially refreshed ${pricedCount}/${totalItems || completedCount} portfolio items before an error`,
-            variant: "warning",
-            duration: 5000,
-          });
-          await fetchPortfolio({ bypassCache: true });
-        } else {
-          dismissToast(progressToastId);
+        updateToast(progressToastId, {
+          message: "Price refresh failed \u2014 try again",
+          variant: "error",
+          duration: 5000,
+        });
+      }
+      if (!silent) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!progressToastId) {
+          addToast(msg, "error");
         }
       }
-
-      if (!silent) {
-        addToast(`${err}`, "error");
-      }
     } finally {
-      clearTimeout(timeoutId);
       refreshInFlightRef.current = false;
       setRefreshingPrices(false);
     }
-  }, [fetchPortfolio, addToast, updateToast, dismissToast]);
+  }, [fetchPortfolio, addToast, updateToast]);
 
   refreshRef.current = handleRefreshPrices;
 

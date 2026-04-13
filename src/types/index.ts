@@ -41,10 +41,15 @@ export interface RateLimitConfig {
     minDelayMs: number;        // Minimum ms between requests
 }
 
+export interface BulkPriceFetchOptions {
+    /** When true, only use fast bulk/CDN paths — skip individual API calls for missing items. */
+    bulkOnly?: boolean;
+}
+
 export interface MarketDataProvider {
     name: string;
     fetchItemPrice(marketHashName: string): Promise<PriceData>;
-    fetchBulkPrices(items: string[]): Promise<Map<string, PriceData>>;
+    fetchBulkPrices(items: string[], options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>>;
     fetchItemHistory?(marketHashName: string, days: number): Promise<PricePoint[]>;
     getRateLimitConfig(): RateLimitConfig;
 }

@@ -10,6 +10,8 @@ import { z } from "zod";
 
 const RefreshPortfolioPricesSchema = z.object({
     itemIds: z.array(z.string().min(1)).max(200).optional(),
+    skipCandleAggregation: z.boolean().optional(),
+    bulkOnly: z.boolean().optional(),
 });
 
 function buildPortfolioItemMap(
@@ -89,6 +91,7 @@ export async function GET(request: NextRequest) {
                         controller.enqueue(encoder.encode(createStreamEvent("complete", {
                             total: totalItems,
                             pricedCount: pricingResult.pricedCount,
+                            skippedRecent: pricingResult.skippedRecent,
                             provider: pricingResult.provider,
                             fallbackAvailable: pricingResult.fallbackAvailable,
                             failureReason: pricingResult.failureReason ?? null,
@@ -137,6 +140,8 @@ export async function POST(request: NextRequest) {
         }
 
         const requestedItemIds = parsedBody.data.itemIds;
+        const skipCandleAggregation = parsedBody.data.skipCandleAggregation ?? false;
+        const bulkOnly = parsedBody.data.bulkOnly ?? false;
 
         if (requestedItemIds && requestedItemIds.length === 0) {
             return NextResponse.json({
@@ -169,6 +174,8 @@ export async function POST(request: NextRequest) {
             minAgeMinutes: undefined,
             allowSteamLimit: true,
             allowFallback,
+            skipCandleAggregation,
+            bulkOnly,
             ...(allowFallback ? { overrideSource: "steam" } : {}),
         });
 

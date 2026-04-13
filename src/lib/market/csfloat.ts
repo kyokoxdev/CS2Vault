@@ -10,7 +10,7 @@
  * Rate limits: per-endpoint, not publicly documented — we use conservative 1 req/2s.
  */
 
-import type { MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
+import type { BulkPriceFetchOptions, MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
 import { csfloatQueue } from "@/lib/api-queue";
 import { prisma } from "@/lib/db";
 import { parseSimplePriceFormat } from "@/lib/market/csgotrader-parsers";
@@ -135,7 +135,7 @@ export const csfloatProvider: MarketDataProvider = {
         return fetchItemPriceFromApi(marketHashName);
     },
 
-    async fetchBulkPrices(items: string[]): Promise<Map<string, PriceData>> {
+    async fetchBulkPrices(items: string[], options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>> {
         const result = new Map<string, PriceData>();
         const bulkCache = await getBulkPriceCache();
         const missingItems: string[] = [];
@@ -151,6 +151,10 @@ export const csfloatProvider: MarketDataProvider = {
                 continue;
             }
             missingItems.push(marketHashName);
+        }
+
+        if (options?.bulkOnly) {
+            return result;
         }
 
         for (const marketHashName of missingItems) {

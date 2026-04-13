@@ -10,7 +10,7 @@
  * Prices are returned in USD cents.
  */
 
-import type { MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
+import type { BulkPriceFetchOptions, MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
 import { pricempireQueue } from "@/lib/api-queue";
 
 const BASE_URL = "https://api.pricempire.com";
@@ -51,7 +51,7 @@ export const pricempireProvider: MarketDataProvider = {
         };
     },
 
-    async fetchBulkPrices(items: string[]): Promise<Map<string, PriceData>> {
+    async fetchBulkPrices(items: string[], _options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>> {
         const result = new Map<string, PriceData>();
 
         // Pricempire supports bulk fetching via a single endpoint

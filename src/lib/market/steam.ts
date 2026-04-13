@@ -10,7 +10,7 @@
  * Prices returned as formatted strings ("$12.34") — parsed to float.
  */
 
-import type { MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
+import type { BulkPriceFetchOptions, MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
 import { steamQueue } from "@/lib/api-queue";
 
 const MARKET_BASE = "https://steamcommunity.com/market";
@@ -48,7 +48,9 @@ export const steamProvider: MarketDataProvider = {
             url.searchParams.set("currency", "1"); // USD
             url.searchParams.set("market_hash_name", marketHashName);
 
-            const res = await fetch(url.toString());
+            const res = await fetch(url.toString(), {
+                signal: AbortSignal.timeout(15_000),
+            });
             if (!res.ok) {
                 throw new Error(`Steam Market API error: ${res.status} ${res.statusText}`);
             }
@@ -70,7 +72,7 @@ export const steamProvider: MarketDataProvider = {
         };
     },
 
-    async fetchBulkPrices(items: string[]): Promise<Map<string, PriceData>> {
+    async fetchBulkPrices(items: string[], _options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>> {
         const result = new Map<string, PriceData>();
 
         // Steam has no bulk endpoint — must fetch one at a time.
