@@ -9,7 +9,6 @@ import { Select } from "@/components/ui/Select";
 interface AppSettings {
     activeMarketSource: string;
     activeAIProvider: string;
-    syncIntervalMin: number;
     priceRefreshIntervalMin: number;
     openAiApiKey: string;
     geminiApiKey: string;
@@ -292,23 +291,6 @@ export default function SettingsPage() {
                             placeholder="Optional. Required if Feed is CSFloat..."
                             className={styles.input}
                         />
-                    </div>
-
-                    <div className={styles.formGroup}>
-                        <label htmlFor="settings-sync-interval">
-                            <FaClock className={styles.inlineIcon} />
-                            Server Sync Interval (Minutes)
-                        </label>
-                        <input
-                            id="settings-sync-interval"
-                            type="number"
-                            min="1"
-                            max="1440"
-                            value={settings.syncIntervalMin}
-                            onChange={(e) => handleChange("syncIntervalMin", parseInt(e.target.value) || 5)}
-                            className={styles.input}
-                        />
-                        <p className={styles.helpText}>Desired background sync cadence. On Vercel Hobby, cron still only runs daily, so this mainly applies outside cron-limited environments.</p>
                     </div>
 
                     <div className={styles.formGroup}>

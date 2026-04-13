@@ -38,7 +38,6 @@ const createMockSettings = (overrides: Partial<{
     id: string;
     activeMarketSource: string;
     activeAIProvider: string;
-    syncIntervalMin: number;
     openAiApiKey: string | null;
     geminiApiKey: string | null;
     csfloatApiKey: string | null;
@@ -47,7 +46,6 @@ const createMockSettings = (overrides: Partial<{
     id: "singleton",
     activeMarketSource: "csfloat",
     activeAIProvider: "gemini-pro",
-    syncIntervalMin: 5,
     openAiApiKey: null,
     geminiApiKey: null,
     csfloatApiKey: null,
@@ -194,40 +192,11 @@ describe("Settings API", () => {
             expect(data.error).toBe("Invalid settings data");
         });
 
-        it("rejects syncIntervalMin out of range", async () => {
-            const request = new Request("http://localhost/api/settings", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ syncIntervalMin: 0 }),
-            });
-
-            const response = await PATCH(request);
-            const data = await response.json();
-
-            expect(response.status).toBe(400);
-            expect(data.error).toBe("Invalid settings data");
-        });
-
-        it("rejects syncIntervalMin above max", async () => {
-            const request = new Request("http://localhost/api/settings", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ syncIntervalMin: 1441 }),
-            });
-
-            const response = await PATCH(request);
-            const data = await response.json();
-
-            expect(response.status).toBe(400);
-            expect(data.error).toBe("Invalid settings data");
-        });
-
         it("accepts valid settings", async () => {
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
                     activeMarketSource: "csfloat",
                     activeAIProvider: "gemini-flash",
-                    syncIntervalMin: 15,
                 }) as any
             );
 
@@ -237,7 +206,6 @@ describe("Settings API", () => {
                 body: JSON.stringify({
                     activeMarketSource: "csfloat",
                     activeAIProvider: "gemini-flash",
-                    syncIntervalMin: 15,
                 }),
             });
 
@@ -247,7 +215,6 @@ describe("Settings API", () => {
             expect(response.status).toBe(200);
             expect(data.activeMarketSource).toBe("csfloat");
             expect(data.activeAIProvider).toBe("gemini-flash");
-            expect(data.syncIntervalMin).toBe(15);
         });
 
         it("accepts csgotrader as valid market source with sub-provider", async () => {

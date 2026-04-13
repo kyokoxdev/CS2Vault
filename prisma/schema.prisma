@@ -124,7 +124,6 @@ model AppSettings {
   openAiApiKey            String?
   geminiApiKey            String?
   csfloatApiKey           String?
-  syncIntervalMin         Int       @default(5)
   priceRefreshIntervalMin Int       @default(15)
   watchlistOnly           Boolean   @default(true)
   googleAccessToken       String?

@@ -10,7 +10,6 @@ const settingsSchema = z.object({
     activeMarketSource: z.enum(["pricempire", "csfloat", "csgotrader", "steam"]).optional(),
     csgotraderSubProvider: z.enum(["csgotrader", "bitskins", "steam", "csmoney", "csgotm", "lootfarm", "skinport", "csgoempire", "swapgg", "buff163", "cstrade", "csfloat", "youpin", "lisskins"]).optional(),
     activeAIProvider: z.enum(["gemini-pro", "gemini-flash", "openai"]).optional(),
-    syncIntervalMin: z.number().int().min(1).max(1440).optional(),
     priceRefreshIntervalMin: z.number().int().min(1).max(1440).optional(),
     openAiApiKey: z.string().max(256).optional(),
     geminiApiKey: z.string().max(256).optional(),
@@ -42,7 +41,6 @@ export async function GET() {
             return NextResponse.json({
                 activeMarketSource: "csfloat",
                 activeAIProvider: "gemini-pro",
-                syncIntervalMin: 5,
                 priceRefreshIntervalMin: 15,
                 csgotraderSubProvider: "csfloat",
                 openAiApiKey: maskApiKey(null, process.env.OPENAI_API_KEY),
@@ -55,7 +53,6 @@ export async function GET() {
             activeMarketSource: settings.activeMarketSource,
             csgotraderSubProvider: settings.csgotraderSubProvider ?? "csfloat",
             activeAIProvider: settings.activeAIProvider,
-            syncIntervalMin: settings.syncIntervalMin,
             priceRefreshIntervalMin: settings.priceRefreshIntervalMin ?? 15,
             openAiApiKey: maskApiKey(settings.openAiApiKey, process.env.OPENAI_API_KEY),
             geminiApiKey: maskApiKey(settings.geminiApiKey, process.env.GEMINI_API_KEY),
@@ -90,7 +87,6 @@ export async function PATCH(request: Request) {
         const {
             activeMarketSource,
             activeAIProvider,
-            syncIntervalMin,
             priceRefreshIntervalMin,
             openAiApiKey,
             geminiApiKey,
@@ -120,7 +116,6 @@ export async function PATCH(request: Request) {
             update: {
                 activeMarketSource,
                 activeAIProvider,
-                syncIntervalMin,
                 priceRefreshIntervalMin,
 				...(resolvedOpenAi !== undefined && { openAiApiKey: resolvedOpenAi }),
 				...(resolvedGemini !== undefined && { geminiApiKey: resolvedGemini }),
@@ -131,7 +126,6 @@ export async function PATCH(request: Request) {
                 id: "singleton",
                 activeMarketSource: activeMarketSource ?? "csfloat",
                 activeAIProvider: activeAIProvider ?? "gemini-pro",
-                syncIntervalMin: syncIntervalMin ?? 5,
                 priceRefreshIntervalMin: priceRefreshIntervalMin ?? 15,
 				openAiApiKey: resolvedOpenAi ?? null,
 				geminiApiKey: resolvedGemini ?? null,
@@ -150,7 +144,6 @@ export async function PATCH(request: Request) {
         return NextResponse.json({
             activeMarketSource: updated.activeMarketSource,
             activeAIProvider: updated.activeAIProvider,
-            syncIntervalMin: updated.syncIntervalMin,
             priceRefreshIntervalMin: updated.priceRefreshIntervalMin ?? 15,
             openAiApiKey: maskApiKey(updated.openAiApiKey, process.env.OPENAI_API_KEY),
             geminiApiKey: maskApiKey(updated.geminiApiKey, process.env.GEMINI_API_KEY),

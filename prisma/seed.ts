@@ -28,7 +28,6 @@ async function main() {
             id: "singleton",
             activeMarketSource: "csfloat",
             activeAIProvider: "gemini-pro",
-            syncIntervalMin: 5,
             watchlistOnly: true,
         },
     });

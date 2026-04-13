@@ -40,7 +40,6 @@ describe("SettingsPage", () => {
             json: async () => ({
                 activeMarketSource: "csfloat",
                 activeAIProvider: "gemini-pro",
-                syncIntervalMin: 5,
                 priceRefreshIntervalMin: 15,
                 openAiApiKey: "",
                 geminiApiKey: "",
@@ -63,7 +62,6 @@ describe("SettingsPage", () => {
                 json: async () => ({
                     activeMarketSource: "csfloat",
                     activeAIProvider: "gemini-pro",
-                    syncIntervalMin: 5,
                     priceRefreshIntervalMin: 15,
                     openAiApiKey: "",
                     geminiApiKey: "",

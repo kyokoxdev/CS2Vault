@@ -162,7 +162,6 @@ export interface AppSettingsData {
     activeMarketSource: MarketSource;
     csgotraderSubProvider?: CSGOTraderSubProvider;
     activeAIProvider: AIProviderName;
-    syncIntervalMin: number;
     watchlistOnly: boolean;
     googleConnected: boolean;
 }
