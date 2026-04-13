@@ -46,7 +46,9 @@ async function fetchPricesForSubProvider(
     subProvider: CSGOTraderSubProvider
 ): Promise<Map<string, number>> {
     const data = await csgotraderQueue.enqueue(async () => {
-        const res = await fetch(`${BASE_URL}/${subProvider}.json`);
+        const res = await fetch(`${BASE_URL}/${subProvider}.json`, {
+            signal: AbortSignal.timeout(15_000),
+        });
         if (!res.ok) {
             throw new Error(`CSGOTrader API error: ${res.status} ${res.statusText}`);
         }

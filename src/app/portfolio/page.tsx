@@ -275,13 +275,17 @@ export default function PortfolioPage() {
     let completedCount = 0;
     let firstFailureReason: string | null = null;
     let firstFailureAttemptedProvider: string | null = null;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
 
     try {
       const streamUrl = fallback ? `/api/portfolio/prices?fallback=${fallback}` : "/api/portfolio/prices";
+
       const response = await fetch(streamUrl, {
         method: "GET",
         headers: { Accept: "text/event-stream" },
         cache: "no-store",
+        signal: controller.signal,
       });
 
       if (!response.ok || !response.body) {
@@ -327,15 +331,17 @@ export default function PortfolioPage() {
           }
 
           if (progressToastId) {
+            const hasFailure = pricedCount === 0 && data.failureReason;
             updateToast(progressToastId, {
               message: totalItems > 0
                 ? `Refreshed ${pricedCount}/${totalItems} portfolio items`
                 : "No portfolio items available to refresh",
-              variant: "success",
+              variant: hasFailure ? "warning" : "success",
               duration: 4000,
             });
           } else if (!silent && totalItems > 0) {
-            addToast(`Refreshed ${pricedCount}/${totalItems} portfolio items`, "success");
+            const hasFailure = pricedCount === 0 && data.failureReason;
+            addToast(`Refreshed ${pricedCount}/${totalItems} portfolio items`, hasFailure ? "warning" : "success");
           }
 
           streamCompleted = true;
@@ -413,6 +419,7 @@ export default function PortfolioPage() {
         addToast(`${err}`, "error");
       }
     } finally {
+      clearTimeout(timeoutId);
       refreshInFlightRef.current = false;
       setRefreshingPrices(false);
     }

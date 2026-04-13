@@ -49,35 +49,42 @@ async function getBulkPriceCache(): Promise<Map<string, number>> {
     }
 
     // 3. Fetch from web (both in-memory and DB caches are stale/missing)
-    const res = await fetch(BULK_CACHE_URL);
-    if (!res.ok) {
-        console.warn(`[CSFloat Bulk] Failed to fetch bulk cache: ${res.status}`);
+    try {
+        const res = await fetch(BULK_CACHE_URL, {
+            signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) {
+            console.warn(`[CSFloat Bulk] Failed to fetch bulk cache: ${res.status}`);
+            return bulkPriceCache ?? new Map();
+        }
+
+        const data = await res.json();
+        bulkPriceCache = parseSimplePriceFormat(data as Record<string, { price: number | null }>);
+        bulkCacheTimestamp = now;
+
+        // 4. Persist to DB so the next cold start doesn't re-fetch
+        try {
+            await prisma.bulkPriceCache.upsert({
+                where: { id: "singleton" },
+                update: {
+                    data: JSON.stringify(data),
+                    updatedAt: new Date(now),
+                },
+                create: {
+                    id: "singleton",
+                    data: JSON.stringify(data),
+                    updatedAt: new Date(now),
+                },
+            });
+        } catch (error) {
+            console.warn("[CSFloat Bulk] Failed to persist cache to DB:", error instanceof Error ? error.message : error);
+        }
+
+        return bulkPriceCache;
+    } catch (error) {
+        console.warn("[CSFloat Bulk] CDN fetch failed or timed out:", error instanceof Error ? error.message : error);
         return bulkPriceCache ?? new Map();
     }
-
-    const data = await res.json();
-    bulkPriceCache = parseSimplePriceFormat(data as Record<string, { price: number | null }>);
-    bulkCacheTimestamp = now;
-
-    // 4. Persist to DB so the next cold start doesn't re-fetch
-    try {
-        await prisma.bulkPriceCache.upsert({
-            where: { id: "singleton" },
-            update: {
-                data: JSON.stringify(data),
-                updatedAt: new Date(now),
-            },
-            create: {
-                id: "singleton",
-                data: JSON.stringify(data),
-                updatedAt: new Date(now),
-            },
-        });
-    } catch (error) {
-        console.warn("[CSFloat Bulk] Failed to persist cache to DB:", error instanceof Error ? error.message : error);
-    }
-
-    return bulkPriceCache;
 }
 
 async function getApiKey(): Promise<string> {
@@ -146,8 +153,7 @@ export const csfloatProvider: MarketDataProvider = {
             missingItems.push(marketHashName);
         }
 
-        const fallbackItems = missingItems.slice(0, 20);
-        for (const marketHashName of fallbackItems) {
+        for (const marketHashName of missingItems) {
             try {
                 const priceData = await fetchItemPriceFromApi(marketHashName);
                 result.set(marketHashName, priceData);
@@ -169,7 +175,10 @@ export const csfloatProvider: MarketDataProvider = {
             const url = `${BASE_URL}/history/${encoded}/sales`;
 
             const headers = await makeHeaders();
-            const res = await fetch(url, { headers });
+            const res = await fetch(url, {
+                headers,
+                signal: AbortSignal.timeout(15_000),
+            });
             if (!res.ok) {
                 if (res.status === 404) return [];
                 throw new Error(`CSFloat history error: ${res.status} ${res.statusText}`);
@@ -202,7 +211,10 @@ async function fetchItemPriceFromApi(marketHashName: string): Promise<PriceData>
         url.searchParams.set("limit", "5");
 
         const headers = await makeHeaders();
-        const res = await fetch(url.toString(), { headers });
+        const res = await fetch(url.toString(), {
+            headers,
+            signal: AbortSignal.timeout(15_000),
+        });
         if (!res.ok) {
             throw new Error(`CSFloat API error: ${res.status} ${res.statusText}`);
         }
