@@ -77,7 +77,7 @@ export interface MarketContext {
         acquiredPrice: number;
         pnl: number;
     }[];
-    itemHistory?: Record<string, unknown[]>; // For general history if needed
+    contextError?: boolean;
     targetedItemData?: {
         name: string;
         currentPrice: number;

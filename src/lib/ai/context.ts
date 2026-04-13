@@ -196,6 +196,7 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
 
     } catch (e) {
         console.error("[buildMarketContext] Failed:", e);
+        context.contextError = true;
     }
 
     return context;
