@@ -364,7 +364,7 @@ export default function CandlestickChart({
             },
             rightPriceScale: {
                 borderColor: CHART_COLORS.border,
-                scaleMargins: { top: 0.08, bottom: 0.28 },
+                scaleMargins: { top: 0.08, bottom: 0.08 },
             },
             timeScale: {
                 borderColor: CHART_COLORS.border,
@@ -643,7 +643,11 @@ export default function CandlestickChart({
                 className="chart-canvas"
                 role="img"
                 aria-label={`Price chart for ${itemName ?? "item"}`}
-                style={{ display: hasChartData ? "block" : "none", height }}
+                style={{
+                    visibility: hasChartData ? "visible" : "hidden",
+                    height: hasChartData ? height : 0,
+                    overflow: "hidden",
+                }}
             />
 
             {(refreshing || notice || dataset) && (

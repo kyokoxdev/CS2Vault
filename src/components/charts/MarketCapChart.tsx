@@ -385,7 +385,11 @@ export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
                 className="chart-canvas"
                 role="img"
                 aria-label="Market cap history chart"
-                style={{ display: hasData ? "block" : "none", height }}
+                style={{
+                    visibility: hasData ? "visible" : "hidden",
+                    height: hasData ? height : 0,
+                    overflow: "hidden",
+                }}
             />
 
             {hasData && (
