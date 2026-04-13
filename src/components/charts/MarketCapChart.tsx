@@ -136,7 +136,7 @@ export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
         abortRef.current = controller;
 
         try {
-            const res = await fetch("/api/market/market-cap/history?limit=365", {
+            const res = await fetch("/api/market/market-cap/history?limit=1500", {
                 signal: controller.signal,
             });
 

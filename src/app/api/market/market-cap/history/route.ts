@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const limitParam = searchParams.get("limit");
-        const limit = Math.min(Math.max(Number(limitParam) || 365, 1), 1000);
+        const limit = Math.min(Math.max(Number(limitParam) || 1500, 1), 2000);
 
         const snapshots = await prisma.marketCapSnapshot.findMany({
             where: { provider: PROVIDER_NAME },
