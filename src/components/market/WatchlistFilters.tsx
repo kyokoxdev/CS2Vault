@@ -2,6 +2,7 @@
 
 import styles from "./WatchlistFilters.module.css";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { FaFilter, FaChevronDown } from "react-icons/fa";
 import { Select } from "@/components/ui/Select";
 
 interface WatchlistFiltersProps {
@@ -32,6 +33,7 @@ export function WatchlistFilters({
   onClear,
 }: WatchlistFiltersProps) {
   const [pendingSearch, setPendingSearch] = useState(search);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const categories = filterOptions.categories;
@@ -40,6 +42,8 @@ export function WatchlistFilters({
 
   const hasActiveFilters =
     category !== "" || rarity !== "" || search !== "" || group !== "";
+
+  const activeFilterCount = [category, rarity, search, group].filter(Boolean).length;
 
   const debouncedOnChange = useCallback(
     (value: string) => {
@@ -66,54 +70,77 @@ export function WatchlistFilters({
   }, [search]);
 
   return (
-    <div className={styles.container}>
-      <div className={styles.label}>Filters</div>
-      <Select
-        value={category}
-        onChange={(val) => onChange("category", val)}
-        options={[
-          { label: "All categories", value: "" },
-          ...categories.map((cat) => ({
-            label: cat.replace("_", " "),
-            value: cat,
-          })),
-        ]}
-        className={styles.select}
-      />
-      <Select
-        value={rarity}
-        onChange={(val) => onChange("rarity", val)}
-        options={[
-          { label: "All rarities", value: "" },
-          ...rarities.map((r) => ({ label: r, value: r })),
-        ]}
-        className={styles.select}
-      />
-      <Select
-        value={group}
-        onChange={(val) => onChange("group", val)}
-        options={[
-          { label: "All groups", value: "" },
-          ...groups.map((g) => ({ label: g.name, value: g.id })),
-        ]}
-        className={styles.select}
-      />
-      <input
-        value={pendingSearch}
-        onChange={(e) => {
-          const value = e.target.value;
-          setPendingSearch(value);
-          debouncedOnChange(value);
-        }}
-        placeholder="Search items..."
-        className={styles.input}
-        aria-label="Search watchlist items"
-      />
-      {hasActiveFilters && (
-        <button type="button" onClick={onClear} className={styles.clearButton}>
-          Clear Filters
-        </button>
-      )}
+    <div className={`${styles.container}${mobileExpanded ? ` ${styles.containerExpanded}` : ""}`}>
+      <button
+        type="button"
+        className={styles.mobileToggle}
+        onClick={() => setMobileExpanded((prev) => !prev)}
+        aria-expanded={mobileExpanded}
+      >
+        <span className={styles.mobileToggleLeft}>
+          <FaFilter className={styles.mobileToggleIcon} />
+          <span>Filters</span>
+          {activeFilterCount > 0 && (
+            <span className={styles.mobileFilterBadge}>{activeFilterCount}</span>
+          )}
+        </span>
+        <span className={styles.mobileToggleRight}>
+          <span className={styles.mobileToggleCount}>
+            {itemCount} of {totalCount}
+          </span>
+          <FaChevronDown className={`${styles.mobileChevron}${mobileExpanded ? ` ${styles.mobileChevronOpen}` : ""}`} />
+        </span>
+      </button>
+
+      <div className={styles.desktopLabel}>Filters</div>
+      <div className={styles.filterBody}>
+        <Select
+          value={category}
+          onChange={(val) => onChange("category", val)}
+          options={[
+            { label: "All categories", value: "" },
+            ...categories.map((cat) => ({
+              label: cat.replace("_", " "),
+              value: cat,
+            })),
+          ]}
+          className={styles.select}
+        />
+        <Select
+          value={rarity}
+          onChange={(val) => onChange("rarity", val)}
+          options={[
+            { label: "All rarities", value: "" },
+            ...rarities.map((r) => ({ label: r, value: r })),
+          ]}
+          className={styles.select}
+        />
+        <Select
+          value={group}
+          onChange={(val) => onChange("group", val)}
+          options={[
+            { label: "All groups", value: "" },
+            ...groups.map((g) => ({ label: g.name, value: g.id })),
+          ]}
+          className={styles.select}
+        />
+        <input
+          value={pendingSearch}
+          onChange={(e) => {
+            const value = e.target.value;
+            setPendingSearch(value);
+            debouncedOnChange(value);
+          }}
+          placeholder="Search items..."
+          className={styles.input}
+          aria-label="Search watchlist items"
+        />
+        {hasActiveFilters && (
+          <button type="button" onClick={onClear} className={styles.clearButton}>
+            Clear Filters
+          </button>
+        )}
+      </div>
       <div className={styles.count}>
         Showing {itemCount} of {totalCount} items
       </div>

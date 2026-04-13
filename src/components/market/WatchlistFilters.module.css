@@ -9,10 +9,14 @@
   border-radius: var(--radius-md);
 }
 
-.label {
+.desktopLabel {
   font-size: 12px;
   color: var(--text-secondary-60);
   font-weight: 600;
+}
+
+.filterBody {
+  display: contents;
 }
 
 .select {
@@ -75,6 +79,63 @@
   white-space: nowrap;
 }
 
+/* ── Mobile toggle (hidden on desktop) ─────────────────────── */
+
+.mobileToggle {
+  display: none;
+}
+
+.mobileToggleLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary-90);
+}
+
+.mobileToggleIcon {
+  font-size: 11px;
+  color: var(--text-secondary-60);
+}
+
+.mobileFilterBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-primary, #3b82f6);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.mobileToggleRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobileToggleCount {
+  font-size: 12px;
+  color: var(--text-secondary-60);
+  font-family: var(--font-numeric);
+}
+
+.mobileChevron {
+  font-size: 10px;
+  color: var(--text-secondary-60);
+  transition: transform 0.2s ease;
+}
+
+.mobileChevronOpen {
+  transform: rotate(180deg);
+}
+
 /* ── Mobile: touch targets ──────────────────────────────────── */
 
 @media (max-width: 768px) {
@@ -83,6 +144,46 @@
     min-height: 44px;
     font-size: 14px;
     padding: 10px 12px;
+  }
+
+  .mobileToggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    min-height: 32px;
+  }
+
+  .desktopLabel {
+    display: none;
+  }
+
+  .filterBody {
+    display: none;
+    width: 100%;
+  }
+
+  .count {
+    display: none;
+  }
+
+  .containerExpanded .filterBody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-primary);
+    margin-top: 12px;
+  }
+
+  .containerExpanded .count {
+    display: block;
+    margin-left: 0;
+    text-align: center;
   }
 }
 
