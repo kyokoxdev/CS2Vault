@@ -44,6 +44,12 @@ export class GeminiProProvider implements AIProvider {
             };
         });
 
+        // Gemini API requires the first content entry to have role "user".
+        // Filter out any leading "model" messages (e.g. the welcome greeting).
+        while (contents.length > 0 && contents[0].role === 'model') {
+            contents.shift();
+        }
+
         const body = {
             contents,
             systemInstruction: { parts: [{ text: buildSystemPrompt(context) }] }

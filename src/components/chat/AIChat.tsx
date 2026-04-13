@@ -89,17 +89,21 @@ export default function AIChat() {
                     setActiveSessionId(firstSession.id);
                     await loadHistory(firstSession.id);
                 } else {
-                    const createRes = await fetch("/api/chat/sessions", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ title: "New Chat" }),
-                    });
-                    const createData = await createRes.json();
-                    if (createData.success) {
-                        setSessions([createData.data]);
-                        setActiveSessionId(createData.data.id);
-                        setMessages([createChatMessage(WELCOME_MESSAGE)]);
+                    try {
+                        const createRes = await fetch("/api/chat/sessions", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ title: "New Chat" }),
+                        });
+                        const createData = await createRes.json();
+                        if (createData.success) {
+                            setSessions([createData.data]);
+                            setActiveSessionId(createData.data.id);
+                        }
+                    } catch {
+                        // Session creation failed — chat works without persistence
                     }
+                    setMessages([createChatMessage(WELCOME_MESSAGE)]);
                 }
             })
             .catch(() => {

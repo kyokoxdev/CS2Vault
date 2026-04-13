@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/guard";
-import { chatWithFallback } from "@/lib/ai/registry";
+import { chatWithProvider } from "@/lib/ai/registry";
 import { initAIProviders } from "@/lib/ai/init";
 import { buildMarketContext } from "@/lib/ai/context";
 import { z } from "zod";
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
         const context = await buildMarketContext(userId, latestUserMessage.content);
         context.userQuery = latestUserMessage.content;
 
-        const aiGenerator = await chatWithFallback(preferredProvider, messages as ChatMessageData[], context);
+        const aiGenerator = chatWithProvider(preferredProvider, messages as ChatMessageData[], context);
 
         const encoder = new TextEncoder();
 
