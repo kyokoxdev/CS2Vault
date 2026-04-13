@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
-import { FaSpinner, FaBoxOpen } from "react-icons/fa";
+import { FaSpinner, FaBoxOpen, FaChartPie, FaChevronDown } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import styles from "./Portfolio.module.css";
 import { PortfolioFilters } from "@/components/portfolio/PortfolioFilters";
@@ -191,6 +191,7 @@ export default function PortfolioPage() {
   const [priceFilter, setPriceFilter] = useState("all");
   const [searchFilter, setSearchFilter] = useState("");
   const [refreshingPrices, setRefreshingPrices] = useState(false);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [fallbackInfo, setFallbackInfo] = useState<{
     failureReason: string;
     attemptedProvider: string;
@@ -830,26 +831,50 @@ export default function PortfolioPage() {
         </div>
       ) : (
         <>
-          <div className={styles.summaryRow}>
-            <StatCard
-              label="Total Value"
-              value={`$${totals?.totalCurrentValue?.toFixed(2) ?? '0.00'}`}
-              prefix=""
-            />
-            <StatCard
-              label="Cost Basis"
-              value={(totals?.totalAcquiredValue ?? 0) > 0 ? `$${totals?.totalAcquiredValue?.toFixed(2) ?? '0.00'}` : "—"}
-            />
-            <StatCard
-              label="Unrealized P&L"
-              value={(totals?.totalAcquiredValue ?? 0) > 0 ? `${(totals?.unrealizedPnL ?? 0) >= 0 ? "+" : ""}$${totals?.unrealizedPnL?.toFixed(2) ?? '0.00'}` : "—"}
-              change={totals?.unrealizedPnLPercent ?? 0}
-              prefix=""
-            />
-            <StatCard
-              label="Items"
-              value={itemCount}
-            />
+          <div className={`${styles.summarySection}${summaryExpanded ? ` ${styles.summarySectionExpanded}` : ""}`}>
+            <button
+              type="button"
+              className={styles.summaryToggle}
+              onClick={() => setSummaryExpanded((prev) => !prev)}
+              aria-expanded={summaryExpanded}
+            >
+              <span className={styles.summaryToggleLeft}>
+                <FaChartPie className={styles.summaryToggleIcon} />
+                <span>Summary</span>
+              </span>
+              <span className={styles.summaryToggleRight}>
+                <span className={styles.summaryToggleValue}>
+                  ${totals?.totalCurrentValue?.toFixed(2) ?? '0.00'}
+                </span>
+                {(totals?.totalAcquiredValue ?? 0) > 0 && (
+                  <span className={(totals?.unrealizedPnL ?? 0) >= 0 ? styles.pnlPositive : styles.pnlNegative}>
+                    {(totals?.unrealizedPnL ?? 0) >= 0 ? "+" : ""}{totals?.unrealizedPnLPercent?.toFixed(1) ?? '0.0'}%
+                  </span>
+                )}
+                <FaChevronDown className={`${styles.summaryChevron}${summaryExpanded ? ` ${styles.summaryChevronOpen}` : ""}`} />
+              </span>
+            </button>
+            <div className={styles.summaryRow}>
+              <StatCard
+                label="Total Value"
+                value={`$${totals?.totalCurrentValue?.toFixed(2) ?? '0.00'}`}
+                prefix=""
+              />
+              <StatCard
+                label="Cost Basis"
+                value={(totals?.totalAcquiredValue ?? 0) > 0 ? `$${totals?.totalAcquiredValue?.toFixed(2) ?? '0.00'}` : "\u2014"}
+              />
+              <StatCard
+                label="Unrealized P&L"
+                value={(totals?.totalAcquiredValue ?? 0) > 0 ? `${(totals?.unrealizedPnL ?? 0) >= 0 ? "+" : ""}$${totals?.unrealizedPnL?.toFixed(2) ?? '0.00'}` : "\u2014"}
+                change={totals?.unrealizedPnLPercent ?? 0}
+                prefix=""
+              />
+              <StatCard
+                label="Items"
+                value={itemCount}
+              />
+            </div>
           </div>
 
           <div className={styles.inventoryTable}>

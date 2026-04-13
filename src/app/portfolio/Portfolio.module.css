@@ -70,10 +70,53 @@
   cursor: not-allowed;
 }
 
+.summarySection {}
+
+.summaryToggle {
+  display: none;
+}
+
 .summaryRow {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
+}
+
+.summaryToggleLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary-90);
+}
+
+.summaryToggleIcon {
+  font-size: 12px;
+  color: var(--text-secondary-60);
+}
+
+.summaryToggleRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summaryToggleValue {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-numeric);
+  color: var(--text-primary-90);
+}
+
+.summaryChevron {
+  font-size: 10px;
+  color: var(--text-secondary-60);
+  transition: transform 0.2s ease;
+}
+
+.summaryChevronOpen {
+  transform: rotate(180deg);
 }
 
 .syncStatus {
@@ -413,15 +456,42 @@
     flex-wrap: wrap;
   }
 
+  .summarySection {
+    background: var(--surface-2);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+  }
+
+  .summaryToggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    min-height: 32px;
+  }
+
   .summaryRow {
+    display: none;
+  }
+
+  .summarySectionExpanded .summaryRow {
+    display: grid;
     grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-primary);
+    margin-top: 12px;
   }
 
   .inventoryTable {
     width: 100%;
   }
 
-  /* Hide Category (col 2), Weapon Type (col 3), Rarity (col 4) on tablet */
   .inventoryTable th:nth-child(2),
   .inventoryTable td:nth-child(2),
   .inventoryTable th:nth-child(3),
@@ -459,7 +529,7 @@
     gap: 12px;
   }
 
-  .summaryRow {
+  .summarySectionExpanded .summaryRow {
     grid-template-columns: 1fr;
   }
 
@@ -473,7 +543,6 @@
     font-size: 24px;
   }
 
-  /* Also hide Wear (col 5) on small phones */
   .inventoryTable th:nth-child(5),
   .inventoryTable td:nth-child(5) {
     display: none;
