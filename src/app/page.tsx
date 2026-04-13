@@ -295,15 +295,17 @@ export default function MarketOverview() {
         </div>
       )}
       <div className={styles.statsRow}>
-        <StatCard
-          label="Estimated Market Cap"
-          value={
-            <>
-              {marketCapValue}
-              <div className={styles.statSubtext}>{marketCapSubLabel}</div>
-            </>
-          }
-        />
+        <Link href="/market-cap" className={styles.statCardLink}>
+          <StatCard
+            label="Estimated Market Cap"
+            value={
+              <>
+                {marketCapValue}
+                <div className={styles.statSubtext}>{marketCapSubLabel}</div>
+              </>
+            }
+          />
+        </Link>
         
         <Link href="/watchlist" className={styles.statCardLink}>
           <StatCard

@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
     FaChartPie,
+    FaChartLine,
     FaWallet,
     FaEye,
     FaRobot,
@@ -21,6 +22,7 @@ import { usePageTitleContext } from "@/components/providers/PageTitleProvider";
 
 const NAV_ITEMS = [
     { href: "/", label: "Market Overview", icon: <FaChartPie /> },
+    { href: "/market-cap", label: "Market Cap", icon: <FaChartLine /> },
     { href: "/watchlist", label: "Watchlist", icon: <FaEye /> },
     { href: "/portfolio", label: "Portfolio", icon: <FaWallet /> },
 ] as const;
@@ -32,6 +34,7 @@ const NAV_TOOLS = [
 
 const PAGE_TITLES: Record<string, string> = {
     "/": "Market Overview",
+    "/market-cap": "Market Cap",
     "/watchlist": "Watchlist",
     "/portfolio": "Portfolio",
     "/chat": "AI Insight",
