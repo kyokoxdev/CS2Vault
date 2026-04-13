@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { FaRobot, FaTimes, FaPlus, FaArrowRight } from "react-icons/fa";
+import { FaRobot, FaTimes, FaPlus, FaArrowRight, FaStop } from "react-icons/fa";
 import styles from "./AIChat.module.css";
 import type { ChatMessageData, AIProviderName } from "@/types";
 import { AI_MODELS } from "@/lib/ai/model-labels";
 import { Select } from "@/components/ui/Select";
 
-// Size limits
-const MAX_MESSAGE_LENGTH = 4000; // characters
+const MAX_MESSAGE_LENGTH = 4000;
 const MAX_IMAGE_SIZE_MB = 5;
 const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+const MAX_CONTEXT_MESSAGES = 30;
 
 type ChatMessage = ChatMessageData & {
     id: string;
@@ -37,7 +37,6 @@ export default function AIChat() {
     const [historyLoading, setHistoryLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Initial load history
     useEffect(() => {
         setHistoryLoading(true);
         fetch("/api/chat/history")
@@ -49,7 +48,6 @@ export default function AIChat() {
                         content: m.content
                     })));
                 } else {
-                    // Default greeting
                     setMessages([createChatMessage({
                         role: "assistant",
                         content: "Hello! I am your CS2 Market Agent.\nAsk me about your portfolio, market movers, or item prices."
@@ -57,7 +55,6 @@ export default function AIChat() {
                 }
             })
             .catch(() => {
-                // Show friendly error instead of technical details
                 setMessages([createChatMessage({
                     role: "assistant",
                     content: "Hello! I am your CS2 Market Agent.\nNote: Could not load chat history. You can still start a new conversation."
@@ -78,6 +75,10 @@ export default function AIChat() {
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages]);
+
+    const handleStop = () => {
+        streamAbortControllerRef.current?.abort();
+    };
 
     const handleSubmit = async (e?: React.FormEvent) => {
         e?.preventDefault();
@@ -101,17 +102,27 @@ export default function AIChat() {
         setIsLoading(true);
 
         try {
+            // Cap context window and strip imageBase64 from historical messages
+            const contextMessages = [...messages, userMessagePayload]
+                .slice(-MAX_CONTEXT_MESSAGES)
+                .map(({ role, content, imageBase64 }, idx, arr) => ({
+                    role,
+                    content,
+                    // Only include imageBase64 on the latest user message
+                    ...(idx === arr.length - 1 && imageBase64 ? { imageBase64 } : {}),
+                }));
+
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    messages: [...messages, userMessagePayload].map(({ role, content, imageBase64 }) => ({ role, content, imageBase64 })),
-                    provider,
-                }), // Send full context + override
+                body: JSON.stringify({ messages: contextMessages, provider }),
                 signal: controller.signal,
             });
 
-            if (!res.ok) throw new Error("API Error");
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(errorText || "API Error");
+            }
             if (!res.body) throw new Error("No response body");
 
             const reader = res.body.getReader();
@@ -135,7 +146,13 @@ export default function AIChat() {
         } catch (error) {
             if (controller.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
                 if (isMountedRef.current) {
-                    setMessages(prev => prev.filter(message => message.id !== assistantPlaceholder.id));
+                    setMessages(prev => {
+                        const placeholder = prev.find(m => m.id === assistantPlaceholder.id);
+                        if (placeholder && placeholder.content.trim()) {
+                            return prev;
+                        }
+                        return prev.filter(message => message.id !== assistantPlaceholder.id);
+                    });
                 }
                 return;
             }
@@ -192,6 +209,7 @@ export default function AIChat() {
             }
         }
     };
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         if (value.length > MAX_MESSAGE_LENGTH) {
@@ -201,7 +219,6 @@ export default function AIChat() {
         setError(null);
         setInput(value);
     };
-
 
     return (
         <div className={styles.container}>
@@ -215,12 +232,12 @@ export default function AIChat() {
                 </div>
             </div>
 
-            <div className={styles.messages} role="log" aria-live="polite">
+            <div className={styles.messages} role="log" aria-live="polite" aria-busy={isLoading}>
                 {historyLoading && (
                     <div className={styles.historyLoading}>
-                        <div className={styles.dot}></div>
-                        <div className={styles.dot}></div>
-                        <div className={styles.dot}></div>
+                        <div className={styles.dot} aria-hidden="true"></div>
+                        <div className={styles.dot} aria-hidden="true"></div>
+                        <div className={styles.dot} aria-hidden="true"></div>
                         <span className={styles.loadingText}>Loading chat history...</span>
                     </div>
                 )}
@@ -237,12 +254,12 @@ export default function AIChat() {
                 ))}
 
                 {isLoading && messages[messages.length - 1]?.content === "" && (
-                    <output className={styles.messageLoading}>
-                        <div className={styles.dot}></div>
-                        <div className={styles.dot}></div>
-                        <div className={styles.dot}></div>
+                    <div role="status" aria-live="polite" className={styles.messageLoading}>
+                        <div className={styles.dot} aria-hidden="true"></div>
+                        <div className={styles.dot} aria-hidden="true"></div>
+                        <div className={styles.dot} aria-hidden="true"></div>
                         <span className={styles.loadingText}>Fetching market context...</span>
-                    </output>
+                    </div>
                 )}
                 <div ref={messagesEndRef} />
             </div>
@@ -299,14 +316,25 @@ export default function AIChat() {
                         options={AI_MODELS.map(model => ({ label: model.shortLabel, value: model.value }))}
                         menuPlacement="top"
                     />
-                    <button
-                        type="submit"
-                        className={styles.sendBtn}
-                        disabled={(!input.trim() && !attachedImage) || isLoading}
-                        aria-label="Send message"
-                    >
-                        <FaArrowRight />
-                    </button>
+                    {isLoading ? (
+                        <button
+                            type="button"
+                            className={styles.stopBtn}
+                            onClick={handleStop}
+                            aria-label="Stop generating"
+                        >
+                            <FaStop />
+                        </button>
+                    ) : (
+                        <button
+                            type="submit"
+                            className={styles.sendBtn}
+                            disabled={!input.trim() && !attachedImage}
+                            aria-label="Send message"
+                        >
+                            <FaArrowRight />
+                        </button>
+                    )}
                 </div>
             </form>
         </div>
