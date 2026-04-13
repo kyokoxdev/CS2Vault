@@ -1,6 +1,7 @@
 import { getValidGoogleToken } from '@/lib/auth/google-oauth';
 import type { AIProvider, ChatMessageData, MarketContext } from '@/types';
 import { isRateLimitError } from '@/lib/api-queue';
+import { buildSystemPrompt } from '@/lib/ai/prompt';
 
 const MAX_RETRIES = 2;
 const BASE_BACKOFF_MS = 3000;
@@ -16,23 +17,6 @@ export class GeminiProProvider implements AIProvider {
 
     getModelName(): string {
         return "gemini-2.5-pro";
-    }
-
-    private buildSystemPrompt(context: MarketContext): string {
-        return `You are a helpful AI Market Agent for CS2Vault, a Counter-Strike 2 portfolio and market analysis application.
-You act as an expert investment advisor for the CS2 market.
-
-Market Context:
-- Top Gainers: ${JSON.stringify(context.topGainers)}
-- Top Losers: ${JSON.stringify(context.topLosers)}
-${context.portfolioSummary ? `- Portfolio Total Value: $${context.portfolioSummary.totalValue.toFixed(2)}\n- Portfolio PnL: $${context.portfolioSummary.unrealizedPnL.toFixed(2)}` : ''}
-${context.inventory ? `- Full Inventory: ${JSON.stringify(context.inventory)}` : ''}
-${context.targetedItemData ? `- Targeted Item History (30 Days): ${JSON.stringify(context.targetedItemData)}` : ''}
-
-Answer the user's questions strictly about Counter-Strike 2 market data, items, and their portfolio. Use the provided context to provide specific hold/sell advice and investment recommendations when asked. 
-If Targeted Item History is provided, confidently use this 30-day trajectory to identify trends, forecast growth, and provide timeframe-based projections. 
-If the user asks about an item and you do NOT see it in the context, politely inform them: "I don't have localized DB tracking for this item yet. Please add it to your Watchlist so I can start charting its 30-day trajectory."
-Be concise and formatted in markdown.`;
     }
 
     async *chat(messages: ChatMessageData[], context: MarketContext): AsyncGenerator<string> {
@@ -62,7 +46,7 @@ Be concise and formatted in markdown.`;
 
         const body = {
             contents,
-            systemInstruction: { parts: [{ text: this.buildSystemPrompt(context) }] }
+            systemInstruction: { parts: [{ text: buildSystemPrompt(context) }] }
         };
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse`;
