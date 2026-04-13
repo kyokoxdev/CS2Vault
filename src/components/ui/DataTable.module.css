@@ -189,15 +189,13 @@
     transition: opacity 0.2s;
   }
 
-  .dataTable th:first-child,
-  .dataTable td:first-child {
+  .stickyColumn {
     position: sticky;
-    left: 0;
     z-index: 5;
     background: var(--surface-2);
   }
 
-  .dataTable tbody tr:hover td:first-child {
+  .dataTable tbody tr:hover .stickyColumn {
     background: var(--surface-hover);
   }
 

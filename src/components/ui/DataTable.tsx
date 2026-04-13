@@ -4,7 +4,7 @@
  * and opt-in client-side column sorting.
  */
 
-import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import styles from "./DataTable.module.css";
 
@@ -16,6 +16,8 @@ export interface Column<T> {
   width?: string;
   /** Enable client-side sorting for this column */
   sortable?: boolean;
+  /** Pin this column when table scrolls horizontally on mobile. Requires width to be set for correct offset calculation. Sticky columns must be contiguous from the left. */
+  sticky?: boolean;
 }
 
 type SortDirection = "asc" | "desc";
@@ -136,23 +138,57 @@ export function DataTable<T>({
 
   const hasCardView = !!mobileCardRenderer;
 
+  const stickyOffsets = useMemo(() => {
+    const offsets = new Map<number, number>();
+    let leftOffset = 0;
+    for (let i = 0; i < columns.length; i++) {
+      if (!columns[i].sticky) break;
+      offsets.set(i, leftOffset);
+      const w = columns[i].width;
+      if (w) {
+        const px = parseInt(w, 10);
+        if (!isNaN(px)) leftOffset += px;
+      }
+    }
+    return offsets;
+  }, [columns]);
+
+  const buildCellStyle = (col: Column<T>, colIndex: number): CSSProperties | undefined => {
+    const stickyLeft = stickyOffsets.get(colIndex);
+    const hasWidth = !!col.width;
+    const hasSticky = stickyLeft !== undefined;
+    if (!hasWidth && !hasSticky) return undefined;
+    return {
+      ...(hasWidth ? { width: col.width } : {}),
+      ...(hasSticky ? { left: stickyLeft } : {}),
+    };
+  };
+
+  const buildCellClassName = (col: Column<T>, colIndex: number, extra?: string[]): string | undefined => {
+    const classes = [
+      col.align === "right" ? styles.alignRight : "",
+      col.sticky && stickyOffsets.has(colIndex) ? styles.stickyColumn : "",
+      ...(extra ?? []),
+    ].filter(Boolean);
+    return classes.length > 0 ? classes.join(" ") : undefined;
+  };
+
   const tableView = (
     <div className={`${styles.tableScroll}${hasCardView && !forceTableView ? ` ${styles.viewHidden}` : ""}`}>
     <table className={styles.dataTable}>
       <thead>
         <tr>
-          {columns.map((col) => {
+          {columns.map((col, colIndex) => {
             const colKey = String(col.key);
             const isActiveSort = sortKey === colKey && sortDirection !== null;
             return (
               <th
                 key={colKey}
-                className={[
-                  col.align === "right" ? styles.alignRight : "",
+                className={buildCellClassName(col, colIndex, [
                   col.sortable ? styles.sortableHeader : "",
                   isActiveSort ? styles.sortableHeaderActive : "",
-                ].filter(Boolean).join(" ") || undefined}
-                style={col.width ? { width: col.width } : undefined}
+                ])}
+                style={buildCellStyle(col, colIndex)}
                 aria-sort={getAriaSortValue(col)}
                 {...(col.sortable
                   ? {
@@ -212,13 +248,13 @@ export function DataTable<T>({
                   }
                 : {})}
             >
-              {columns.map((col) => (
+              {columns.map((col, colIndex) => (
                 <td
                   key={String(col.key)}
-                  className={[
-                    col.align === "right" ? styles.alignRight : "",
+                  className={buildCellClassName(col, colIndex, [
                     col.align === "right" ? styles.numericCell : "",
-                  ].filter(Boolean).join(" ") || undefined}
+                  ])}
+                  style={stickyOffsets.has(colIndex) ? { left: stickyOffsets.get(colIndex) } : undefined}
                 >
                   {col.render
                     ? col.render(row[col.key as keyof T], row)
