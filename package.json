@@ -1,6 +1,6 @@
 {
   "name": "cs2vault",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "scripts": {
     "postinstall": "npx prisma generate",
