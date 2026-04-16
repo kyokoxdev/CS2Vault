@@ -194,7 +194,7 @@ export default function AIChat() {
 
     const handleSubmit = async (e?: React.FormEvent) => {
         e?.preventDefault();
-        if ((!input.trim() && !attachedImage) || isLoading || !activeSessionId) return;
+        if ((!input.trim() && !attachedImage) || isLoading) return;
 
         streamAbortControllerRef.current?.abort();
         const controller = new AbortController();
@@ -233,7 +233,11 @@ export default function AIChat() {
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ messages: contextMessages, provider, sessionId: activeSessionId }),
+                body: JSON.stringify({
+                    messages: contextMessages,
+                    provider,
+                    ...(activeSessionId ? { sessionId: activeSessionId } : {}),
+                }),
                 signal: controller.signal,
             });
 
