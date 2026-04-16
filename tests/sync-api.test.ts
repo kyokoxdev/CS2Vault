@@ -170,7 +170,7 @@ describe("POST /api/sync", () => {
         const response = await POST(toNextRequest(request));
 
         expect(response.status).toBe(200);
-        expect(runSync).toHaveBeenCalledWith("steam");
+        expect(runSync).toHaveBeenCalledWith({ overrideSource: "steam" });
     });
 });
 

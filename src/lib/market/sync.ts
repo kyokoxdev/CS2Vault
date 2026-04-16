@@ -9,9 +9,21 @@ import { prisma } from "@/lib/db";
 import { initializeMarketProviders } from "@/lib/market/init";
 import { getMarketProvider } from "@/lib/market/registry";
 import { resolveMarketSource } from "@/lib/market/source";
-import { aggregateAllIntervals } from "@/lib/candles/aggregator";
+import { aggregateCandlesticks, type CandleInterval } from "@/lib/candles/aggregator";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/market/sync-lock";
 import type { MarketSource, SyncResult } from "@/types";
+
+/** Options for controlling sync behaviour (e.g. cron vs manual). */
+export interface SyncOptions {
+    overrideSource?: MarketSource;
+    /**
+     * Which candle intervals to aggregate after storing snapshots.
+     * Defaults to ALL intervals.  The cron path should pass only
+     * ["1d", "1w"] because sub-daily intervals are meaningless for
+     * a once-per-day sync — those are populated by browser refreshes.
+     */
+    candleIntervals?: CandleInterval[];
+}
 
 /**
  * Run a full sync cycle:
@@ -21,7 +33,7 @@ import type { MarketSource, SyncResult } from "@/types";
  * 4. Aggregate candlestick data
  * 5. Log the sync result
  */
-export async function runSync(overrideSource?: MarketSource): Promise<SyncResult> {
+export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
     const startTime = Date.now();
 
     const acquired = await acquireSyncLock();
@@ -39,20 +51,24 @@ export async function runSync(overrideSource?: MarketSource): Promise<SyncResult
     }
 
     try {
-        return await runSyncInner(overrideSource, startTime);
+        return await runSyncInner(opts, startTime);
     } finally {
         await releaseSyncLock();
     }
 }
 
-async function runSyncInner(overrideSource: MarketSource | undefined, startTime: number): Promise<SyncResult> {
+const ALL_CANDLE_INTERVALS: CandleInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"];
+const AGGREGATION_BATCH_SIZE = 10;
+
+async function runSyncInner(opts: SyncOptions, startTime: number): Promise<SyncResult> {
     // Get app settings
     const settings = await prisma.appSettings.findUnique({
         where: { id: "singleton" },
     });
 
-    const preferredSource = overrideSource ?? resolveMarketSource(settings?.activeMarketSource);
+    const preferredSource = opts.overrideSource ?? resolveMarketSource(settings?.activeMarketSource);
     const source = preferredSource;
+    const intervals = opts.candleIntervals ?? ALL_CANDLE_INTERVALS;
 
     try {
         // Get items to sync
@@ -162,8 +178,16 @@ async function runSyncInner(overrideSource: MarketSource | undefined, startTime:
 
         const storedCount = snapshotsToCreate.length;
 
+        // Aggregate candles in batches to avoid overwhelming the DB
         const uniqueItemIds = [...new Set(snapshotsToCreate.map((s) => s.itemId))];
-        await Promise.all(uniqueItemIds.map((id) => aggregateAllIntervals(id)));
+        for (let i = 0; i < uniqueItemIds.length; i += AGGREGATION_BATCH_SIZE) {
+            const batch = uniqueItemIds.slice(i, i + AGGREGATION_BATCH_SIZE);
+            await Promise.all(
+                batch.flatMap((id) =>
+                    intervals.map((interval) => aggregateCandlesticks(id, interval))
+                )
+            );
+        }
 
         const result: SyncResult = {
             type: "market_prices",

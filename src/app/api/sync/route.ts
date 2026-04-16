@@ -8,9 +8,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/guard";
 import { initializeMarketProviders } from "@/lib/market/init";
-import { runSync, getRecentSyncLogs, getLatestPriceUpdate } from "@/lib/market/sync";
+import { runSync, getRecentSyncLogs, getLatestPriceUpdate, type SyncOptions } from "@/lib/market/sync";
 import { prisma } from "@/lib/db";
 import type { MarketSource } from "@/types";
+
+// Allow up to 300s on Vercel Pro (cron jobs are long-running)
+export const maxDuration = 300;
 
 function getRequestSearchParams(request: NextRequest): URLSearchParams {
     if ("nextUrl" in request && request.nextUrl) {
@@ -20,9 +23,9 @@ function getRequestSearchParams(request: NextRequest): URLSearchParams {
     return new URL(request.url).searchParams;
 }
 
-async function runPriceSync(overrideSource?: MarketSource) {
+async function runPriceSync(opts: SyncOptions = {}) {
     await initializeMarketProviders();
-    return runSync(overrideSource);
+    return runSync(opts);
 }
 
 const SOLD_ITEM_RETENTION_DAYS = 60;
@@ -48,7 +51,7 @@ export async function POST(request: NextRequest) {
         const fallbackParam = getRequestSearchParams(request).get("fallback");
         const overrideSource = fallbackParam === "steam" ? "steam" as const : undefined;
 
-        const syncResult = await runPriceSync(overrideSource);
+        const syncResult = await runPriceSync({ overrideSource });
 
         return NextResponse.json(
             {
@@ -84,18 +87,49 @@ export async function GET(request: NextRequest) {
         }
 
         if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
-            const [syncResult, cleanedCount] = await Promise.all([
-                runPriceSync(),
-                cleanupOldSoldItems(),
-            ]);
+            // Graceful timeout: abort 20s before Vercel's hard kill
+            // so we can return a proper response instead of a raw 504
+            const GRACEFUL_TIMEOUT_MS = 280_000;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), GRACEFUL_TIMEOUT_MS);
 
-            return NextResponse.json(
-                {
-                    success: syncResult.status !== "failed",
-                    data: { sync: syncResult, soldItemsCleaned: cleanedCount },
-                },
-                { status: syncResult.status === "failed" ? 500 : 200 }
-            );
+            try {
+                const syncPromise = runPriceSync({
+                    // Only aggregate daily + weekly candles for the cron job.
+                    // Sub-daily intervals (1m–4h) are populated by browser refreshes.
+                    candleIntervals: ["1d", "1w"],
+                });
+                const cleanupPromise = cleanupOldSoldItems();
+
+                const [syncResult, cleanedCount] = await Promise.all([
+                    Promise.race([
+                        syncPromise,
+                        new Promise<never>((_, reject) => {
+                            controller.signal.addEventListener("abort", () =>
+                                reject(new Error("Sync aborted: approaching Vercel timeout"))
+                            );
+                        }),
+                    ]),
+                    cleanupPromise,
+                ]);
+
+                return NextResponse.json(
+                    {
+                        success: syncResult.status !== "failed",
+                        data: { sync: syncResult, soldItemsCleaned: cleanedCount },
+                    },
+                    { status: syncResult.status === "failed" ? 500 : 200 }
+                );
+            } catch (error) {
+                const message = error instanceof Error ? error.message : "Cron sync failed";
+                console.error("[API /sync GET cron]", message);
+                return NextResponse.json(
+                    { success: false, error: message },
+                    { status: 504 }
+                );
+            } finally {
+                clearTimeout(timeout);
+            }
         }
 
         // Normal GET — return sync logs

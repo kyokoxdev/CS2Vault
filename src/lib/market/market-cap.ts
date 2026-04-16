@@ -265,8 +265,6 @@ export async function calculateAndStoreMarketCap(): Promise<MarketCapResult> {
             },
         });
 
-        await cleanupOldSnapshots(365);
-
         return {
             data: {
                 totalMarketCap: snapshot.totalMarketCap,
@@ -285,20 +283,6 @@ export async function calculateAndStoreMarketCap(): Promise<MarketCapResult> {
             message: error instanceof Error ? error.message : "Calculation failed",
         };
     }
-}
-
-async function cleanupOldSnapshots(daysToKeep: number): Promise<number> {
-    const cutoff = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000);
-    const result = await prisma.marketCapSnapshot.deleteMany({
-        where: {
-            provider: PROVIDER_NAME,
-            timestamp: { lt: cutoff },
-        },
-    });
-    if (result.count > 0) {
-        console.info(`[Market Cap] Cleaned up ${result.count} old snapshots`);
-    }
-    return result.count;
 }
 
 export async function shouldRecalculate(): Promise<boolean> {

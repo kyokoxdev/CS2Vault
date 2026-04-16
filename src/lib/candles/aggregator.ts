@@ -87,10 +87,9 @@ export async function aggregateCandlesticks(
         }
     }
 
-    // Upsert candles
-    let count = 0;
-    for (const [, candle] of periods) {
-        await prisma.candlestick.upsert({
+    // Batch upsert all candles in a single transaction to minimize DB round-trips
+    const upserts = [...periods.values()].map((candle) =>
+        prisma.candlestick.upsert({
             where: {
                 itemId_interval_timestamp: {
                     itemId,
@@ -109,11 +108,14 @@ export async function aggregateCandlesticks(
                 close: candle.close,
                 volume: candle.volume,
             },
-        });
-        count++;
+        })
+    );
+
+    if (upserts.length > 0) {
+        await prisma.$transaction(upserts);
     }
 
-    return count;
+    return upserts.length;
 }
 
 /**

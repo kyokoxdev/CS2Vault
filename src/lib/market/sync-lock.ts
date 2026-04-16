@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 
-const LOCK_STALE_MINUTES = 10;
+const LOCK_STALE_MINUTES = 6; // Must be slightly above maxDuration (300s = 5min)
 
 export async function acquireSyncLock(): Promise<boolean> {
     const settings = await prisma.appSettings.findUnique({

@@ -8,9 +8,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mock dependencies BEFORE imports
 vi.mock("@/lib/db", () => ({
     prisma: {
-        appSettings: { findUnique: vi.fn() },
+        appSettings: { findUnique: vi.fn(), update: vi.fn() },
         item: { findMany: vi.fn() },
-        priceSnapshot: { create: vi.fn() },
+        priceSnapshot: { create: vi.fn(), createMany: vi.fn() },
         syncLog: { create: vi.fn() },
     },
 }));
@@ -21,10 +21,16 @@ vi.mock("@/lib/market/registry", () => ({
 
 vi.mock("@/lib/candles/aggregator", () => ({
     aggregateAllIntervals: vi.fn(),
+    aggregateCandlesticks: vi.fn(),
 }));
 
 vi.mock("@/lib/market/init", () => ({
     initializeMarketProviders: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/market/sync-lock", () => ({
+    acquireSyncLock: vi.fn().mockResolvedValue(true),
+    releaseSyncLock: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { prisma } from "@/lib/db";
@@ -34,6 +40,7 @@ import { runSync } from "@/lib/market/sync";
 const mockFindUnique = vi.mocked(prisma.appSettings.findUnique);
 const mockFindMany = vi.mocked(prisma.item.findMany);
 const mockSnapshotCreate = vi.mocked(prisma.priceSnapshot.create);
+const mockSnapshotCreateMany = vi.mocked(prisma.priceSnapshot.createMany);
 const mockSyncLogCreate = vi.mocked(prisma.syncLog.create);
 const mockGetProvider = vi.mocked(getMarketProvider);
 
@@ -51,6 +58,8 @@ describe("Sync Integration", () => {
         vi.clearAllMocks();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockSnapshotCreate.mockResolvedValue({} as any);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        mockSnapshotCreateMany.mockResolvedValue({ count: 0 } as any);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         mockSyncLogCreate.mockResolvedValue({} as any);
     });
@@ -78,7 +87,7 @@ describe("Sync Integration", () => {
 
         expect(result.status).toBe("success");
         expect(result.itemCount).toBe(2);
-        expect(mockSnapshotCreate).toHaveBeenCalledTimes(2);
+        expect(mockSnapshotCreateMany).toHaveBeenCalledTimes(1);
         expect(mockSyncLogCreate).toHaveBeenCalledWith(
             expect.objectContaining({ data: expect.objectContaining({ status: "success" }) })
         );
@@ -219,7 +228,7 @@ describe("Sync Integration", () => {
         const csgoProvider = createMockProvider("csgotrader", prices);
         mockGetProvider.mockReturnValue(csgoProvider as ReturnType<typeof mockGetProvider>);
 
-        const result = await runSync("csgotrader");
+        const result = await runSync({ overrideSource: "csgotrader" });
 
         expect(result.status).toBe("success");
         expect(mockGetProvider).toHaveBeenCalledWith("csgotrader");
