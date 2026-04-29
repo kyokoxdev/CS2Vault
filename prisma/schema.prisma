@@ -130,6 +130,8 @@ model MarketCapSnapshot {
   provider       String   @default("youpin")
   topItems       String?
   timestamp      DateTime @default(now())
+
+  @@index([provider, timestamp])
 }
 
 model AppSettings {
