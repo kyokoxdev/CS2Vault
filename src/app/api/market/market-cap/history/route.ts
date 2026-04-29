@@ -4,16 +4,22 @@ import { prisma } from "@/lib/db";
 const PROVIDER_NAME = "csgotrader-csfloat";
 
 /**
- * GET /api/market/market-cap/history?limit=365
+ * GET /api/market/market-cap/history
+ * Optional query param: `limit=<n>` (positive integer)
  *
  * Returns historical MarketCapSnapshot records as a time-series,
  * ordered ascending by timestamp for chart consumption.
+ *
+ * When `limit` is omitted, the full retained history is returned.
  */
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const limitParam = searchParams.get("limit");
-        const limit = Math.min(Math.max(Number(limitParam) || 1500, 1), 2000);
+        const parsedLimit = Number(limitParam);
+        const limit = Number.isSafeInteger(parsedLimit) && parsedLimit > 0
+            ? parsedLimit
+            : undefined;
 
         const snapshots = await prisma.marketCapSnapshot.findMany({
             where: { provider: PROVIDER_NAME },

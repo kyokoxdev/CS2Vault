@@ -123,7 +123,7 @@ export default function ItemDetailPage() {
         price: number | null;
         timestamp: string | null;
         source: string | null;
-        interval: "5m" | "15m" | "1h" | "4h" | "1d" | "1w";
+        interval: "15m" | "1h" | "4h" | "1d" | "1w";
     }) => {
         if (snapshot.price === null || snapshot.timestamp === null) {
             setLatestPrice(null);

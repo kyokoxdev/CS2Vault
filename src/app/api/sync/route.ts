@@ -96,22 +96,18 @@ export async function GET(request: NextRequest) {
             try {
                 const syncPromise = runPriceSync({
                     // Only aggregate daily + weekly candles for the cron job.
-                    // Sub-daily intervals (1m–4h) are populated by browser refreshes.
+                    // Sub-daily intervals (15m–4h) are populated by browser refreshes.
                     candleIntervals: ["1d", "1w"],
                 });
-                const cleanupPromise = cleanupOldSoldItems();
-
-                const [syncResult, cleanedCount] = await Promise.all([
-                    Promise.race([
-                        syncPromise,
-                        new Promise<never>((_, reject) => {
-                            controller.signal.addEventListener("abort", () =>
-                                reject(new Error("Sync aborted: approaching Vercel timeout"))
-                            );
-                        }),
-                    ]),
-                    cleanupPromise,
+                const syncResult = await Promise.race([
+                    syncPromise,
+                    new Promise<never>((_, reject) => {
+                        controller.signal.addEventListener("abort", () =>
+                            reject(new Error("Sync aborted: approaching Vercel timeout"))
+                        );
+                    }),
                 ]);
+                const cleanedCount = await cleanupOldSoldItems();
 
                 return NextResponse.json(
                     {

@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 
 const PriceQuerySchema = z.object({
-    interval: z.enum(["1m", "5m", "15m", "1h", "4h", "1d", "1w"]).optional().default("1h"),
+    interval: z.enum(["15m", "1h", "4h", "1d", "1w"]).optional().default("1h"),
     limit: z.coerce.number().min(1).max(1000).optional().default(200),
     from: z.coerce.number().optional(), // Unix timestamp (seconds)
 });
