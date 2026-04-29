@@ -3,25 +3,24 @@ import { prisma } from "@/lib/db";
 const LOCK_STALE_MINUTES = 6; // Must be slightly above maxDuration (300s = 5min)
 
 export async function acquireSyncLock(): Promise<boolean> {
-    const settings = await prisma.appSettings.findUnique({
-        where: { id: "singleton" },
-        select: { syncInProgress: true, syncStartedAt: true },
+    const staleThreshold = new Date(Date.now() - LOCK_STALE_MINUTES * 60 * 1000);
+
+    const { count } = await prisma.appSettings.updateMany({
+        where: {
+            id: "singleton",
+            OR: [
+                { syncInProgress: false },
+                { syncStartedAt: null },
+                { syncStartedAt: { lt: staleThreshold } },
+            ],
+        },
+        data: {
+            syncInProgress: true,
+            syncStartedAt: new Date(),
+        },
     });
 
-    if (settings?.syncInProgress && settings.syncStartedAt) {
-        const ageMs = Date.now() - settings.syncStartedAt.getTime();
-        if (ageMs < LOCK_STALE_MINUTES * 60 * 1000) {
-            return false;
-        }
-        console.warn(`[SyncLock] Stale lock detected (${Math.round(ageMs / 1000)}s old) — overriding`);
-    }
-
-    await prisma.appSettings.update({
-        where: { id: "singleton" },
-        data: { syncInProgress: true, syncStartedAt: new Date() },
-    });
-
-    return true;
+    return count === 1;
 }
 
 export async function releaseSyncLock(): Promise<void> {
