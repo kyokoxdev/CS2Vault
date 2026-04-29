@@ -180,7 +180,15 @@ describe("Sync Integration", () => {
             where: { isActive: true },
             select: { id: true, marketHashName: true },
         });
-        expect(mockSnapshotCreate).toHaveBeenCalledTimes(2);
+        expect(mockSnapshotCreateMany).toHaveBeenCalledTimes(1);
+        expect(mockSnapshotCreateMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.arrayContaining([
+                    expect.objectContaining({ itemId: "watched-item", price: 100 }),
+                    expect.objectContaining({ itemId: "unwatched-item", price: 200 }),
+                ]),
+            })
+        );
     });
 
     it("records sync failure on error", async () => {

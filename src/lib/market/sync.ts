@@ -57,7 +57,7 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
     }
 }
 
-const ALL_CANDLE_INTERVALS: CandleInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"];
+const ALL_CANDLE_INTERVALS: CandleInterval[] = ["15m", "1h", "4h", "1d", "1w"];
 const AGGREGATION_BATCH_SIZE = 10;
 
 async function runSyncInner(opts: SyncOptions, startTime: number): Promise<SyncResult> {
@@ -178,15 +178,15 @@ async function runSyncInner(opts: SyncOptions, startTime: number): Promise<SyncR
 
         const storedCount = snapshotsToCreate.length;
 
-        // Aggregate candles in batches to avoid overwhelming the DB
+        // Aggregate candles in batches while keeping each item+interval aggregation sequential.
         const uniqueItemIds = [...new Set(snapshotsToCreate.map((s) => s.itemId))];
         for (let i = 0; i < uniqueItemIds.length; i += AGGREGATION_BATCH_SIZE) {
             const batch = uniqueItemIds.slice(i, i + AGGREGATION_BATCH_SIZE);
-            await Promise.all(
-                batch.flatMap((id) =>
-                    intervals.map((interval) => aggregateCandlesticks(id, interval))
-                )
-            );
+            for (const id of batch) {
+                for (const interval of intervals) {
+                    await aggregateCandlesticks(id, interval);
+                }
+            }
         }
 
         const result: SyncResult = {

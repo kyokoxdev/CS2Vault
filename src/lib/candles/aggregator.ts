@@ -7,11 +7,9 @@
 
 import { prisma } from "@/lib/db";
 
-export type CandleInterval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d" | "1w";
+export type CandleInterval = "15m" | "1h" | "4h" | "1d" | "1w";
 
 const INTERVAL_MS: Record<CandleInterval, number> = {
-    "1m": 60 * 1000,
-    "5m": 5 * 60 * 1000,
     "15m": 15 * 60 * 1000,
     "1h": 60 * 60 * 1000,
     "4h": 4 * 60 * 60 * 1000,
@@ -87,9 +85,9 @@ export async function aggregateCandlesticks(
         }
     }
 
-    // Batch upsert all candles in a single transaction to minimize DB round-trips
-    const upserts = [...periods.values()].map((candle) =>
-        prisma.candlestick.upsert({
+    let persistedCount = 0;
+    for (const candle of periods.values()) {
+        await prisma.candlestick.upsert({
             where: {
                 itemId_interval_timestamp: {
                     itemId,
@@ -108,22 +106,21 @@ export async function aggregateCandlesticks(
                 close: candle.close,
                 volume: candle.volume,
             },
-        })
-    );
-
-    if (upserts.length > 0) {
-        await prisma.$transaction(upserts);
+        });
+        persistedCount += 1;
     }
 
-    return upserts.length;
+    return persistedCount;
 }
 
 /**
  * Aggregate all intervals for a given item.
  */
 export async function aggregateAllIntervals(itemId: string): Promise<void> {
-    const intervals: CandleInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"];
-    await Promise.all(intervals.map((interval) => aggregateCandlesticks(itemId, interval)));
+    const intervals: CandleInterval[] = ["15m", "1h", "4h", "1d", "1w"];
+    for (const interval of intervals) {
+        await aggregateCandlesticks(itemId, interval);
+    }
 }
 
 /**
@@ -137,7 +134,7 @@ export async function aggregateAllWatchedItems(): Promise<number> {
 
     let totalCandles = 0;
     for (const item of watchedItems) {
-        const intervals: CandleInterval[] = ["5m", "15m", "1h", "4h", "1d", "1w"];
+        const intervals: CandleInterval[] = ["15m", "1h", "4h", "1d", "1w"];
         for (const interval of intervals) {
             totalCandles += await aggregateCandlesticks(item.id, interval);
         }

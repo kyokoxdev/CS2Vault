@@ -415,7 +415,9 @@ export async function writePriceSnapshotsForItems(
 
     if (!options.skipCandleAggregation && pricedCount > 0) {
         const uniqueItemIds = [...new Set(snapshotsToCreate.map((s) => s.itemId))];
-        await Promise.all(uniqueItemIds.map((id) => aggregateAllIntervals(id)));
+        for (const id of uniqueItemIds) {
+            await aggregateAllIntervals(id);
+        }
     }
 
     return {
