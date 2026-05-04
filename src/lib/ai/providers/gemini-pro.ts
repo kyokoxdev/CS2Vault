@@ -1,11 +1,8 @@
 import type { AIProvider, ChatMessageData, MarketContext } from '@/types';
 import { prisma } from '@/lib/db';
-import { isRateLimitError } from '@/lib/api-queue';
+import { geminiProQueue } from '@/lib/api-queue';
 import { buildSystemPrompt } from '@/lib/ai/prompt';
 import { decryptApiKey } from '@/lib/auth/api-keys';
-
-const MAX_RETRIES = 2;
-const BASE_BACKOFF_MS = 3000;
 
 export class GeminiProProvider implements AIProvider {
     name = "gemini-pro";
@@ -28,7 +25,6 @@ export class GeminiProProvider implements AIProvider {
             throw new Error("Gemini API key not configured. Add it in Settings.");
         }
 
-        // Filter out system messages as they are sent as systemInstruction
         const filteredMessages = messages.filter(m => m.role !== 'system');
         const contents = filteredMessages.map(m => {
             const parts: Array<{ text?: string, inlineData?: { mimeType: string, data: string } }> = [{ text: m.content }];
@@ -49,8 +45,6 @@ export class GeminiProProvider implements AIProvider {
             };
         });
 
-        // Gemini API requires the first content entry to have role "user".
-        // Filter out any leading "model" messages (e.g. the welcome greeting).
         while (contents.length > 0 && contents[0].role === 'model') {
             contents.shift();
         }
@@ -62,62 +56,20 @@ export class GeminiProProvider implements AIProvider {
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse`;
 
-        let response: Response | null = null;
-        let lastError: Error | null = null;
+        const response = await geminiProQueue.enqueue(async () => {
+            return fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': apiKey,
+                },
+                body: JSON.stringify(body)
+            });
+        });
 
-        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-            try {
-                response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-goog-api-key': apiKey,
-                    },
-                    body: JSON.stringify(body)
-                });
-
-                if (response.ok) {
-                    lastError = null;
-                    break;
-                }
-
-                const errorText = await response.text();
-                const error = new Error(`Gemini Pro API Error (${response.status}): ${errorText}`);
-
-                if (response.status === 429 && attempt < MAX_RETRIES) {
-                    const retryAfter = response.headers.get('retry-after');
-                    const backoffMs = retryAfter
-                        ? parseInt(retryAfter, 10) * 1000
-                        : BASE_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 1000;
-                    console.warn(
-                        `[Gemini Pro] Rate limited (attempt ${attempt + 1}/${MAX_RETRIES}). ` +
-                        `Retrying in ${Math.round(backoffMs)}ms...`
-                    );
-                    await new Promise(r => setTimeout(r, backoffMs));
-                    lastError = error;
-                    response = null;
-                    continue;
-                }
-
-                throw error;
-            } catch (error) {
-                if (isRateLimitError(error) && attempt < MAX_RETRIES) {
-                    const backoffMs = BASE_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 1000;
-                    console.warn(
-                        `[Gemini Pro] Rate limit error (attempt ${attempt + 1}/${MAX_RETRIES}). ` +
-                        `Retrying in ${Math.round(backoffMs)}ms...`
-                    );
-                    await new Promise(r => setTimeout(r, backoffMs));
-                    lastError = error instanceof Error ? error : new Error(String(error));
-                    response = null;
-                    continue;
-                }
-                throw error;
-            }
-        }
-
-        if (!response || !response.ok) {
-            throw lastError ?? new Error("Gemini Pro API request failed after retries");
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Gemini Pro API Error (${response.status}): ${errorText}`);
         }
 
         if (!response.body) throw new Error("No response body");
