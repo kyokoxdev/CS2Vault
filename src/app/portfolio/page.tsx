@@ -459,10 +459,10 @@ export default function PortfolioPage() {
   }, [fetchPortfolio]);
 
   useEffect(() => {
-    if (activeTab === "sold" && !soldData) {
+    if (!soldData && !soldLoading) {
       fetchSoldItems();
     }
-  }, [activeTab, soldData, fetchSoldItems]);
+  }, [soldData, soldLoading, fetchSoldItems]);
 
   const handleSync = useCallback(async (fallback?: string) => {
     setSyncing(true);
