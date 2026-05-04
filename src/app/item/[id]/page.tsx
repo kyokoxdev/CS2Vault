@@ -65,8 +65,8 @@ export default function ItemDetailPage() {
     const [error, setError] = useState(false);
 
     const from = searchParams.get("from");
-    const backHref = from === "watchlist" ? "/watchlist" : "/";
-    const backLabel = from === "watchlist" ? "Back to Watchlist" : "Back to Market Overview";
+    const backHref = from === "watchlist" ? "/watchlist" : from === "portfolio" ? "/portfolio" : "/";
+    const backLabel = from === "watchlist" ? "Back to Watchlist" : from === "portfolio" ? "Back to Portfolio" : "Back to Market Overview";
 
     usePageTitle(item?.name ?? null, { backLabel, backHref });
 
