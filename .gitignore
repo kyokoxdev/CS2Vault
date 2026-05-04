@@ -50,6 +50,9 @@ dev.db
 .sisyphus/
 session-ses_*.md
 
+# AI agent rules (local only)
+.cursorrules
+
 # junk / dev session artifacts
 *.log
 lint.json
