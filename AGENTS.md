@@ -109,6 +109,30 @@ Group imports in this order, separated by blank lines:
 6. Verify before push
 ```
 
+### Commit Messages (CRITICAL — EXPLAIN THE CHANGE)
+
+Every commit message MUST include an **explanation** of what changed and why — not just a terse label. A reviewer reading the message should understand the intent without reading the diff.
+
+**Good examples** (from this repo):
+- `fix: preload sold items alongside active portfolio on mount` — *why* (preload on mount) not just *what* (change fetch logic)
+- `feat: replace Range card with ATH in Market Cap chart summary` — describes the feature outcome and where
+- `fix: show Back to Portfolio when navigating from portfolio` — user-visible behavior + context
+- `fix: prevent submission without active session and conditionally include session ID in request` — detailed what-and-why
+- `refactor: extract shared system prompt into dedicated module` — what was extracted and where
+
+**Bad examples** (too vague, no explanation):
+- `fix: fetch logic` — what about it?
+- `feat: update card` — which card, what changed?
+- `refactor: cleanup` — cleanup what?
+- `fix: bug` — which bug?
+
+**Pattern**: `type: verb/describe what changed + where + why it matters`
+
+For `fix` commits: describe the **symptom** or **user-visible behavior** that was wrong.
+For `feat` commits: describe the **feature** and **where** it appears.
+For `refactor` commits: describe **what** was moved/extracted/renamed and **where**.
+For `chore` commits: describe **what** was done (version bump, config update, dependency change).
+
 ### Version Bumping (CRITICAL — BEFORE PUSHING)
 
 **Rule**: Before pushing any commit(s), the agent MUST bump the version in `package.json` according to change scope:
