@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/guard";
-import { chatWithProvider } from "@/lib/ai/registry";
+import { chatWithProvider, getAIProvider } from "@/lib/ai/registry";
 import { initAIProviders } from "@/lib/ai/init";
 import { buildMarketContext } from "@/lib/ai/context";
 import { z } from "zod";
@@ -71,6 +71,44 @@ export async function POST(request: NextRequest) {
         const latestUserMessage = messages[messages.length - 1];
         const hasImage = !!latestUserMessage.imageBase64;
 
+        const providerInstance = getAIProvider(preferredProvider);
+        if (!providerInstance) {
+            return NextResponse.json(
+                { success: false, error: `AI provider "${preferredProvider}" is not available.` },
+                { status: 400 }
+            );
+        }
+
+        try {
+            if (providerInstance.requiresOAuth && !(await providerInstance.isAuthenticated())) {
+                return NextResponse.json(
+                    { success: false, error: `AI provider "${preferredProvider}" requires authentication.` },
+                    { status: 401 }
+                );
+            }
+        } catch (error) {
+            console.error("[AI Provider Auth] Error:", error);
+            return NextResponse.json(
+                { success: false, error: "Failed to validate AI provider authentication." },
+                { status: 500 }
+            );
+        }
+
+        const configuredProvider = preferredProvider;
+        if (!providerInstance.requiresOAuth) {
+            try {
+                const isAvailable = await providerInstance.isAuthenticated();
+                if (!isAvailable) {
+                    return NextResponse.json(
+                        { success: false, error: `AI provider "${configuredProvider}" is missing an API key. Configure it in Settings.` },
+                        { status: 400 }
+                    );
+                }
+            } catch (error) {
+                console.error("[AI Provider Config] Error:", error);
+            }
+        }
+
         await prisma.chatMessage.create({
             data: {
                 userId,
@@ -139,9 +177,15 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         if (error instanceof z.ZodError) {
-            return new Response("Invalid request format", { status: 400 });
+            return NextResponse.json(
+                { success: false, error: "Invalid request format" },
+                { status: 400 }
+            );
         }
         console.error("[API /chat POST]", error);
-        return new Response(error instanceof Error ? error.message : "Internal Server Error", { status: 500 });
+        return NextResponse.json(
+            { success: false, error: error instanceof Error ? error.message : "Internal Server Error" },
+            { status: 500 }
+        );
     }
 }
