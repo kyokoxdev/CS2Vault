@@ -12,7 +12,7 @@ const MAX_CONTENT_LENGTH = 4000;
 const MAX_IMAGE_BASE64_LENGTH = 7_000_000; // ~5MB in base64
 const MAX_MESSAGES = 50;
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_REQUESTS = 10;
+const RATE_LIMIT_MAX_REQUESTS = 30;
 
 const ChatRequestSchema = z.object({
     messages: z.array(z.object({
