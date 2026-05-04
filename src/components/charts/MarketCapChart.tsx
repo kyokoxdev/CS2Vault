@@ -37,6 +37,7 @@ interface MarketCapStats {
     delta: number;
     changePercent: number;
     high: number;
+    highTime: number;
     low: number;
     dataPoints: number;
     trend: "up" | "down" | "flat";
@@ -91,10 +92,14 @@ function calculateStats(series: MarketCapDataPoint[]): MarketCapStats | null {
     if (series.length === 0) return null;
 
     let high = Number.NEGATIVE_INFINITY;
+    let highTime = 0;
     let low = Number.POSITIVE_INFINITY;
 
     for (const point of series) {
-        high = Math.max(high, point.value);
+        if (point.value > high) {
+            high = point.value;
+            highTime = point.time;
+        }
         low = Math.min(low, point.value);
     }
 
@@ -109,6 +114,7 @@ function calculateStats(series: MarketCapDataPoint[]): MarketCapStats | null {
         delta,
         changePercent,
         high,
+        highTime,
         low,
         dataPoints: series.length,
         trend: delta > 0 ? "up" : delta < 0 ? "down" : "flat",
@@ -330,10 +336,16 @@ export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
                     </div>
 
                     <div className="chart-summary-card">
-                        <span className="chart-summary-label">Range</span>
-                        <span className="chart-summary-value">{formatMarketCap(stats.low)}</span>
+                        <span className="chart-summary-label">ATH</span>
+                        <span className="chart-summary-value">{formatMarketCap(stats.high)}</span>
                         <span className="chart-summary-meta">
-                            to {formatMarketCap(stats.high)}
+                            {stats.highTime
+                                ? new Date(stats.highTime * 1000).toLocaleDateString("en-US", {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                })
+                                : "—"}
                         </span>
                     </div>
 
