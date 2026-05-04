@@ -11,6 +11,12 @@
 - Keep commits atomic and focused
 - Never commit secrets or sensitive data
 
+### Research Before Implementation (MANDATORY)
+
+- **If the task is purely about local conventions or documentation** (like AGENTS.md, README, comments): proceed via direct code reading — no background explore agent needed.
+- **For logic changes or architectural updates**: you MUST wait for the background explore agent to provide full context before committing any changes. Never commit code you haven't thoroughly explored.
+- When in doubt, fire the explore agent. The cost of skipping research far exceeds the cost of waiting for it.
+
 ---
 
 ## Coding Style (MANDATORY — CONSISTENCY)
