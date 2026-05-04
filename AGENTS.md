@@ -6,10 +6,61 @@
 
 ## General Agent Behavior
 
-- Follow existing code patterns and conventions
+- Follow existing code patterns and conventions (see Coding Style below)
 - Run lint and type checks before committing
 - Keep commits atomic and focused
 - Never commit secrets or sensitive data
+
+---
+
+## Coding Style (MANDATORY — CONSISTENCY)
+
+Every agent MUST match the existing codebase conventions exactly. The project follows strict patterns — do not introduce alternative styles.
+
+### TypeScript & React
+
+- **Strict mode enabled** — `tsconfig.json` has `"strict": true`. No `as any`, no `@ts-ignore`, no `@ts-expect-error`. Fix the type properly or leave it alone.
+- **Path alias**: Use `@/` imports (maps to `src/`). Never use relative paths that escape the `src/` boundary (e.g. no `../../../`).
+- **Component files** (`.tsx`): One component per file. Named exports only — never `export default` for React components. The exception is page-level components in `src/app/` which use default exports (Next.js App Router convention).
+- **Component structure order**: `"use client"` directive (if needed) → imports → interfaces/types → component function → export.
+- **Props**: Always use `interface` for React props (not `type`). Co-locate in the same file, directly above the component.
+- **State hooks**: Group `useState` declarations together at the top of the component, before any `useCallback` or `useEffect`.
+- **Dynamic imports**: Use `next/dynamic` with `{ ssr: false }` for heavy client-only components (charts, data tables). See `page.tsx` for the pattern.
+
+### CSS & Styling
+
+- **CSS Modules only** — every component has a corresponding `ComponentName.module.css`. No global CSS for component styles, no inline `style={{}}` for anything that belongs in a module, no CSS-in-JS libraries, no Tailwind.
+- **Class name convention**: `camelCase` in CSS modules. Reference as `styles.classNameName`.
+- **CSS custom properties**: Use the project's existing CSS variables (defined in global styles) for colors, spacing, and typography. Do not hardcode values that already exist as variables.
+
+### Server vs Client Components
+
+- **Default to Server Components** (no `"use client"`). Only add `"use client"` when the component needs React hooks, browser APIs, or event handlers.
+- **API routes** (`src/app/api/`): Always `NextResponse` from `next/server`. Wrap the handler body in `try/catch`. Return `{ success: boolean, ... }` JSON shape consistently. Use `Cache-Control` headers where appropriate.
+- **Data fetching in pages**: Server components fetch directly (no `useEffect` for initial data). Client components fetch via `useEffect` + `fetch` to API routes.
+
+### Error Handling
+
+- **API routes**: Always wrap in `try/catch`. Error responses use `{ success: false, status: "error", error: "Human-readable message" }` with appropriate HTTP status codes.
+- **Client components**: Use `useState<string | null>` for error state. Display with the project's error UI pattern (see existing components).
+- **Logging**: Use `console.error("[ComponentOrModuleName]", error)` with a bracketed context prefix. Never bare `console.error(error)`.
+
+### Database (Prisma)
+
+- **Schema changes**: After ANY change to `prisma/schema.prisma`, you MUST run `npm run db:push:turso` to sync the Turso database. This is non-negotiable — the production DB must stay in sync with the schema.
+- **Client import**: `import { prisma } from "@/lib/db"`. Never instantiate a new Prisma client.
+- **Model naming**: `PascalCase` for models in `schema.prisma`. Fields are `camelCase`. Always add `@@index` for foreign keys and frequently queried fields.
+- **IDs**: Use `@id @default(cuid())` for String IDs, `@id @default(autoincrement())` for Int IDs. Follow existing model patterns exactly.
+
+### Import Order
+
+Group imports in this order, separated by blank lines:
+1. React / Next.js core (`react`, `next/link`, `next/dynamic`, etc.)
+2. Third-party libraries (`next-auth`, etc.)
+3. Internal components (`@/components/...`)
+4. Internal types (`@/types/...`)
+5. Internal utilities (`@/lib/...`, `@/hooks/...`)
+6. CSS Module imports (`styles from "./..."`)
 
 ---
 
