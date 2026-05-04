@@ -113,20 +113,60 @@ Group imports in this order, separated by blank lines:
 
 Every commit message MUST include an **explanation** of what changed and why — not just a terse label. A reviewer reading the message should understand the intent without reading the diff.
 
-**Good examples** (from this repo):
-- `fix: preload sold items alongside active portfolio on mount` — *why* (preload on mount) not just *what* (change fetch logic)
-- `feat: replace Range card with ATH in Market Cap chart summary` — describes the feature outcome and where
-- `fix: show Back to Portfolio when navigating from portfolio` — user-visible behavior + context
-- `fix: prevent submission without active session and conditionally include session ID in request` — detailed what-and-why
-- `refactor: extract shared system prompt into dedicated module` — what was extracted and where
+#### Structure
 
-**Bad examples** (too vague, no explanation):
+```
+type: concise subject line (≤72 chars)
+
+Detailed body paragraph explaining what changed, why, and any
+non-obvious context. Mention the component/module affected, the
+problem being solved, and any tradeoffs or decisions made.
+```
+
+**The commit body MUST always be present**, UNLESS the change is small and fully self-explanatory from the subject line alone (e.g. `chore: bump version to 0.7.2`, `fix: correct typo in button label`). When in doubt, include the body.
+
+#### Examples
+
+**Good — with body** (the standard, expected format):
+```
+feat: replace Range card with ATH in Market Cap chart summary
+
+The Range card showed low-to-high which is redundant with the chart
+area. Replaced with All-Time High showing the peak value and its
+date, giving users a meaningful single-point stat instead of a range
+that requires mental comparison.
+```
+
+```
+fix: preload sold items alongside active portfolio on mount
+
+Previously sold items only loaded when the user clicked the Sold tab,
+causing a visible loading delay. Now both active and sold data fetch
+in parallel on page mount, so the Sold tab renders instantly.
+```
+
+```
+fix: show Back to Portfolio when navigating from portfolio
+
+The back button always read "Back to Market Overview" regardless of
+where the user came from. Now checks the ?from= query param and
+shows context-appropriate labels: "Back to Watchlist",
+"Back to Portfolio", or fallback "Back to Market Overview".
+```
+
+**Good — subject-only** (ONLY for trivial changes):
+- `chore: bump version to 0.7.2`
+- `fix: correct typo in button label`
+
+**Bad examples** (too vague, no body):
 - `fix: fetch logic` — what about it?
 - `feat: update card` — which card, what changed?
 - `refactor: cleanup` — cleanup what?
 - `fix: bug` — which bug?
 
-**Pattern**: `type: verb/describe what changed + where + why it matters`
+#### Subject line pattern
+
+`type: verb/describe what changed + where + why it matters`
 
 For `fix` commits: describe the **symptom** or **user-visible behavior** that was wrong.
 For `feat` commits: describe the **feature** and **where** it appears.
