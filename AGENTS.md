@@ -23,9 +23,14 @@ Every agent MUST match the existing codebase conventions exactly. The project fo
 - **Path alias**: Use `@/` imports (maps to `src/`). Never use relative paths that escape the `src/` boundary (e.g. no `../../../`).
 - **Component files** (`.tsx`): One component per file. Named exports only — never `export default` for React components. The exception is page-level components in `src/app/` which use default exports (Next.js App Router convention).
 - **Component structure order**: `"use client"` directive (if needed) → imports → interfaces/types → component function → export.
+- **Types vs interfaces**: Use `interface` for React props and object shapes. Use `type` for unions, primitives, and utility types. Never use `I` prefix (e.g. write `PriceData`, not `IPriceData`).
 - **Props**: Always use `interface` for React props (not `type`). Co-locate in the same file, directly above the component.
 - **State hooks**: Group `useState` declarations together at the top of the component, before any `useCallback` or `useEffect`.
-- **Dynamic imports**: Use `next/dynamic` with `{ ssr: false }` for heavy client-only components (charts, data tables). See `page.tsx` for the pattern.
+- **Callbacks**: Use `useCallback` for all callback functions passed as props or used in effect dependencies. Include proper dependency arrays.
+- **Dynamic imports**: Use `next/dynamic` with `{ ssr: false }` for heavy client-only components (charts, data tables). Use the named-export pattern: `dynamic(() => import("@/components/X").then((m) => ({ default: m.ComponentName })), { ssr: false })`.
+- **Buttons**: Always include `type="button"` on `<button>` elements to prevent unintended form submission.
+- **Accessibility**: Use `aria-label` for icon-only buttons and interactive elements. Use `aria-hidden="true"` for decorative SVGs. Include meaningful labels.
+- **Constants**: Define file-level constants at the top (outside component). Use `UPPER_SNAKE_CASE` for true constants (e.g. `MAX_MESSAGE_LENGTH`, `CACHE_MAX_AGE_HOURS`). Use `camelCase` for configuration objects.
 
 ### CSS & Styling
 
@@ -38,6 +43,13 @@ Every agent MUST match the existing codebase conventions exactly. The project fo
 - **Default to Server Components** (no `"use client"`). Only add `"use client"` when the component needs React hooks, browser APIs, or event handlers.
 - **API routes** (`src/app/api/`): Always `NextResponse` from `next/server`. Wrap the handler body in `try/catch`. Return `{ success: boolean, ... }` JSON shape consistently. Use `Cache-Control` headers where appropriate.
 - **Data fetching in pages**: Server components fetch directly (no `useEffect` for initial data). Client components fetch via `useEffect` + `fetch` to API routes.
+- **Error boundaries**: Create `error.tsx` in route segments following Next.js convention. Log errors with `console.error`, provide retry functionality.
+
+### Utility & Service Patterns
+
+- **Named exports**: Use `export function functionName()` for all public functions. Group related functions in the same file.
+- **Do not throw from utilities**: Return result objects with error information. Include `failureReason?: string` and `fallbackAvailable?: boolean` in return types rather than throwing exceptions.
+- **Custom hooks**: Store in `src/hooks/` directory. Name with `use` prefix (e.g. `usePriceRefreshInterval`, `useMediaQuery`). Extract reusable stateful logic into hooks.
 
 ### Error Handling
 
