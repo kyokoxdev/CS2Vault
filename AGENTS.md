@@ -1,10 +1,24 @@
 # Agent Rules for CS2Vault Project
-# This file contains mandatory rules for AI agents working on this codebase
 
-## Git Operations (CRITICAL - NON-NEGOTIABLE)
+> **MANDATORY**: Every AI agent working on this codebase MUST read this file in full at the start of every session before making any changes. No exceptions.
+
+---
+
+## General Agent Behavior
+
+- Follow existing code patterns and conventions
+- Run lint and type checks before committing
+- Keep commits atomic and focused
+- Never commit secrets or sensitive data
+
+---
+
+## Git Operations (CRITICAL — NON-NEGOTIABLE)
 
 ### ALWAYS Use git-master Skill
+
 **Rule**: For ANY git operation (commit, push, rebase, history search, etc.), the agent MUST:
+
 1. Load the `git-master` skill FIRST before any git commands
 2. Follow the skill's style detection protocol
 3. Use `GIT_MASTER=1` prefix for ALL git commands
@@ -13,9 +27,10 @@
 **No Exceptions**:
 - Never skip the skill
 - Never use plain git commands without the skill loaded
-- Never assume commit style - always detect from repo history
+- Never assume commit style — always detect from repo history
 
 ### Required Workflow for Commits
+
 ```
 1. Load git-master skill
 2. Run parallel context gathering (git status, git log, git diff)
@@ -25,7 +40,8 @@
 6. Verify before push
 ```
 
-### Version Bumping (CRITICAL - BEFORE PUSHING)
+### Version Bumping (CRITICAL — BEFORE PUSHING)
+
 **Rule**: Before pushing any commit(s), the agent MUST bump the version in `package.json` according to change scope:
 
 | Change Scope | Version Bump | Examples |
@@ -47,15 +63,9 @@
 - Mixed scopes default to the highest scope among unpushed changes
 
 ### Forbidden Actions
+
 - Single commit from multiple unrelated files
 - Semantic commits when repo uses plain style
 - Any git operation without skill loaded
 - Pushing without verification
 - Pushing without version bump
-
-## General Agent Behavior
-
-- Follow existing code patterns and conventions
-- Run lint and type checks before committing
-- Keep commits atomic and focused
-- Never commit secrets or sensitive data
