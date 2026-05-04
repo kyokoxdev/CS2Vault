@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth/guard";
 import { chatWithProvider, getAIProvider } from "@/lib/ai/registry";
 import { initAIProviders } from "@/lib/ai/init";
 import { buildMarketContext } from "@/lib/ai/context";
+import { getModelShortLabel } from "@/lib/ai/model-labels";
 import { z } from "zod";
 import type { ChatMessageData, AIProviderName } from "@/types";
 
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
         const providerInstance = getAIProvider(preferredProvider);
         if (!providerInstance) {
             return NextResponse.json(
-                { success: false, error: `AI provider "${preferredProvider}" is not available.` },
+                { success: false, error: `AI provider "${getModelShortLabel(preferredProvider)}" is not available.` },
                 { status: 400 }
             );
         }
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
         try {
             if (providerInstance.requiresOAuth && !(await providerInstance.isAuthenticated())) {
                 return NextResponse.json(
-                    { success: false, error: `AI provider "${preferredProvider}" requires authentication.` },
+                    { success: false, error: `AI provider "${getModelShortLabel(preferredProvider)}" requires authentication. Connect it in Settings.` },
                     { status: 401 }
                 );
             }
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
                 const isAvailable = await providerInstance.isAuthenticated();
                 if (!isAvailable) {
                     return NextResponse.json(
-                        { success: false, error: `AI provider "${configuredProvider}" is missing an API key. Configure it in Settings.` },
+                        { success: false, error: `AI provider "${getModelShortLabel(configuredProvider)}" is missing an API key. Configure it in Settings.` },
                         { status: 400 }
                     );
                 }

@@ -3,6 +3,7 @@
  */
 
 import type { AIProvider, AIProviderName, ChatMessageData, MarketContext } from "@/types";
+import { getModelShortLabel } from "./model-labels";
 
 const providers = new Map<AIProviderName, AIProvider>();
 
@@ -24,11 +25,11 @@ export async function* chatWithProvider(
 ): AsyncGenerator<string> {
     const provider = providers.get(name);
     if (!provider) {
-        throw new Error(`AI provider "${name}" is not registered.`);
+        throw new Error(`AI provider "${getModelShortLabel(name)}" is not registered.`);
     }
 
     if (provider.requiresOAuth && !(await provider.isAuthenticated())) {
-        throw new Error(`AI provider "${name}" requires authentication. Connect it in Settings.`);
+        throw new Error(`AI provider "${getModelShortLabel(name)}" requires authentication. Connect it in Settings.`);
     }
 
     yield* provider.chat(messages, context);
