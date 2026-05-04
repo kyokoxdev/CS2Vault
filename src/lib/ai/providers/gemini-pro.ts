@@ -1,18 +1,19 @@
-import { getValidGoogleToken } from '@/lib/auth/google-oauth';
 import type { AIProvider, ChatMessageData, MarketContext } from '@/types';
+import { prisma } from '@/lib/db';
 import { isRateLimitError } from '@/lib/api-queue';
 import { buildSystemPrompt } from '@/lib/ai/prompt';
+import { decryptApiKey } from '@/lib/auth/api-keys';
 
 const MAX_RETRIES = 2;
 const BASE_BACKOFF_MS = 3000;
 
 export class GeminiProProvider implements AIProvider {
     name = "gemini-pro";
-    requiresOAuth = true;
+    requiresOAuth = false;
 
     async isAuthenticated(): Promise<boolean> {
-        const token = await getValidGoogleToken();
-        return !!token;
+        const settings = await prisma.appSettings.findUnique({ where: { id: 'singleton' } });
+        return !!(decryptApiKey(settings?.geminiApiKey) || process.env.GEMINI_API_KEY);
     }
 
     getModelName(): string {
@@ -20,8 +21,12 @@ export class GeminiProProvider implements AIProvider {
     }
 
     async *chat(messages: ChatMessageData[], context: MarketContext): AsyncGenerator<string> {
-        const token = await getValidGoogleToken();
-        if (!token) throw new Error("Not authenticated with Google.");
+        const settings = await prisma.appSettings.findUnique({ where: { id: 'singleton' } });
+        const apiKey = decryptApiKey(settings?.geminiApiKey) || process.env.GEMINI_API_KEY;
+
+        if (!apiKey) {
+            throw new Error("Gemini API key not configured. Add it in Settings.");
+        }
 
         // Filter out system messages as they are sent as systemInstruction
         const filteredMessages = messages.filter(m => m.role !== 'system');
@@ -66,7 +71,7 @@ export class GeminiProProvider implements AIProvider {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'x-goog-api-key': apiKey,
                     },
                     body: JSON.stringify(body)
                 });
