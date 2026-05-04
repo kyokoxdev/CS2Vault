@@ -83,6 +83,9 @@ export default function AIChat() {
         fetch("/api/chat/sessions")
             .then(res => res.json())
             .then(async (data) => {
+                if (!data.success && typeof data.error === "string") {
+                    setError(data.error);
+                }
                 if (data.success && data.data && data.data.length > 0) {
                     setSessions(data.data);
                     const firstSession = data.data[0];
@@ -96,10 +99,13 @@ export default function AIChat() {
                             body: JSON.stringify({ title: "New Chat" }),
                         });
                         const createData = await createRes.json();
-                        if (createData.success) {
-                            setSessions([createData.data]);
-                            setActiveSessionId(createData.data.id);
-                        }
+            if (createData.success) {
+                setSessions([createData.data]);
+                setActiveSessionId(createData.data.id);
+                setMessages([createChatMessage(WELCOME_MESSAGE)]);
+            } else if (createData?.error) {
+                setError(createData.error);
+            }
                     } catch {
                         // Session creation failed — chat works without persistence
                     }
@@ -242,8 +248,18 @@ export default function AIChat() {
             });
 
             if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(errorText || "API Error");
+                let errorMessage = "API Error";
+                const contentType = res.headers.get("content-type") || "";
+                if (contentType.includes("application/json")) {
+                    const data = await res.json().catch(() => null);
+                    if (data && typeof data.error === "string") {
+                        errorMessage = data.error;
+                    }
+                } else {
+                    const errorText = await res.text();
+                    if (errorText) errorMessage = errorText;
+                }
+                throw new Error(errorMessage);
             }
             if (!res.body) throw new Error("No response body");
 
@@ -280,6 +296,9 @@ export default function AIChat() {
             }
 
             console.error("Chat error:", error);
+            const errorMessage = error instanceof Error && error.message
+                ? error.message
+                : "Sorry, I encountered an error while processing your request. Please check your AI provider settings and try again.";
             setMessages(prev => prev.map(message => {
                 if (message.id !== assistantPlaceholder.id) {
                     return message;
@@ -287,7 +306,7 @@ export default function AIChat() {
 
                 return {
                     ...message,
-                    content: "Sorry, I encountered an error while processing your request. Please check your AI provider settings and try again.",
+                    content: errorMessage,
                 };
             }));
         } finally {
@@ -357,16 +376,20 @@ export default function AIChat() {
             <div className={styles.tabBar} role="tablist" aria-label="Chat sessions">
                 <div className={styles.tabsScroll} ref={tabsContainerRef}>
                     {!sessionsLoading && sessions.map((s) => (
-                        <button
+                        <div
                             key={s.id}
-                            type="button"
-                            role="tab"
-                            aria-selected={s.id === activeSessionId}
-                            className={`${styles.tab} ${s.id === activeSessionId ? styles.tabActive : ""}`}
-                            onClick={() => handleSwitchSession(s.id)}
-                            title={s.title}
+                            className={`${styles.tabWrapper} ${s.id === activeSessionId ? styles.tabActive : ""}`}
                         >
-                            <span className={styles.tabTitle}>{s.title}</span>
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={s.id === activeSessionId}
+                                className={`${styles.tabButton} ${s.id === activeSessionId ? styles.tabActive : ""}`}
+                                onClick={() => handleSwitchSession(s.id)}
+                                title={s.title}
+                            >
+                                <span className={styles.tabTitle}>{s.title}</span>
+                            </button>
                             {sessions.length > 1 && (
                                 <button
                                     type="button"
@@ -377,7 +400,7 @@ export default function AIChat() {
                                     <FaTimes />
                                 </button>
                             )}
-                        </button>
+                        </div>
                     ))}
                 </div>
                 <button
