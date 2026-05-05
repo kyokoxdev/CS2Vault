@@ -79,6 +79,185 @@ Version bumps in `package.json` are reserved for changes that affect the **runni
 - **Anti-duplication rule**: If you fire an explore or librarian agent for a search, you MUST NOT manually perform the same search yourself. Use direct tools only for non-overlapping work.
 - When in doubt, fire the explore agent. The cost of skipping research far exceeds the cost of waiting for it.
 
+### Quick Start Commands
+
+Copy-paste ready commands for common tasks:
+
+```bash
+# Development
+npm run dev                    # Start development server on :3000
+npm install                    # Install dependencies (postinstall runs prisma generate)
+
+# Build & Deploy
+npm run build                  # Production build (includes Prisma generate + schema push)
+npm run db:push:turso         # Push schema to Turso and seed default settings
+
+# Quality Assurance
+npm run test                   # Run Vitest test suite
+npm run lint                   # Run ESLint
+npm run db:studio             # Open Prisma Studio for database inspection
+
+# Database (Local Development)
+npx prisma db push            # Push schema changes to local SQLite
+npx prisma generate           # Regenerate Prisma client (auto-runs on postinstall)
+npx tsx prisma/seed.ts        # Seed default settings manually
+```
+
+### Available Skills
+
+Sisyphus can load specialized skills for specific tasks. **Always check if a skill applies before starting work.**
+
+#### Built-in Skills
+
+| Skill | Use When | Trigger Phrases |
+|-------|----------|-----------------|
+| `git-master` | ANY git operation — commits, pushes, rebase, history search | "commit", "push", "rebase", "squash", "who wrote", "when was X added" |
+| `playwright` | Browser automation — testing, screenshots, web scraping, verification | "test in browser", "screenshot", "verify UI", "e2e test" |
+| `frontend-ui-ux` | UI/UX design without mockups — layout, styling, components | "design", "make it look better", "improve UI", "layout" |
+| `review-work` | Post-implementation review — QA, verification, audit | "review my work", "QA this", "verify implementation", "check my work" |
+| `ai-slop-remover` | Clean up AI-generated code smells in a single file | "clean up", "remove AI slop", "refactor this file" |
+
+#### Project Skills (Power Pack)
+
+| Skill | Use When | Trigger Phrases |
+|-------|----------|-----------------|
+| `agents-md-improver` | Auditing/updating AGENTS.md or CLAUDE.md files | "audit AGENTS.md", "improve project rules", "check CLAUDE.md" |
+| `agents-md-revise` | Capturing session learnings into project rules | "update AGENTS.md", "save to project memory", "remember this" |
+| `code-architect` | Architecture design for new features | "design feature", "architecture plan", "implementation blueprint" |
+| `code-explorer` | Understanding how existing features work | "how does X work", "explain this codebase", "trace execution" |
+| `code-review` | Reviewing PRs or pending changes | "review PR", "audit changes", "check before merge" |
+| `code-reviewer` | Reviewing specific files or functions | "review this file", "critique this function", "check for bugs" |
+| `feature-dev` | Methodical feature implementation (7-phase workflow) | "implement feature", "build new feature", "add functionality" |
+| `find-skills` | Discovering what skills are available | "what skills", "find skill for", "how do I do X" |
+| `frontend-design` | Building web components/pages with high design quality | "build component", "create page", "frontend implementation" |
+| `mcp-builder` | Creating MCP servers for external API integration | "build MCP", "create MCP server", "Model Context Protocol" |
+| `security-review` | Security audit of pending changes | "security review", "audit for vulnerabilities", "security check" |
+| `skill-creator` | Creating new skills or modifying existing ones | "create skill", "new skill", "modify skill" |
+
+**Skill Loading Protocol:**
+1. **Before ANY task**, check if a skill's domain overlaps with your work
+2. **When in doubt, load the skill** — cost of loading is near zero, cost of missing is high
+3. **Use `skill()` tool first**, then proceed with the task
+4. **Git operations** → ALWAYS load `git-master` first, no exceptions
+
+---
+
+## Project Architecture
+
+Directory structure and key locations:
+
+```
+src/
+├── app/              # Next.js App Router (pages & API routes)
+│   ├── api/         # API route handlers
+│   ├── chat/        # Chat page
+│   ├── item/[id]/   # Item detail page
+│   ├── market-cap/  # Market cap page
+│   ├── portfolio/   # Portfolio page
+│   ├── settings/    # Settings page
+│   ├── startup/     # Landing page
+│   ├── watchlist/   # Watchlist page
+│   ├── error.tsx    # Global error boundary
+│   ├── globals.css  # Global styles & CSS variables
+│   ├── layout.tsx   # Root layout
+│   └── page.tsx     # Market overview (homepage)
+├── components/       # React components (CSS Modules required)
+│   ├── landing/     # Landing page components
+│   ├── layout/      # Layout components (DashboardShell)
+│   ├── market/      # Market-related (Watchlist, TopMovers, NewsFeed)
+│   ├── portfolio/   # Portfolio components
+│   ├── providers/   # React context providers
+│   └── ui/          # Reusable UI primitives (Badge, Card, DataTable, etc.)
+├── generated/        # Prisma client (auto-generated, DO NOT EDIT)
+├── hooks/           # Custom React hooks (usePriceRefreshInterval, etc.)
+├── lib/             # Utilities & business logic
+│   ├── ai/          # AI providers (Gemini, OpenAI)
+│   ├── auth/        # Authentication (Steam OpenID, Google OAuth)
+│   ├── candles/     # Candlestick data aggregation
+│   ├── market/      # Price fetching, sync, market cap logic
+│   ├── news/        # RSS feed aggregation
+│   └── db.ts        # Prisma client singleton
+└── types/           # Shared TypeScript types
+
+prisma/
+├── schema.prisma    # Database schema (Turso/SQLite)
+├── seed.ts         # Default settings seeder
+└── migrations/     # Database migrations
+
+tests/               # Vitest tests (mirrors src/ structure)
+├── components/      # Component tests
+├── lib/            # Utility tests
+└── *.test.ts       # Unit tests
+```
+
+**Key patterns:**
+- **Pages** in `src/app/**/page.tsx` use default exports (Next.js convention)
+- **Components** in `src/components/` use named exports only
+- **Tests** live in `tests/` mirroring the `src/` structure
+- **CSS Modules** are co-located: `Component.tsx` + `Component.module.css`
+
+---
+
+## Environment Setup
+
+Required environment variables (copy `.env.example` to `.env.local`):
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Local dev | SQLite path (default: `file:./dev.db`) |
+| `TURSO_DATABASE_URL` | Vercel | Turso database URL (`libsql://...`) |
+| `TURSO_AUTH_TOKEN` | Vercel | Turso auth token |
+| `STEAM_API_KEY` | Yes | [Steam Web API key](https://steamcommunity.com/dev/apikey) |
+| `ALLOWED_STEAM_ID` | Yes | Your Steam64 ID for auth |
+| `NEXTAUTH_SECRET` | Yes | Generate with `openssl rand -hex 32` |
+| `NEXTAUTH_URL` | Yes | App URL (default: `http://localhost:3000`) |
+| `CRON_SECRET` | Vercel | Secret for Vercel Cron job auth |
+
+**Optional (for features):**
+- `CSFLOAT_API_KEY` — CSFloat price data
+- `PRICEMPIRE_API_KEY` — Pricempire price data  
+- `GEMINI_API_KEY` — Google Gemini AI chat
+- `OPENAI_API_KEY` — OpenAI GPT chat
+- `TOKEN_ENCRYPTION_KEY` — Encrypt stored tokens
+
+**Turso setup for Vercel:**
+```bash
+# Install Turso CLI
+curl -sSfL https://get.tur.so/install.sh | bash
+
+# Create database
+turso db create cs2vault
+turso db show cs2vault --url
+turso db tokens create cs2vault
+
+# Push schema
+npm run db:push:turso
+```
+
+---
+
+## Gotchas & Common Issues
+
+1. **Prisma client import**: Always use `import { prisma } from "@/lib/db"`. Never import from `@prisma/client` directly — the client is generated to `src/generated/prisma/` and wrapped for adapter configuration.
+
+2. **Turso vs SQLite**: Local development uses a SQLite file (`dev.db`); production uses Turso (libSQL). Both use the same Prisma schema. The `db.ts` file handles the adapter selection automatically.
+
+3. **Default exports**: Only page components in `src/app/` may use default exports. All other components MUST use named exports. Default exports in components break the build.
+
+4. **Strict TypeScript**: The project has `"strict": true`. Never use `as any`, `@ts-ignore`, or `@ts-expect-error`. Fix the type properly or leave the code unchanged.
+
+5. **CSS Modules required**: Every component MUST have a corresponding `.module.css` file. No global CSS for component styles, no inline `style={{}}`, no Tailwind, no CSS-in-JS.
+
+6. **Database schema changes**: After ANY change to `prisma/schema.prisma`, you MUST run `npm run db:push:turso` to sync the production database. Skipping this will break production.
+
+7. **Component structure order**: Follow the exact order: `"use client"` (if needed) → imports → interfaces/types → component function → export. Never deviate.
+
+8. **Path aliases**: Always use `@/` imports (maps to `src/`). Never use relative paths that escape `src/` (e.g., no `../../../`).
+
+9. **Test location**: Tests live in `tests/` directory, not alongside source files. Mirror the `src/` structure (e.g., `src/components/ui/Badge.tsx` → `tests/components/Badge.test.tsx`).
+
+10. **Git workflow**: Always load the `git-master` skill before any git operations. Never use plain git commands. Follow the commit message format with descriptive bodies.
+
 ---
 
 ## Coding Style (MANDATORY — CONSISTENCY)
