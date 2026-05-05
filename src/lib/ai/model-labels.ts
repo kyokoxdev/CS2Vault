@@ -22,11 +22,6 @@ export interface ModelOption {
  */
 export const AI_MODELS: ModelOption[] = [
     {
-        value: "gemini-pro",
-        label: "Google Gemini 2.5 Pro (Thinking)",
-        shortLabel: "Gemini 2.5 Pro",
-    },
-    {
         value: "gemini-flash",
         label: "Google Gemini 2.5 Flash",
         shortLabel: "Gemini 2.5 Flash",

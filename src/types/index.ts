@@ -176,7 +176,7 @@ export interface ApiResponse<T> {
 // ─── App Settings ───────────────────────────────────────
 
 export type MarketSource = "pricempire" | "csfloat" | "csgotrader" | "steam";
-export type AIProviderName = "gemini-pro" | "gemini-flash" | "openai";
+export type AIProviderName = "gemini-flash" | "openai";
 
 export type CSGOTraderSubProvider = "csgotrader" | "bitskins" | "steam" | "csmoney" | "csgotm" | "lootfarm" | "skinport" | "csgoempire" | "swapgg" | "buff163" | "cstrade" | "csfloat" | "youpin" | "lisskins";
 

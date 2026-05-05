@@ -234,16 +234,7 @@ export const csgotraderQueue = new ApiRequestQueue({
     maxDailyRequests: 1000,
 });
 
-/** Gemini Pro: 60 req/min for free tier, 1 req/2s to be safe with retries */
-export const geminiProQueue = new ApiRequestQueue({
-    queueName: "gemini-pro",
-    useGlobalRateLimit: true,
-    minDelayMs: 2000,
-    maxRetries: 5,
-    maxDailyRequests: 10000,
-});
-
-/** Gemini Flash: same limits as Pro */
+/** Gemini Flash */
 export const geminiFlashQueue = new ApiRequestQueue({
     queueName: "gemini-flash",
     useGlobalRateLimit: true,
