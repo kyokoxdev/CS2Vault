@@ -40,17 +40,48 @@ export class OpenAIProvider implements AIProvider {
             } as OpenAI.Chat.ChatCompletionMessageParam))
         ];
 
-        const stream = await client.chat.completions.create({
-            model: this.getModelName(),
-            messages: openAiMsgs,
-            stream: true,
-        });
+        try {
+            const stream = await client.chat.completions.create({
+                model: this.getModelName(),
+                messages: openAiMsgs,
+                stream: true,
+            });
 
-        for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content;
-            if (content) {
-                yield content;
+            for await (const chunk of stream) {
+                const content = chunk.choices[0]?.delta?.content;
+                if (content) {
+                    yield content;
+                }
             }
+        } catch (error) {
+            if (error instanceof OpenAI.APIError) {
+                const status = error.status;
+                const message = error.message || "";
+
+                if (status === 429) {
+                    throw new Error("Rate limit exceeded. OpenAI is receiving too many requests. Please wait a moment and try again.");
+                }
+
+                if (status === 503) {
+                    throw new Error("OpenAI is currently experiencing high traffic and temporarily unavailable. Please try again in a few moments.");
+                }
+
+                if (status === 401) {
+                    throw new Error("Invalid OpenAI API key. Please check your API key in Settings.");
+                }
+
+                if (status === 403) {
+                    throw new Error("Access denied. Your OpenAI API key may not have access to this model.");
+                }
+
+                if (message.toLowerCase().includes("quota") || message.toLowerCase().includes("billing")) {
+                    throw new Error("OpenAI quota exceeded or billing issue. Please check your OpenAI account billing and usage limits.");
+                }
+
+                throw new Error(`OpenAI error (${status}): ${message}`);
+            }
+
+            throw error;
         }
     }
 }

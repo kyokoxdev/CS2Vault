@@ -151,7 +151,8 @@ export async function POST(request: NextRequest) {
                     }
                 } catch (error) {
                     console.error("[AI Stream] Error:", error);
-                    controller.enqueue(encoder.encode("\n\n*Error: An issue occurred while generating the response.*"));
+                    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+                    controller.enqueue(encoder.encode(`\n\n*Error: ${errorMessage}*`));
                 } finally {
                     controller.close();
                     if (fullAssistantResponse.trim()) {
