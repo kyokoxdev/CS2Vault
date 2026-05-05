@@ -69,7 +69,38 @@ export class GeminiFlashProvider implements AIProvider {
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Gemini Flash API Error (${response.status}): ${errorText}`);
+            const status = response.status;
+
+            let parsedError: { error?: { message?: string; code?: number; status?: string } } = {};
+            try {
+                parsedError = JSON.parse(errorText);
+            } catch {
+                parsedError = {};
+            }
+
+            const geminiMessage = parsedError.error?.message || errorText;
+
+            if (status === 429) {
+                throw new Error("Rate limit exceeded. The AI model is receiving too many requests. Please wait a moment and try again.");
+            }
+
+            if (status === 503) {
+                throw new Error("The AI model is currently under heavy load and temporarily unavailable. Please try again in a few moments.");
+            }
+
+            if (geminiMessage.toLowerCase().includes("quota") || geminiMessage.toLowerCase().includes("exceeded")) {
+                throw new Error("API quota exceeded. Your daily or monthly usage limit has been reached. Please check your Google AI Studio quota.");
+            }
+
+            if (geminiMessage.toLowerCase().includes("invalid api key") || geminiMessage.toLowerCase().includes("api key not valid")) {
+                throw new Error("Invalid Gemini API key. Please check your API key in Settings.");
+            }
+
+            if (geminiMessage.toLowerCase().includes("permission") || status === 403) {
+                throw new Error("Access denied. Your API key may not have permission to use this model, or the model may not be enabled in your Google AI Studio project.");
+            }
+
+            throw new Error(`Gemini API error (${status}): ${geminiMessage}`);
         }
 
         if (!response.body) throw new Error("No response body");
