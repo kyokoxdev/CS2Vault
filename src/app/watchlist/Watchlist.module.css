@@ -181,15 +181,15 @@
 }
 
 .paginationBtnActive {
-  background: var(--accent-primary, #3b82f6);
-  border-color: var(--accent-primary, #3b82f6);
-  color: #fff;
+  background: var(--text-primary-90);
+  border-color: var(--text-primary-90);
+  color: var(--surface-0);
 }
 
 .paginationBtnActive:hover:not(:disabled) {
-  background: var(--accent-primary, #3b82f6);
-  border-color: var(--accent-primary, #3b82f6);
-  color: #fff;
+  background: var(--text-primary-90);
+  border-color: var(--text-primary-90);
+  color: var(--surface-0);
   opacity: 0.9;
 }
 
