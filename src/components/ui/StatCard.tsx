@@ -5,7 +5,7 @@ import styles from './StatCard.module.css';
 interface StatCardProps {
   label: string;
   value: string | number | ReactNode;
-  change?: number;
+  change?: number | null;
   icon?: ReactNode;
   prefix?: string;
 }
@@ -39,7 +39,7 @@ export function StatCard({
             {prefix}
             {value}
           </div>
-          {change !== undefined && (
+          {change !== undefined && change !== null && (
             <div className={`${styles.change} ${getChangeColor(change)}`}>
               {formatChange(change)}
             </div>

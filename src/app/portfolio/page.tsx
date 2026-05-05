@@ -48,7 +48,7 @@ interface SoldItem {
   acquiredPrice: number | null;
   soldPrice: number | null;
   realizedPnl: number;
-  pnlPercent: number;
+  pnlPercent: number | null;
   acquiredAt: string;
   soldAt: string;
 }
@@ -56,8 +56,9 @@ interface SoldItem {
 interface SoldData {
   totalSoldValue: number;
   totalAcquiredValue: number;
+  hasAnyCostBasis: boolean;
   totalRealizedPnL: number;
-  realizedPnLPercent: number;
+  realizedPnLPercent: number | null;
   soldCount: number;
   items: SoldItem[];
 }
@@ -65,16 +66,18 @@ interface SoldData {
 interface PortfolioData {
   totalCurrentValue: number;
   totalAcquiredValue: number;
+  hasAnyCostBasis: boolean;
   unrealizedPnL: number;
-  unrealizedPnLPercent: number;
+  unrealizedPnLPercent: number | null;
   itemCount: number;
   filteredCount?: number;
   items: PortfolioItem[];
   filteredTotals?: {
     totalCurrentValue: number;
     totalAcquiredValue: number;
+    hasAnyCostBasis: boolean;
     unrealizedPnL: number;
-    unrealizedPnLPercent: number;
+    unrealizedPnLPercent: number | null;
   };
   filter?: {
     category: string | null;
@@ -188,7 +191,7 @@ function MarkAsSoldModal({
 
   const pnlPreview = (() => {
     const price = parseFloat(soldPrice);
-    if (isNaN(price) || !item.acquiredPrice) return null;
+    if (isNaN(price) || item.acquiredPrice === null || item.acquiredPrice === undefined) return null;
     return price - item.acquiredPrice;
   })();
 
@@ -217,7 +220,7 @@ function MarkAsSoldModal({
             <div className={styles.modalItemName}>{item.name}</div>
             {item.exterior && <div className={styles.modalItemSub}>{item.exterior}</div>}
             {item.acquiredPrice != null && (
-              <div className={styles.modalItemSub}>Cost basis: ${item.acquiredPrice.toFixed(2)}</div>
+              <div className={styles.modalItemSub}>Cost basis: ${item.acquiredPrice.toFixed(2)}{item.acquiredPrice === 0 ? " (free)" : ""}</div>
             )}
           </div>
         </div>
@@ -249,7 +252,7 @@ function MarkAsSoldModal({
           {pnlPreview !== null && (
             <div className={`${styles.modalPnlPreview} ${pnlPreview >= 0 ? styles.pnlPositive : styles.pnlNegative}`}>
               Realized P&L: {pnlPreview >= 0 ? "+" : ""}${pnlPreview.toFixed(2)}
-              {item.acquiredPrice && item.acquiredPrice > 0 && (
+              {item.acquiredPrice != null && item.acquiredPrice > 0 && (
                 <span className={styles.pnlPercent}>
                   ({((pnlPreview / item.acquiredPrice) * 100) >= 0 ? "+" : ""}
                   {((pnlPreview / item.acquiredPrice) * 100).toFixed(1)}%)
@@ -862,7 +865,7 @@ export default function PortfolioPage() {
               className={styles.editLink}
             >
               {item.acquiredPrice != null ? (
-                `$${item.acquiredPrice.toFixed(2)}`
+                `$${item.acquiredPrice.toFixed(2)}${item.acquiredPrice === 0 ? " (free)" : ""}`
               ) : (
                 <span className={`${styles.textMuted} ${styles.textItalic}`}>Set price</span>
               )}
@@ -951,7 +954,7 @@ export default function PortfolioPage() {
                 onClick={(e) => { e.stopPropagation(); setEditingId(item.id); setEditPrice(item.acquiredPrice?.toString() ?? ""); }}
                 className={styles.editLink}
               >
-                {item.acquiredPrice != null ? `$${item.acquiredPrice.toFixed(2)}` : <span className={`${styles.textMuted} ${styles.textItalic}`}>Set</span>}
+                {item.acquiredPrice != null ? `$${item.acquiredPrice.toFixed(2)}${item.acquiredPrice === 0 ? " (free)" : ""}` : <span className={`${styles.textMuted} ${styles.textItalic}`}>Set</span>}
               </button>
             )}
           </div>
@@ -996,7 +999,7 @@ export default function PortfolioPage() {
       align: "right",
       render: (_, item) =>
         item.acquiredPrice != null ? (
-          <span className={styles.priceCell}>${item.acquiredPrice.toFixed(2)}</span>
+          <span className={styles.priceCell}>${item.acquiredPrice.toFixed(2)}{item.acquiredPrice === 0 ? " (free)" : ""}</span>
         ) : (
           <span className={styles.textMuted}>{"\u2014"}</span>
         ),
@@ -1019,7 +1022,7 @@ export default function PortfolioPage() {
       render: (_, item) => (
         <span className={item.realizedPnl > 0 ? styles.pnlPositive : item.realizedPnl < 0 ? styles.pnlNegative : styles.pnlNeutral}>
           {item.realizedPnl >= 0 ? "+" : ""}${item.realizedPnl.toFixed(2)}
-          {item.pnlPercent !== 0 && (
+          {item.pnlPercent != null && item.pnlPercent !== 0 && (
             <span className={styles.pnlPercent}>
               ({item.pnlPercent >= 0 ? "+" : ""}{item.pnlPercent.toFixed(1)}%)
             </span>
@@ -1063,7 +1066,7 @@ export default function PortfolioPage() {
           <div className={styles.mobileCardMetric}>
             <span className={styles.mobileCardLabel}>Cost</span>
             <span className={styles.priceCell}>
-              {item.acquiredPrice != null ? `$${item.acquiredPrice.toFixed(2)}` : "\u2014"}
+              {item.acquiredPrice != null ? `$${item.acquiredPrice.toFixed(2)}${item.acquiredPrice === 0 ? " (free)" : ""}` : "\u2014"}
             </span>
           </div>
           <div className={styles.mobileCardMetric}>
@@ -1219,7 +1222,7 @@ export default function PortfolioPage() {
                     <span className={styles.summaryToggleValue}>
                       ${totals?.totalCurrentValue?.toFixed(2) ?? '0.00'}
                     </span>
-                    {(totals?.totalAcquiredValue ?? 0) > 0 && (
+                    {totals?.hasAnyCostBasis && (totals?.unrealizedPnLPercent ?? 0) !== 0 && (
                       <span className={(totals?.unrealizedPnL ?? 0) >= 0 ? styles.pnlPositive : styles.pnlNegative}>
                         {(totals?.unrealizedPnL ?? 0) >= 0 ? "+" : ""}{totals?.unrealizedPnLPercent?.toFixed(1) ?? '0.0'}%
                       </span>
@@ -1235,11 +1238,11 @@ export default function PortfolioPage() {
                   />
                   <StatCard
                     label="Cost Basis"
-                    value={(totals?.totalAcquiredValue ?? 0) > 0 ? `$${totals?.totalAcquiredValue?.toFixed(2) ?? '0.00'}` : "\u2014"}
+                    value={totals?.hasAnyCostBasis ? `$${totals?.totalAcquiredValue?.toFixed(2) ?? '0.00'}` : "\u2014"}
                   />
                   <StatCard
                     label="Unrealized P&L"
-                    value={(totals?.totalAcquiredValue ?? 0) > 0 ? `${unrealizedPnL >= 0 ? "+" : ""}$${unrealizedPnL.toFixed(2)}` : "\u2014"}
+                    value={totals?.hasAnyCostBasis ? `${unrealizedPnL >= 0 ? "+" : ""}$${unrealizedPnL.toFixed(2)}` : "\u2014"}
                     change={totals?.unrealizedPnLPercent ?? 0}
                     prefix=""
                   />
@@ -1251,7 +1254,7 @@ export default function PortfolioPage() {
                   />
                   <StatCard
                     label="Total P&L"
-                    value={(totals?.totalAcquiredValue ?? 0) > 0 || realizedPnL !== 0
+                    value={totals?.hasAnyCostBasis || realizedPnL !== 0
                       ? `${totalPnL >= 0 ? "+" : ""}$${totalPnL.toFixed(2)}`
                       : "\u2014"}
                     prefix=""
@@ -1284,7 +1287,7 @@ export default function PortfolioPage() {
               />
               <StatCard
                 label="Cost Basis"
-                value={soldData.totalAcquiredValue > 0 ? `$${soldData.totalAcquiredValue.toFixed(2)}` : "\u2014"}
+                value={soldData.hasAnyCostBasis ? `$${soldData.totalAcquiredValue.toFixed(2)}` : "\u2014"}
               />
               <StatCard
                 label="Realized P&L"
