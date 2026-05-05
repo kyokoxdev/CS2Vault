@@ -4,6 +4,40 @@
 
 ---
 
+## ZERO-TOLERANCE COMPLIANCE RULES
+
+These rules override ALL other instructions. Violating any of these is a critical failure, even if the code changes are correct.
+
+### Rule 1: READ THIS FILE FIRST — EVERY SESSION, EVERY TIME
+
+Before writing a single line of code or making any edit, you MUST:
+1. Read `AGENTS.md` in full at the start of the session
+2. Confirm to the user that you have read and understood the rules
+3. Reference specific rules when making decisions (e.g. "Per AGENTS.md research rule, I'm waiting for the explore agent before editing")
+
+If you cannot confirm you've read this file, STOP and read it. No exceptions.
+
+### Rule 2: RESEARCH BEFORE IMPLEMENTATION — NO SHORTCUTS
+
+- **For logic changes or architectural updates**: You MUST wait for ALL background explore/research agents to complete before writing any code. Do NOT start editing files while agents are still running.
+- **Anti-duplication**: If you fire an explore or librarian agent for a search, you MUST NOT manually perform the same search yourself. Wait for their results.
+- **When in doubt**: Fire the explore agent. The cost of skipping research far exceeds the cost of waiting for it.
+
+### Rule 3: USE THE RIGHT WORKFLOW FOR THE TASK SCOPE
+
+- **Multi-file change (3+ files)**: Consult the Plan Agent FIRST. Do NOT start implementing without a plan.
+- **Multi-module / cross-cutting change**: DELEGATE to the appropriate category agent. Do NOT implement cross-cutting changes yourself unless it's a trivial local fix.
+- **Git operations**: ALWAYS load the `git-master` skill FIRST. Never run git commands without it.
+
+### Rule 4: NEVER SKIP VERIFICATION
+
+- After making changes, you MUST run `lsp_diagnostics` on all changed files in parallel
+- You MUST run the relevant test suite and confirm it passes
+- You MUST run the production build (`npm run build`) and confirm it succeeds
+- Delegated work ALWAYS requires V3 verification — read every touched file yourself, never trust subagent self-reports
+
+---
+
 ## General Agent Behavior
 
 - Follow existing code patterns and conventions (see Coding Style below)
@@ -15,6 +49,8 @@
 
 - **If the task is purely about local conventions or documentation** (like AGENTS.md, README, comments): proceed via direct code reading — no background explore agent needed.
 - **For logic changes or architectural updates**: you MUST wait for the background explore agent to provide full context before committing any changes. Never commit code you haven't thoroughly explored.
+- **DO NOT edit files while explore/librarian agents are still running.** Wait for their results, then synthesize, then plan, then implement.
+- **Anti-duplication rule**: If you fire an explore or librarian agent for a search, you MUST NOT manually perform the same search yourself. Use direct tools only for non-overlapping work.
 - When in doubt, fire the explore agent. The cost of skipping research far exceeds the cost of waiting for it.
 
 ---
