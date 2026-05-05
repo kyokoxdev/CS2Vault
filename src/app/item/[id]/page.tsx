@@ -243,35 +243,37 @@ export default function ItemDetailPage() {
                     </div>
                 </div>
                 <div className={styles.headerRight}>
-                    <button
-                        type="button"
-                        className={`${styles.watchToggle} ${isWatched ? styles.watchToggleActive : ""}`}
-                        onClick={handleToggleWatch}
-                        disabled={watchLoading}
-                        title={isWatched ? "Remove from Watchlist" : "Add to Watchlist"}
-                    >
-                        {isWatched ? (
-                            <>
-                                <FaEyeSlash style={{ fontSize: 14 }} />
-                                <span>Remove from Watchlist</span>
-                            </>
-                        ) : (
-                            <>
-                                <FaEye style={{ fontSize: 14 }} />
-                                <span>Add to Watchlist</span>
-                            </>
-                        )}
-                    </button>
-                    <a
-                        href={`${CSFLOAT_SEARCH_URL}${encodeURIComponent(item.marketHashName)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.externalLink}
-                        aria-label={`View ${item.name} on CSFloat`}
-                    >
-                        <FaExternalLinkAlt style={{ fontSize: 12 }} />
-                        <span>CSFloat</span>
-                    </a>
+                    <div className={styles.headerActions}>
+                        <button
+                            type="button"
+                            className={`${styles.watchToggle} ${isWatched ? styles.watchToggleActive : ""}`}
+                            onClick={handleToggleWatch}
+                            disabled={watchLoading}
+                            title={isWatched ? "Remove from Watchlist" : "Add to Watchlist"}
+                        >
+                            {isWatched ? (
+                                <>
+                                    <FaEyeSlash style={{ fontSize: 14 }} />
+                                    <span>Remove from Watchlist</span>
+                                </>
+                            ) : (
+                                <>
+                                    <FaEye style={{ fontSize: 14 }} />
+                                    <span>Add to Watchlist</span>
+                                </>
+                            )}
+                        </button>
+                        <a
+                            href={`${CSFLOAT_SEARCH_URL}${encodeURIComponent(item.marketHashName)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.externalLink}
+                            aria-label={`View ${item.name} on CSFloat`}
+                        >
+                            <FaExternalLinkAlt style={{ fontSize: 12 }} />
+                            <span>CSFloat</span>
+                        </a>
+                    </div>
                     {latestPrice && (
                         <>
                             <div className={styles.price}>
