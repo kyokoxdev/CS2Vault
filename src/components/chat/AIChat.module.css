@@ -163,20 +163,25 @@
 }
 
 .providerSelect {
-    background: var(--surface-0);
+    background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-primary);
     color: var(--text-primary-90);
-    padding: 6px 12px;
+    padding: 8px 12px;
     border-radius: var(--radius-sm);
     font-size: 13px;
+    font-weight: 500;
+    font-family: var(--font-sans);
     outline: none;
     cursor: pointer;
     transition: all var(--transition-fast);
     margin-left: auto;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 .providerSelect:hover {
     border-color: var(--border-active);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .providerSelect:focus {
@@ -261,7 +266,7 @@
 
 .inputWrapper {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     align-items: center;
     width: 100%;
 }
@@ -299,22 +304,25 @@
 }
 
 .attachBtn {
-    background: var(--surface-0);
+    background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-primary);
     color: var(--text-primary-90);
-    width: 48px;
-    height: 48px;
+    width: 36px;
+    height: 36px;
     border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: 14px;
     cursor: pointer;
     transition: all var(--transition-fast);
+    flex-shrink: 0;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 .attachBtn:hover {
-    background: var(--surface-hover);
+    background: rgba(255, 255, 255, 0.08);
     border-color: var(--border-active);
 }
 
@@ -334,14 +342,19 @@
 
 .input {
     flex: 1;
-    background: var(--surface-0);
+    background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-primary);
     color: var(--text-primary-90);
-    padding: 14px 18px;
+    padding: 8px 12px;
     border-radius: var(--radius-sm);
-    font-size: 14px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--font-sans);
     outline: none;
     transition: all var(--transition-fast);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    height: 36px;
 }
 
 .input:focus {
@@ -349,19 +362,30 @@
     box-shadow: 0 0 0 2px rgba(67, 67, 67, 0.3);
 }
 
+.input::placeholder {
+    color: var(--text-secondary-60);
+}
+
+.input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: rgba(255, 255, 255, 0.01);
+}
+
 .sendBtn {
     background: var(--text-primary-90);
-    color: white;
+    color: var(--surface-0);
     border: none;
-    width: 48px;
-    height: 48px;
+    width: 36px;
+    height: 36px;
     border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: 14px;
     cursor: pointer;
     transition: all var(--transition-fast);
+    flex-shrink: 0;
 }
 
 .sendBtn:disabled {
@@ -372,29 +396,28 @@
 
 .sendBtn:not(:disabled):hover {
     background: var(--text-primary-90);
-    filter: brightness(1.15);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    filter: brightness(0.9);
 }
 
 .stopBtn {
     background: var(--bear);
     color: white;
     border: none;
-    width: 48px;
-    height: 48px;
+    width: 36px;
+    height: 36px;
     border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
+    font-size: 14px;
     cursor: pointer;
     transition: all var(--transition-fast);
     animation: fadeIn 0.2s ease;
+    flex-shrink: 0;
 }
 
 .stopBtn:hover {
     filter: brightness(1.2);
-    box-shadow: 0 4px 12px rgba(255, 77, 79, 0.3);
 }
 
 @keyframes fadeIn {
@@ -448,7 +471,11 @@
 
 .modelSelect {
     min-width: 140px;
-    height: 48px;
+    height: 36px;
+}
+
+.modelSelect .trigger {
+    height: 36px;
 }
 
 /* ── Mobile breakpoints ── */
@@ -490,7 +517,22 @@
         order: -1;
         width: 100%;
         min-width: 0;
-        height: 36px;
+        height: 44px;
+    }
+
+    .modelSelect .trigger {
+        height: 44px;
+    }
+
+    .input {
+        height: 44px;
+    }
+
+    .attachBtn,
+    .sendBtn,
+    .stopBtn {
+        width: 44px;
+        height: 44px;
     }
 
     .message {
