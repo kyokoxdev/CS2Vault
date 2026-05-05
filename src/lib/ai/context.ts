@@ -107,27 +107,28 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
 
                 for (const inv of activeInventory) {
                     const price = priceMap.get(inv.itemId) || 0;
-                    const acquired = inv.acquiredPrice || 0;
+                    const acquired = inv.acquiredPrice ?? 0;
+                    const hasCostBasis = inv.acquiredPrice !== null && inv.acquiredPrice !== undefined;
                     const detail = itemMap.get(inv.itemId);
                     const name = detail?.name || "Unknown Item";
 
                     if (price > 0) {
                         totalValue += price;
-                        if (acquired > 0) totalAcquired += acquired;
+                        if (hasCostBasis) totalAcquired += acquired;
                     }
 
                     const existing = inventorySummary.get(inv.itemId);
                     if (existing) {
                         existing.quantity += 1;
                         existing.totalAcquired += acquired;
-                        existing.totalPnl += (price && acquired > 0) ? (price - acquired) : 0;
+                        existing.totalPnl += (price && hasCostBasis) ? (price - acquired) : 0;
                     } else {
                         inventorySummary.set(inv.itemId, {
                             name,
                             quantity: 1,
                             currentPrice: price,
                             totalAcquired: acquired,
-                            totalPnl: (price && acquired > 0) ? (price - acquired) : 0,
+                            totalPnl: (price && hasCostBasis) ? (price - acquired) : 0,
                             rarity: detail?.rarity ?? undefined,
                             exterior: detail?.exterior ?? undefined,
                         });
@@ -170,7 +171,7 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
 
                 context.portfolioSummary = {
                     totalValue,
-                    unrealizedPnL: (totalAcquired > 0 && totalValue > 0) ? (totalValue - totalAcquired) : 0,
+                    unrealizedPnL: totalAcquired > 0 ? (totalValue - totalAcquired) : (totalValue > 0 ? totalValue : 0),
                     realizedPnL: totalRealizedPnl,
                     itemCount: activeInventory.length,
                     soldCount: soldInventory.length,
