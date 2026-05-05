@@ -45,7 +45,7 @@ export default function AIChat() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
-    const [provider, setProvider] = useState<AIProviderName>("gemini-pro");
+    const [provider, setProvider] = useState<AIProviderName>("gemini-flash");
     const [attachedImage, setAttachedImage] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -366,10 +366,7 @@ export default function AIChat() {
             <div className={styles.header}>
                 <div className={styles.headerContent}>
                     <div className={styles.headerIcon} aria-hidden="true"><FaRobot /></div>
-                    <div>
-                        <div className={styles.headerTitle}>CS2Vault AI Agent</div>
-                        <div className={styles.headerSub}>Powered by Gemini & OpenAI Fast Fallback</div>
-                    </div>
+                    <div className={styles.headerTitle}>CS2Vault AI Agent</div>
                 </div>
             </div>
 
@@ -424,17 +421,23 @@ export default function AIChat() {
                         <span className={styles.loadingText}>Loading chat history...</span>
                     </div>
                 )}
-                {!historyLoading && !sessionsLoading && messages.map((msg) => (
-                    <div
-                        key={msg.id}
-                        className={`${styles.message} ${msg.role === 'user' ? styles.messageUser : styles.messageAssistant}`}
-                    >
-                        {msg.imageBase64 && (
-                            <img src={msg.imageBase64} alt="User attachment" className={styles.chatImage} />
-                        )}
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                    </div>
-                ))}
+{!historyLoading && !sessionsLoading && messages.map((msg) => {
+                    // Hide empty streaming placeholder — loading indicator renders separately
+                    if (msg.role === "assistant" && msg.content === "" && isLoading) {
+                        return null;
+                    }
+                    return (
+                        <div
+                            key={msg.id}
+                            className={`${styles.message} ${msg.role === 'user' ? styles.messageUser : styles.messageAssistant}`}
+                        >
+                            {msg.imageBase64 && (
+                                <img src={msg.imageBase64} alt="User attachment" className={styles.chatImage} />
+                            )}
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+                    );
+                })}
 
                 {isLoading && messages[messages.length - 1]?.content === "" && (
                     <output aria-live="polite" className={styles.messageLoading}>
