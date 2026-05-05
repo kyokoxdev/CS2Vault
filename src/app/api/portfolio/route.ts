@@ -95,16 +95,20 @@ export async function GET(request: NextRequest) {
 
         const items = inventoryItems.map((inv) => {
             const currentPrice = priceMap.get(inv.itemId) ?? null;
-            const acquiredPrice = inv.acquiredPrice ?? 0;
+            const acquiredPrice = inv.acquiredPrice;
             const hasPrice = currentPrice !== null && currentPrice > 0;
-            const pnl = acquiredPrice > 0 && hasPrice ? currentPrice - acquiredPrice : 0;
-            const pnlPercent = acquiredPrice > 0 && hasPrice ? (pnl / acquiredPrice) * 100 : 0;
+            // acquiredPrice !== null means cost basis is known (including $0 for free items)
+            const hasCostBasis = acquiredPrice !== null && acquiredPrice !== undefined;
+            const pnl = hasCostBasis && hasPrice ? currentPrice! - acquiredPrice : null;
+            const pnlPercent = hasCostBasis && acquiredPrice! > 0 && hasPrice
+                ? (pnl! / acquiredPrice!) * 100
+                : null;
 
             if (hasPrice && currentPrice !== null) {
                 totalCurrentValue += currentPrice;
             }
-            if (inv.acquiredPrice) {
-                totalAcquiredValue += inv.acquiredPrice;
+            if (hasCostBasis) {
+                totalAcquiredValue += acquiredPrice!;
             }
 
             const price24hAgo = price24hAgoMap.get(inv.itemId) ?? null;
@@ -134,8 +138,8 @@ export async function GET(request: NextRequest) {
                 imageUrl: inv.item.imageUrl,
                 currentPrice,
                 acquiredPrice: inv.acquiredPrice,
-                pnl: acquiredPrice > 0 && hasPrice ? pnl : null,
-                pnlPercent: acquiredPrice > 0 && hasPrice ? pnlPercent : null,
+                pnl: hasCostBasis && hasPrice ? pnl : null,
+                pnlPercent: hasCostBasis && acquiredPrice! > 0 && hasPrice ? pnlPercent : null,
                 floatValue: inv.floatValue,
                 acquiredAt: inv.acquiredAt,
             };
@@ -165,17 +169,18 @@ export async function GET(request: NextRequest) {
             if (item.currentPrice !== null && item.currentPrice > 0) {
                 filteredCurrentValue += item.currentPrice;
             }
-            if (item.acquiredPrice) {
+            if (item.acquiredPrice !== null && item.acquiredPrice !== undefined) {
                 filteredAcquiredValue += item.acquiredPrice;
             }
         }
 
         const filteredUnrealizedPnL = filteredAcquiredValue > 0
             ? filteredCurrentValue - filteredAcquiredValue
-            : 0;
-        const filteredUnrealizedPnLPercent = filteredAcquiredValue > 0
+            : filteredCurrentValue;
+        const hasFilteredCostBasis = filtered.some((item) => item.acquiredPrice !== null && item.acquiredPrice !== undefined);
+        const filteredUnrealizedPnLPercent = filteredAcquiredValue > 0 && hasFilteredCostBasis
             ? (filteredUnrealizedPnL / filteredAcquiredValue) * 100
-            : 0;
+            : null;
 
         const availableCategories = [...new Set(items.map((item) => item.category))].sort();
         const availableRarities = [...new Set(
@@ -184,12 +189,13 @@ export async function GET(request: NextRequest) {
                 .filter((rarity): rarity is string => Boolean(rarity))
         )].sort();
 
-        const unrealizedPnL = totalAcquiredValue > 0
+        const hasAnyCostBasis = items.some((item) => item.acquiredPrice !== null && item.acquiredPrice !== undefined);
+        const unrealizedPnL = hasAnyCostBasis
             ? totalCurrentValue - totalAcquiredValue
             : 0;
         const unrealizedPnLPercent = totalAcquiredValue > 0
             ? (unrealizedPnL / totalAcquiredValue) * 100
-            : 0;
+            : null;
 
         const change24h = has24hData && totalValue24hAgo > 0
             ? totalCurrentValue - totalValue24hAgo
@@ -203,6 +209,7 @@ export async function GET(request: NextRequest) {
             data: {
                 totalCurrentValue,
                 totalAcquiredValue,
+                hasAnyCostBasis,
                 unrealizedPnL,
                 unrealizedPnLPercent,
                 change24h,
@@ -213,6 +220,7 @@ export async function GET(request: NextRequest) {
                 filteredTotals: {
                     totalCurrentValue: filteredCurrentValue,
                     totalAcquiredValue: filteredAcquiredValue,
+                    hasAnyCostBasis: hasFilteredCostBasis,
                     unrealizedPnL: filteredUnrealizedPnL,
                     unrealizedPnLPercent: filteredUnrealizedPnLPercent,
                 },

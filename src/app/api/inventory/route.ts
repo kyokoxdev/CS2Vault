@@ -54,16 +54,23 @@ export async function GET(request: NextRequest) {
         });
         const priceMap = new Map(latestPrices.map((p) => [p.itemId, p.price]));
 
-        const enriched = inventoryItems.map((inv) => ({
-            ...inv,
-            currentPrice: priceMap.get(inv.itemId) ?? null,
-            pnl: inv.acquiredPrice && priceMap.has(inv.itemId)
-                ? (priceMap.get(inv.itemId)! - inv.acquiredPrice)
-                : null,
-            pnlPercent: inv.acquiredPrice && inv.acquiredPrice > 0 && priceMap.has(inv.itemId)
-                ? ((priceMap.get(inv.itemId)! - inv.acquiredPrice) / inv.acquiredPrice) * 100
-                : null,
-        }));
+        const enriched = inventoryItems.map((inv) => {
+            const currentPrice = priceMap.get(inv.itemId) ?? null;
+            const hasPrice = currentPrice !== null && currentPrice > 0;
+            const acquiredPrice = inv.acquiredPrice;
+            const pnl = (acquiredPrice !== null && acquiredPrice !== undefined) && hasPrice
+                ? currentPrice! - acquiredPrice
+                : null;
+            const pnlPercent = (acquiredPrice !== null && acquiredPrice !== undefined) && acquiredPrice > 0 && hasPrice
+                ? (pnl! / acquiredPrice) * 100
+                : null;
+            return {
+                ...inv,
+                currentPrice,
+                pnl,
+                pnlPercent,
+            };
+        });
 
         return NextResponse.json({
             success: true,

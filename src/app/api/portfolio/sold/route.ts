@@ -38,16 +38,17 @@ export async function GET() {
 
         const items = soldItems.map((inv) => {
             const soldPrice = inv.soldPrice ?? 0;
-            const acquiredPrice = inv.acquiredPrice ?? 0;
-            const realizedPnl = (soldPrice > 0 && acquiredPrice > 0)
-                ? soldPrice - acquiredPrice
+            const acquiredPrice = inv.acquiredPrice;
+            const hasCostBasis = acquiredPrice !== null && acquiredPrice !== undefined;
+            const realizedPnl = (soldPrice > 0 && hasCostBasis)
+                ? soldPrice - (acquiredPrice ?? 0)
                 : 0;
-            const pnlPercent = acquiredPrice > 0
-                ? (realizedPnl / acquiredPrice) * 100
-                : 0;
+            const pnlPercent = hasCostBasis && (acquiredPrice ?? 0) > 0
+                ? (realizedPnl / (acquiredPrice ?? 0)) * 100
+                : null;
 
             totalSoldValue += soldPrice;
-            if (acquiredPrice > 0) totalAcquiredValue += acquiredPrice;
+            if (hasCostBasis) totalAcquiredValue += (acquiredPrice ?? 0);
             totalRealizedPnL += realizedPnl;
 
             return {
@@ -69,15 +70,17 @@ export async function GET() {
             };
         });
 
+        const hasAnyCostBasis = items.some((item) => item.acquiredPrice !== null && item.acquiredPrice !== undefined);
         const realizedPnLPercent = totalAcquiredValue > 0
             ? (totalRealizedPnL / totalAcquiredValue) * 100
-            : 0;
+            : null;
 
         return NextResponse.json({
             success: true,
             data: {
                 totalSoldValue,
                 totalAcquiredValue,
+                hasAnyCostBasis,
                 totalRealizedPnL,
                 realizedPnLPercent,
                 soldCount: items.length,
