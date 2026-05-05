@@ -10,7 +10,7 @@ import { encryptApiKey, decryptApiKey } from "@/lib/auth/api-keys";
 const settingsSchema = z.object({
     activeMarketSource: z.enum(["pricempire", "csfloat", "csgotrader", "steam"]).optional(),
     csgotraderSubProvider: z.enum(["csgotrader", "bitskins", "steam", "csmoney", "csgotm", "lootfarm", "skinport", "csgoempire", "swapgg", "buff163", "cstrade", "csfloat", "youpin", "lisskins"]).optional(),
-    activeAIProvider: z.enum(["gemini-pro", "gemini-flash", "openai"]).optional(),
+    activeAIProvider: z.enum(["gemini-flash", "openai"]).optional(),
     priceRefreshIntervalMin: z.number().int().min(1).max(1440).optional(),
     openAiApiKey: z.string().max(256).optional(),
     geminiApiKey: z.string().max(256).optional(),
@@ -41,7 +41,7 @@ export async function GET() {
         if (!settings) {
             return NextResponse.json({
                 activeMarketSource: "csfloat",
-                activeAIProvider: "gemini-pro",
+                activeAIProvider: "gemini-flash",
                 priceRefreshIntervalMin: 15,
                 csgotraderSubProvider: "csfloat",
                 openAiApiKey: maskApiKey(null, process.env.OPENAI_API_KEY),
@@ -127,7 +127,7 @@ export async function PATCH(request: Request) {
             create: {
                 id: "singleton",
                 activeMarketSource: activeMarketSource ?? "csfloat",
-                activeAIProvider: activeAIProvider ?? "gemini-pro",
+                activeAIProvider: activeAIProvider ?? "gemini-flash",
                 priceRefreshIntervalMin: priceRefreshIntervalMin ?? 15,
 				openAiApiKey: resolvedOpenAi ?? null,
 				geminiApiKey: resolvedGemini ?? null,

@@ -27,7 +27,7 @@ async function main() {
         create: {
             id: "singleton",
             activeMarketSource: "csfloat",
-            activeAIProvider: "gemini-pro",
+            activeAIProvider: "gemini-flash",
             watchlistOnly: true,
         },
     });

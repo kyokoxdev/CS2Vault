@@ -20,7 +20,7 @@ const ChatRequestSchema = z.object({
         content: z.string().min(1),
         imageBase64: z.string().max(MAX_IMAGE_BASE64_LENGTH).optional()
     })).min(1).max(MAX_MESSAGES),
-    provider: z.enum(["gemini-pro", "gemini-flash", "openai"]).optional(),
+    provider: z.enum(["gemini-flash", "openai"]).optional(),
     sessionId: z.string().optional(),
 });
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         }
 
         const settings = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
-        const preferredProvider = (provider ?? settings?.activeAIProvider ?? "gemini-pro") as AIProviderName;
+        const preferredProvider = (provider ?? settings?.activeAIProvider ?? "gemini-flash") as AIProviderName;
 
         const latestUserMessage = messages[messages.length - 1];
         const hasImage = !!latestUserMessage.imageBase64;
