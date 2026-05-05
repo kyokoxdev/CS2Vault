@@ -45,7 +45,7 @@ const createMockSettings = (overrides: Partial<{
 }>) => ({
     id: "singleton",
     activeMarketSource: "csfloat",
-    activeAIProvider: "gemini-pro",
+    activeAIProvider: "gemini-flash",
     openAiApiKey: null,
     geminiApiKey: null,
     csfloatApiKey: null,
@@ -107,7 +107,7 @@ describe("Settings API", () => {
             const data = await response.json();
 
             expect(response.status).toBe(200);
-            expect(data.activeAIProvider).toBe("gemini-pro");
+            expect(data.activeAIProvider).toBe("gemini-flash");
         });
     });
 

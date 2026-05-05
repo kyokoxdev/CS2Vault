@@ -13,15 +13,8 @@ import {
 
 describe("AI Model Labels", () => {
     describe("AI_MODELS constant", () => {
-        it("contains all three models", () => {
-            expect(AI_MODELS).toHaveLength(3);
-        });
-
-        it("contains gemini-pro", () => {
-            const model = AI_MODELS.find((m) => m.value === "gemini-pro");
-            expect(model).toBeDefined();
-            expect(model?.label).toBe("Google Gemini 2.5 Pro (Thinking)");
-            expect(model?.shortLabel).toBe("Gemini 2.5 Pro");
+        it("contains both models", () => {
+            expect(AI_MODELS).toHaveLength(2);
         });
 
         it("contains gemini-flash", () => {
@@ -41,9 +34,9 @@ describe("AI Model Labels", () => {
 
     describe("getModelByValue", () => {
         it("returns model for valid value", () => {
-            const model = getModelByValue("gemini-pro");
+            const model = getModelByValue("gemini-flash");
             expect(model).toBeDefined();
-            expect(model?.value).toBe("gemini-pro");
+            expect(model?.value).toBe("gemini-flash");
         });
 
         it("returns undefined for invalid value", () => {
@@ -54,10 +47,6 @@ describe("AI Model Labels", () => {
     });
 
     describe("getModelLabel", () => {
-        it("returns full label for gemini-pro", () => {
-            expect(getModelLabel("gemini-pro")).toBe("Google Gemini 2.5 Pro (Thinking)");
-        });
-
         it("returns full label for gemini-flash", () => {
             expect(getModelLabel("gemini-flash")).toBe("Google Gemini 2.5 Flash");
         });
@@ -73,10 +62,6 @@ describe("AI Model Labels", () => {
     });
 
     describe("getModelShortLabel", () => {
-        it("returns short label for gemini-pro", () => {
-            expect(getModelShortLabel("gemini-pro")).toBe("Gemini 2.5 Pro");
-        });
-
         it("returns short label for gemini-flash", () => {
             expect(getModelShortLabel("gemini-flash")).toBe("Gemini 2.5 Flash");
         });
