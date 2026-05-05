@@ -50,6 +50,18 @@ Example violations of this rule:
 - User says "fix the slow page" → agent adds a loading spinner instead of investigating why it's slow
 - User says "this feels off" → agent rewrites the whole component instead of asking what specifically feels wrong
 
+### Rule 6: DO NOT BUMP VERSION FOR NON-APP CHANGES
+
+Version bumps in `package.json` are reserved for changes that affect the **running application** — features, bug fixes, UI changes, API changes, database schema changes, etc.
+
+**Do NOT bump version for:**
+- Changes to `AGENTS.md` or other agent rule files
+- Changes to `.github/`, CI/CD config, or development tooling that doesn't affect the production build
+- Documentation-only changes (README, comments, etc.)
+- Changes to linting/formatting configs that don't affect runtime behavior
+
+**When in doubt**: Ask yourself "Does this change what the user sees or experiences in the deployed app?" If the answer is no, do not bump the version.
+
 ---
 
 ## General Agent Behavior
