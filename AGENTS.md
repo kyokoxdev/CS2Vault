@@ -36,6 +36,20 @@ If you cannot confirm you've read this file, STOP and read it. No exceptions.
 - You MUST run the production build (`npm run build`) and confirm it succeeds
 - Delegated work ALWAYS requires V3 verification — read every touched file yourself, never trust subagent self-reports
 
+### Rule 5: DETECT USER INTENT BEFORE ACTING
+
+Before performing any task, you MUST:
+
+1. **Pause and analyze** what the user actually wants — not just what they literally said. Users often describe symptoms, not root causes. They may say "add X" when the real need is "solve problem Y". Ask yourself: "What outcome are they after? What didn't they say that they probably expect?"
+2. **If the intent is ambiguous**, ask ONE clarifying question before proceeding. Do not assume and do not implement multiple interpretations — clarify first.
+3. **If the intent is clear**, confirm your understanding briefly (one sentence) and then act. Do not re-confirm when the user's message confirms an intent you already verbalized this conversation.
+4. **Never substitute your own assumptions** for missing requirements. If the user didn't specify a design choice, ask — don't guess and ship.
+
+Example violations of this rule:
+- User says "add a button" → agent adds it without asking where, what it does, or how it should look
+- User says "fix the slow page" → agent adds a loading spinner instead of investigating why it's slow
+- User says "this feels off" → agent rewrites the whole component instead of asking what specifically feels wrong
+
 ---
 
 ## General Agent Behavior
