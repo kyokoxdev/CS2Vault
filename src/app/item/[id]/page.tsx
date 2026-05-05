@@ -9,13 +9,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaExternalLinkAlt } from "react-icons/fa";
 import CandlestickChart from "@/components/charts/CandlestickChart";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import styles from "./ItemDetail.module.css";
 import { usePageTitle } from "@/components/providers/PageTitleProvider";
 import { useToast } from "@/components/providers/ToastProvider";
+
+const CSFLOAT_SEARCH_URL = "https://csfloat.com/search?market_hash_name=";
 
 interface ItemGroup {
     id: string;
@@ -260,6 +262,16 @@ export default function ItemDetailPage() {
                             </>
                         )}
                     </button>
+                    <a
+                        href={`${CSFLOAT_SEARCH_URL}${encodeURIComponent(item.marketHashName)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.externalLink}
+                        aria-label={`View ${item.name} on CSFloat`}
+                    >
+                        <FaExternalLinkAlt style={{ fontSize: 12 }} />
+                        <span>CSFloat</span>
+                    </a>
                     {latestPrice && (
                         <>
                             <div className={styles.price}>

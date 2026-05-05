@@ -120,6 +120,30 @@
   color: var(--surface-0);
 }
 
+.externalLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1px solid var(--text-secondary-60);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary-60);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.externalLink:hover {
+  background: var(--text-secondary-60);
+  color: var(--surface-0);
+  border-color: var(--text-secondary-60);
+}
+
 .price {
   font-size: 28px;
   font-weight: 700;
