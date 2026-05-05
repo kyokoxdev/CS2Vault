@@ -9,7 +9,7 @@
 
 .toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 12px 0;
   border-bottom: 1px solid var(--border-primary);
@@ -21,12 +21,20 @@
   color: var(--text-primary-90);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.toolbarSubtitle {
+  margin: 4px 0 0;
+  color: var(--text-secondary-60);
+  font-size: 13px;
 }
 
 .toolbarActions {
   display: flex;
   gap: 8px;
   align-items: center;
+  margin-top: 0;
 }
 
 .statusMessage {

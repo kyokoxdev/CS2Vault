@@ -588,8 +588,13 @@ export default function WatchlistPage() {
   return (
     <div className={styles.page}>
       <div className={styles.toolbar}>
-        <h3 className={styles.toolbarTitle}>Your Watchlist</h3>
-          <div className={styles.toolbarActions}>
+        <div>
+          <h3 className={styles.toolbarTitle}>Your Watchlist</h3>
+          <p className={styles.toolbarSubtitle}>
+            Track CS2 item prices and market movements
+          </p>
+        </div>
+        <div className={styles.toolbarActions}>
           <button
             type="button"
             className="btn btn-ghost btn-sm"
