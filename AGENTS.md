@@ -416,24 +416,80 @@ For `chore` commits: describe **what** was done (version bump, config update, de
 
 ### Version Bumping (CRITICAL — BEFORE PUSHING)
 
-**Rule**: Before pushing any commit(s), the agent MUST bump the version in `package.json` according to change scope:
+**Rule**: Before pushing any commit(s), the agent MUST bump the version in `package.json` according to change scope. Be conservative — when in doubt, use a smaller bump.
 
 | Change Scope | Version Bump | Examples |
 |---|---|---|
-| **Small changes** | Patch (+0.0.1) | Bug fixes, UI tweaks, label changes, minor refactors |
-| **Bigger changes & new features** | Minor (+0.1.0) | New feature, new page, new API endpoint, significant enhancement |
+| **Small changes / UX improvements** | Patch (+0.0.1) | Bug fixes, error message improvements, UI tweaks, label changes, performance fixes, refactors with no API change |
+| **Bigger changes & new features** | Minor (+0.1.0) | New feature, new page, new API endpoint, new component, significant enhancement changing user workflows |
 | **Large overhauls, bundled features, structure changes** | Major (+1.0.0) | Architectural rewrites, breaking changes, multi-feature releases |
+
+#### Version Bump Decision Framework
+
+**STEP 1: Ask "What does the USER experience?"**
+
+Analyze the primary user-facing impact, not code complexity:
+
+```
+❌ WRONG: "I added 50 lines of error handling logic" → Minor bump
+✅ RIGHT: "Users now see better error messages for the same failures" → Patch bump
+
+❌ WRONG: "I refactored the entire auth flow" → Minor bump  
+✅ RIGHT: "Users log in exactly the same way, code is just cleaner" → Patch bump
+```
+
+**STEP 2: Use the Decision Tree**
+
+```
+Does this add a NEW capability users didn't have before?
+  ├─ YES: New feature → Minor (+0.1.0)
+  └─ NO: Continue...
+    
+Does this change EXISTING user workflows or behavior?
+  ├─ YES: Breaking change → Major (+1.0.0)  
+  └─ NO: Continue...
+
+Does this improve/fix something users already use?
+  ├─ YES: Bug fix or UX improvement → Patch (+0.0.1)
+  └─ NO: Unclear → Ask user or default to Patch
+```
+
+**STEP 3: Watch for Common Mistakes**
+
+These often LOOK like features but are PATCHES:
+
+| Change | Looks Like | Actually Is | Why |
+|--------|-----------|-------------|-----|
+| Better error messages | Feature | **Patch** | Same failures, better UX |
+| Form validation improvements | Feature | **Patch** | Same forms, better feedback |
+| Loading states/spinners | Feature | **Patch** | Same loading, better UX |
+| Refactored code | Feature | **Patch** | No user-facing change |
+| Accessibility fixes | Feature | **Patch** | Same functionality, better compliance |
+| Performance optimization | Feature | **Patch** | Same behavior, faster |
+| Code reorganized | Refactor | **Patch** | No user-facing change |
+
+**STEP 4: Determine Final Scope**
+
+After analyzing ALL unpushed commits:
+
+```
+IF any commit is Major → Major bump
+ELSE IF any commit is Minor → Minor bump
+ELSE → Patch bump (most common)
+```
 
 **Workflow**:
 1. Finish all code changes and commit them
-2. Determine the change scope of ALL unpushed commits since last push
-3. Bump `version` in `package.json` accordingly (use the highest scope if mixed)
-4. Commit the version bump with message like `chore: bump version to X.Y.Z`
-5. Push everything
+2. **Analyze each commit** using the decision framework above
+3. Determine the highest scope among all commits
+4. Bump `version` in `package.json` accordingly
+5. Commit the version bump with message like `chore: bump version to X.Y.Z`
+6. Push everything
 
 **No Exceptions**:
 - Never push without bumping version
-- Never skip the scope assessment
+- **Never** skip the scope assessment
+- **When in doubt, prefer Patch over Minor**
 - Mixed scopes default to the highest scope among unpushed changes
 
 ### Forbidden Actions
