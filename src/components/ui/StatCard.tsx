@@ -1,5 +1,8 @@
+"use client";
+
 import { ReactNode } from 'react';
 import { Card } from './Card';
+import { CountUp } from './Motion';
 import styles from './StatCard.module.css';
 
 interface StatCardProps {
@@ -8,6 +11,7 @@ interface StatCardProps {
   change?: number | null;
   icon?: ReactNode;
   prefix?: string;
+  animate?: boolean;
 }
 
 export function StatCard({
@@ -16,6 +20,7 @@ export function StatCard({
   change,
   icon,
   prefix,
+  animate = true,
 }: StatCardProps) {
   const getChangeColor = (changeValue: number) => {
     if (changeValue > 0) return styles.changePositive;
@@ -29,15 +34,24 @@ export function StatCard({
     return '0.0%';
   };
 
+  const isNumberValue = typeof value === 'number';
+
   return (
-    <Card padding="md">
+    <Card padding="md" animate={animate} interactive={true}>
       <div className={styles.container}>
         {icon && <div className={styles.icon}>{icon}</div>}
         <div className={styles.content}>
           <div className={styles.label}>{label}</div>
           <div className={styles.value}>
             {prefix}
-            {value}
+            {isNumberValue ? (
+              <CountUp 
+                value={value as number} 
+                formatter={(v) => v.toLocaleString(undefined, { maximumFractionDigits: 2 })} 
+              />
+            ) : (
+              value
+            )}
           </div>
           {change !== undefined && change !== null && (
             <div className={`${styles.change} ${getChangeColor(change)}`}>

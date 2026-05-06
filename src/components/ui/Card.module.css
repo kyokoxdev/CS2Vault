@@ -15,15 +15,7 @@ button.card {
   cursor: pointer;
 }
 
-.card.interactive:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  border-color: var(--border-active, #434343);
-}
-
-.card.interactive:active {
-  transform: translateY(0) scale(0.99);
-}
+/* interactive styles handled by framer-motion in component */
 
 .default {
   background-color: var(--surface-2, #141414);
