@@ -214,9 +214,14 @@ export default function MarketOverview() {
     fetchWatchlistPerformance();
     fetchSyncLogs();
     fetchMarketSummary();
-    fetchTopMovers();
-    fetchNewsFeed();
     fetchMarketCap();
+
+    const deferredTimer = window.setTimeout(() => {
+      fetchTopMovers();
+      fetchNewsFeed();
+    }, 500);
+
+    return () => window.clearTimeout(deferredTimer);
   }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
   useEffect(() => {
@@ -227,9 +232,9 @@ export default function MarketOverview() {
       fetchWatchlistPerformance();
       fetchSyncLogs();
       fetchMarketSummary();
+      fetchMarketCap();
       fetchTopMovers();
       fetchNewsFeed();
-      fetchMarketCap();
     }, intervalMs);
 
     return () => clearInterval(timer);

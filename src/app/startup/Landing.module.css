@@ -132,7 +132,6 @@
     color: var(--text-primary-90);
     text-transform: uppercase;
     letter-spacing: -0.02em;
-    opacity: 0;
 }
 
 .heroCinematicTitleAccent {
@@ -161,7 +160,6 @@
     background: var(--surface-1);
     border: var(--brutalist-border, 3px solid var(--text-primary-90));
     box-shadow: var(--brutalist-shadow, 4px 4px 0 var(--surface-0));
-    opacity: 0;
 }
 
 .heroCinematicStatValue {
@@ -185,13 +183,11 @@
     max-width: 640px;
     margin: 0 auto 2.5rem;
     line-height: 1.7;
-    opacity: 0;
 }
 
 .heroCinematicCta {
     display: flex;
     justify-content: center;
-    opacity: 0;
 }
 
 @media (max-width: 768px) {
@@ -1291,7 +1287,7 @@
     transition: opacity var(--transition-normal), transform var(--transition-normal);
 }
 
-.scrollRevealBase:global(.revealed) {
+.scrollRevealBase[data-revealed="true"] {
     opacity: 1;
     transform: translateY(0);
 }

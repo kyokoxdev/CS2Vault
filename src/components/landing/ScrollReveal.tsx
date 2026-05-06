@@ -15,9 +15,10 @@ export default function ScrollReveal({ children, className = "", delay = 0 }: Sc
     return (
         <div
             ref={ref as React.RefObject<HTMLDivElement>}
-            className={`${className}${isVisible ? " revealed" : ""}`}
+            className={className}
             style={delay > 0 ? { transitionDelay: `${delay}ms` } : undefined}
             data-testid="scroll-reveal"
+            data-revealed={isVisible ? "true" : "false"}
         >
             {children}
         </div>

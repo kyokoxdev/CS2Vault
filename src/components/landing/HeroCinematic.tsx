@@ -6,6 +6,7 @@ import styles from "@/app/startup/Landing.module.css";
 import ParallaxSection from "./ParallaxSection";
 import DataReveal from "./DataReveal";
 import SteamLoginButton from "./SteamLoginButton";
+import { useReducedMotion } from "@/hooks/useMediaQuery";
 
 interface HeroStat {
     value: number;
@@ -27,26 +28,16 @@ export default function HeroCinematic() {
     const subtitleRef = useRef<HTMLParagraphElement>(null);
     const ctaRef = useRef<HTMLDivElement>(null);
     const hasAnimatedRef = useRef(false);
-    const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+    const prefersReducedMotion = useReducedMotion();
     const [animationComplete, setAnimationComplete] = useState(false);
-
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-        setPrefersReducedMotion(mq.matches);
-
-        const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
-        mq.addEventListener("change", handler);
-        return () => mq.removeEventListener("change", handler);
-    }, []);
 
     // Animation runs once, no cleanup to prevent ctx.revert() from hiding animated elements
     useLayoutEffect(() => {
         if (typeof window === "undefined") return;
         if (prefersReducedMotion || hasAnimatedRef.current) return;
-        
+
         hasAnimatedRef.current = true;
-        
+
         gsap.context(() => {
             gsap.set(titleRef.current, { opacity: 0, y: 40 });
             gsap.set(".hero-stat-item", { opacity: 0, y: 30 });
@@ -82,9 +73,14 @@ export default function HeroCinematic() {
             );
         }, containerRef);
     }, [prefersReducedMotion]);
+    useEffect(() => {
+        if (prefersReducedMotion) {
+            setAnimationComplete(true);
+        }
+    }, [prefersReducedMotion]);
 
-    const staticVisible = (prefersReducedMotion || animationComplete) 
-        ? { opacity: 1, transform: "none" } 
+    const staticVisible = (prefersReducedMotion || animationComplete)
+        ? { opacity: 1, transform: "none" }
         : undefined;
 
     const backgroundLayers = [
@@ -123,7 +119,7 @@ export default function HeroCinematic() {
                         className={styles.heroCinematicStats}
                         data-testid="hero-stats"
                     >
-                        {HERO_STATS.map((stat, index) => (
+                        {HERO_STATS.map((stat) => (
                             <div
                                 key={stat.label}
                                 className={`${styles.heroCinematicStatItem} hero-stat-item`}
@@ -135,12 +131,10 @@ export default function HeroCinematic() {
                                         prefix={stat.prefix}
                                         suffix={stat.suffix}
                                         duration={1.2}
-                                        delay={prefersReducedMotion ? 0 : 1 + index * 0.25}
+                                        delay={prefersReducedMotion ? 0 : 1}
                                     />
                                 </span>
-                                <span className={styles.heroCinematicStatLabel}>
-                                    {stat.label}
-                                </span>
+                                <span className={styles.heroCinematicStatLabel}>{stat.label}</span>
                             </div>
                         ))}
                     </div>

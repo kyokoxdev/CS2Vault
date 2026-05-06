@@ -12,7 +12,7 @@ These rules override ALL other instructions. Violating any of these is a critica
 
 Before writing a single line of code or making any edit, you MUST:
 1. Read `AGENTS.md` in full at the start of the session
-2. Confirm to the user that you have read and understood the rules
+2. Confirm to the user that you have read and understood the rules with a short "Understood" message
 3. Reference specific rules when making decisions (e.g. "Per AGENTS.md research rule, I'm waiting for the explore agent before editing")
 
 If you cannot confirm you've read this file, STOP and read it. No exceptions.

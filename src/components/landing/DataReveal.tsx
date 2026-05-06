@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect } from "react";
 import { gsap } from "@/lib/gsap";
 import styles from "./DataReveal.module.css";
+import { useReducedMotion } from "@/hooks/useMediaQuery";
 
 interface DataRevealProps {
     value: number;
@@ -25,17 +26,7 @@ export default function DataReveal({
     const valueRef = useRef<HTMLSpanElement>(null);
     const [hasAnimated, setHasAnimated] = useState(false);
     const [displayValue, setDisplayValue] = useState(0);
-    const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-        setPrefersReducedMotion(mq.matches);
-
-        const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
-        mq.addEventListener("change", handler);
-        return () => mq.removeEventListener("change", handler);
-    }, []);
+    const prefersReducedMotion = useReducedMotion();
 
     useEffect(() => {
         if (prefersReducedMotion) {

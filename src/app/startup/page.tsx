@@ -11,17 +11,30 @@ import DataReveal from "@/components/landing/DataReveal";
 import ItemShowcase from "@/components/landing/ItemShowcase";
 import HeroCinematic from "@/components/landing/HeroCinematic";
 import { FaChartPie, FaWallet, FaRobot, FaSteam, FaBoxOpen } from "react-icons/fa";
-import { fadeInUp } from "@/lib/gsap";
+import { useReducedMotion } from "@/hooks/useMediaQuery";
 
 export default function StartupPage() {
     const stepsRef = useRef<HTMLDivElement>(null);
+    const prefersReducedMotion = useReducedMotion();
 
     useEffect(() => {
+        if (prefersReducedMotion) return;
         const steps = stepsRef.current?.querySelectorAll(`.${styles.step}`);
         steps?.forEach((step, i) => {
-            fadeInUp(step, i * 0.2);
+            step.animate(
+                [
+                    { opacity: 0, transform: "translateY(24px)" },
+                    { opacity: 1, transform: "translateY(0)" },
+                ],
+                {
+                    duration: 600,
+                    delay: i * 200,
+                    easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+                    fill: "forwards",
+                }
+            );
         });
-    }, []);
+    }, [prefersReducedMotion]);
 
     return (
         <main className={styles.landingPage} data-testid="landing-page">
