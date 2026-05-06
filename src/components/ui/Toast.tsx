@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useMediaQuery";
 import styles from "./Toast.module.css";
 
 export type ToastVariant = "success" | "error" | "warning" | "info";
@@ -19,10 +21,10 @@ export interface ToastData {
 }
 
 const VARIANT_ICONS: Record<ToastVariant, string> = {
-  success: "\u2713",
-  error: "\u2717",
-  warning: "\u26A0",
-  info: "\u2139",
+  success: "✓",
+  error: "✗",
+  warning: "⚠",
+  info: "ℹ",
 };
 
 const VARIANT_CLASS: Record<ToastVariant, string> = {
@@ -38,6 +40,7 @@ interface ToastProps {
 }
 
 export function Toast({ data, onDismiss }: ToastProps) {
+  const reducedMotion = useReducedMotion();
   const [exiting, setExiting] = useState(false);
 
   const handleDismiss = useCallback(() => {
@@ -52,12 +55,20 @@ export function Toast({ data, onDismiss }: ToastProps) {
   }, [data.duration, handleDismiss]);
 
   const variantClass = VARIANT_CLASS[data.variant];
-  const className = [styles.toast, variantClass, exiting ? styles.exiting : ""]
+  const className = [styles.toast, variantClass]
     .filter(Boolean)
     .join(" ");
 
+  const motionProps = reducedMotion ? {} : {
+    layout: true,
+    initial: { opacity: 0, x: 50, scale: 0.95 },
+    animate: { opacity: 1, x: 0, scale: 1 },
+    exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } },
+    transition: { duration: 0.3, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] }
+  };
+
   return (
-    <div className={className} role="alert" aria-live="assertive">
+    <motion.div className={className} role="alert" aria-live="assertive" {...motionProps}>
       <span className={styles.icon}>{VARIANT_ICONS[data.variant]}</span>
       <span className={styles.message}>{data.message}</span>
       {data.action && (
@@ -80,6 +91,6 @@ export function Toast({ data, onDismiss }: ToastProps) {
       >
         &#x2715;
       </button>
-    </div>
+    </motion.div>
   );
 }

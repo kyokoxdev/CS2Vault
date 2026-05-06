@@ -10,6 +10,8 @@ import {
 import { Toast, type ToastVariant, type ToastData, type ToastAction } from "@/components/ui/Toast";
 import styles from "@/components/ui/Toast.module.css";
 
+import { AnimatePresence } from "framer-motion";
+
 const DEFAULT_DURATIONS: Record<ToastVariant, number> = {
   success: 4000,
   error: 6000,
@@ -83,9 +85,11 @@ export default function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={{ addToast, updateToast, dismissToast }}>
       {children}
       <div className={styles.container}>
-        {toasts.map((toast) => (
-          <Toast key={toast.id} data={toast} onDismiss={dismissToast} />
-        ))}
+        <AnimatePresence>
+          {toasts.map((toast) => (
+            <Toast key={toast.id} data={toast} onDismiss={dismissToast} />
+          ))}
+        </AnimatePresence>
       </div>
     </ToastContext.Provider>
   );
