@@ -12,7 +12,7 @@
 
 Track prices, manage your inventory, and get AI-powered market insights.
 
-**[English](./README.md)** · **[中文](./README.zh-CN.md)**
+[![English](https://img.shields.io/badge/EN-English-blue?style=flat-square)](./README.md) · [![中文](https://img.shields.io/badge/CN-中文-informational?style=flat-square)](./README.zh-CN.md)
 
 [Features](#features) · [Getting Started](#getting-started) · [Deployment](#deployment) · [License](#license)
 
