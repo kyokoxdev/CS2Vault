@@ -1,6 +1,8 @@
 "use client";
 
 import { motion, AnimatePresence, Variants } from "framer-motion";
+import { useEffect, useState } from "react";
+import { animate, useMotionValue, useTransform } from "framer-motion";
 import { ReactNode } from "react";
 import { useReducedMotion } from "@/hooks/useMediaQuery";
 
@@ -36,7 +38,7 @@ export function FadeIn({
       transition={{ 
         duration, 
         delay,
-        ease: [0.25, 0.1, 0.25, 1]
+        ease: [0.4, 0, 0.2, 1] as [number, number, number, number]
       }}
       className={className}
     >
@@ -59,7 +61,7 @@ const itemVariants: Variants = {
     y: 0,
     transition: {
       duration: 0.2,
-      ease: [0.25, 0.1, 0.25, 1]
+      ease: [0.4, 0, 0.2, 1] as [number, number, number, number]
     }
   },
 };
@@ -153,7 +155,7 @@ export function SlideIn({
       transition={{ 
         duration: 0.3, 
         delay,
-        ease: [0.25, 0.1, 0.25, 1]
+        ease: [0.4, 0, 0.2, 1] as [number, number, number, number]
       }}
       className={className}
     >
@@ -182,6 +184,111 @@ export function AnimatedVisibility({ children, isVisible }: AnimatedPresenceProp
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.15 }}
+        >
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+
+// --- New Primitives ---
+
+export function CountUp({ 
+  value, 
+  duration = 1,
+  className,
+  formatter = (v: number) => Math.round(v).toString()
+}: { 
+  value: number; 
+  duration?: number;
+  className?: string;
+  formatter?: (v: number) => string;
+}) {
+  const reducedMotion = useReducedMotion();
+  const motionValue = useMotionValue(0);
+  const displayValue = useTransform(motionValue, (latest) => formatter(latest));
+  const [displayFallback, setDisplayFallback] = useState(formatter(value));
+
+  useEffect(() => {
+    if (reducedMotion) {
+      setDisplayFallback(formatter(value));
+      return;
+    }
+    const controls = animate(motionValue, value, {
+      duration,
+      ease: [0.4, 0, 0.2, 1] as [number, number, number, number]
+    });
+    return controls.stop;
+  }, [value, duration, reducedMotion, motionValue, formatter]);
+
+  if (reducedMotion) {
+    return <span className={className}>{displayFallback}</span>;
+  }
+
+  return <motion.span className={className}>{displayValue}</motion.span>;
+}
+
+export function StaggerContainer({ children, className, staggerDelay = 0.05 }: { children: ReactNode; className?: string; staggerDelay?: number }) {
+  const reducedMotion = useReducedMotion();
+  if (reducedMotion) return <div className={className}>{children}</div>;
+  
+  return (
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      exit="hidden"
+      variants={{
+        hidden: { opacity: 0 },
+        visible: {
+          opacity: 1,
+          transition: { staggerChildren: staggerDelay }
+        }
+      }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+export function HoverScale({ children, className, scale = 1.02 }: { children: ReactNode; className?: string; scale?: number }) {
+  const reducedMotion = useReducedMotion();
+  if (reducedMotion) return <div className={className}>{children}</div>;
+  return (
+    <motion.div whileHover={{ scale }} transition={{ duration: 0.2,       ease: [0.4, 0, 0.2, 1] as [number, number, number, number] }} className={className}>
+      {children}
+    </motion.div>
+  );
+}
+
+export function GlowOnHover({ children, className, glowColor = "var(--bull)" }: { children: ReactNode; className?: string; glowColor?: string }) {
+  const reducedMotion = useReducedMotion();
+  if (reducedMotion) return <div className={className}>{children}</div>;
+  return (
+    <motion.div
+      whileHover={{ boxShadow: `0 0 12px ${glowColor}40` }}
+      transition={{ duration: 0.3 }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+export function SmoothHeight({ children, isVisible, className }: { children: ReactNode; isVisible: boolean; className?: string }) {
+  const reducedMotion = useReducedMotion();
+  if (reducedMotion) return isVisible ? <div className={className}>{children}</div> : null;
+  return (
+    <AnimatePresence initial={false}>
+      {isVisible && (
+        <motion.div
+          initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.3,       ease: [0.4, 0, 0.2, 1] as [number, number, number, number] }}
+          className={className}
         >
           {children}
         </motion.div>
