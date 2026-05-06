@@ -12,6 +12,7 @@
 
 Track prices, manage your inventory, and get AI-powered market insights.
 
+**[English](./README.md)** · **[中文](./README.zh-CN.md)**
 
 [Features](#features) · [Getting Started](#getting-started) · [Deployment](#deployment) · [License](#license)
 
