@@ -29,7 +29,7 @@
   height: 10px;
   background: var(--surface-3);
   border-radius: var(--radius-sm);
-  animation: pulse 1.5s ease-in-out infinite;
+  
 }
 
 .skeletonValue {
@@ -37,8 +37,8 @@
   height: 20px;
   background: var(--surface-3);
   border-radius: var(--radius-sm);
-  animation: pulse 1.5s ease-in-out infinite;
-  animation-delay: 0.15s;
+  
+  
 }
 
 .moversRow {
@@ -60,7 +60,7 @@
   height: 48px;
   background: var(--surface-3);
   border-radius: var(--radius-sm);
-  animation: pulse 1.5s ease-in-out infinite;
+  
   margin-bottom: 8px;
 }
 
@@ -82,18 +82,11 @@
   height: 60px;
   background: var(--surface-3);
   border-radius: var(--radius-sm);
-  animation: pulse 1.5s ease-in-out infinite;
+  
 }
 
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
+
+  
 
 @media (max-width: 768px) {
   .statsRow {
