@@ -5,6 +5,7 @@ import pkg from "../../../package.json";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     FaChartPie,
     FaChartLine,
@@ -19,6 +20,8 @@ import {
 } from 'react-icons/fa';
 import styles from './DashboardShell.module.css';
 import { usePageTitleContext } from "@/components/providers/PageTitleProvider";
+import { PageTransition } from "@/components/ui/PageTransition";
+import { StaggerList, FadeIn } from "@/components/ui/Motion";
 
 const NAV_ITEMS = [
     { href: "/", label: "Market Overview", icon: <FaChartPie /> },
@@ -61,14 +64,20 @@ export default function DashboardShell({
 
     return (
         <div className={styles.appShell}>
-            {sidebarOpen && (
-                <button
-                    type="button"
-                    className={styles.sidebarOverlay}
-                    onClick={closeSidebar}
-                    aria-label="Close sidebar"
-                />
-            )}
+            <AnimatePresence>
+                {sidebarOpen && (
+                    <motion.button
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        type="button"
+                        className={styles.sidebarOverlay}
+                        onClick={closeSidebar}
+                        aria-label="Close sidebar"
+                    />
+                )}
+            </AnimatePresence>
 
             {/* Sidebar */}
             <aside className={`${styles.sidebar}${sidebarOpen ? ` ${styles.open}` : ""}`}>
@@ -79,30 +88,34 @@ export default function DashboardShell({
 
                 <nav className={styles.sidebarNav}>
                     <div className={styles.navSectionLabel}>Dashboard</div>
-                    {NAV_ITEMS.map((item) => (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            className={`${styles.navLink} ${pathname === item.href ? styles.navLinkActive : ""}`}
-                            onClick={closeSidebar}
-                        >
-                            <span className={styles.icon}>{item.icon}</span>
-                            {item.label}
-                        </Link>
-                    ))}
+                    <StaggerList staggerDelay={0.03} keys={NAV_ITEMS.map(i => i.href)}>
+                        {NAV_ITEMS.map((item) => (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={`${styles.navLink} ${pathname === item.href ? styles.navLinkActive : ""}`}
+                                onClick={closeSidebar}
+                            >
+                                <span className={styles.icon}>{item.icon}</span>
+                                {item.label}
+                            </Link>
+                        ))}
+                    </StaggerList>
 
-                    <div className={styles.navSectionLabel}>Tools</div>
-                    {NAV_TOOLS.map((item) => (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            className={`${styles.navLink} ${pathname === item.href ? styles.navLinkActive : ""}`}
-                            onClick={closeSidebar}
-                        >
-                            <span className={styles.icon}>{item.icon}</span>
-                            {item.label}
-                        </Link>
-                    ))}
+                    <div className={styles.navSectionLabel} style={{ marginTop: '16px' }}>Tools</div>
+                    <StaggerList staggerDelay={0.03} keys={NAV_TOOLS.map(i => i.href)}>
+                        {NAV_TOOLS.map((item) => (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={`${styles.navLink} ${pathname === item.href ? styles.navLinkActive : ""}`}
+                                onClick={closeSidebar}
+                            >
+                                <span className={styles.icon}>{item.icon}</span>
+                                {item.label}
+                            </Link>
+                        ))}
+                    </StaggerList>
                 </nav>
 
                 <div className={styles.sidebarFooter}>
@@ -158,27 +171,31 @@ export default function DashboardShell({
 
             {/* Main */}
             <main id="main-content" className={styles.mainContent}>
-                <header className={styles.mainHeader}>
-                    <button
-                        type="button"
-                        className={styles.menuBtn}
-                        onClick={() => setSidebarOpen((v) => !v)}
-                        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
-                    >
-                        {sidebarOpen ? <FaTimes /> : <FaBars />}
-                    </button>
-                    <div className={styles.headerTitleArea}>
-                        {backLabel && backHref && (
-                            <Link href={backHref} className={styles.backLink}>
-                                <FaArrowLeft />
-                                {backLabel}
-                            </Link>
-                        )}
-                        <h2>{pageTitle}</h2>
-                    </div>
-                </header>
+                <FadeIn duration={0.4}>
+                    <header className={styles.mainHeader}>
+                        <button
+                            type="button"
+                            className={styles.menuBtn}
+                            onClick={() => setSidebarOpen((v) => !v)}
+                            aria-label={sidebarOpen ? "Close menu" : "Open menu"}
+                        >
+                            {sidebarOpen ? <FaTimes /> : <FaBars />}
+                        </button>
+                        <div className={styles.headerTitleArea}>
+                            {backLabel && backHref && (
+                                <Link href={backHref} className={styles.backLink}>
+                                    <FaArrowLeft />
+                                    {backLabel}
+                                </Link>
+                            )}
+                            <h2>{pageTitle}</h2>
+                        </div>
+                    </header>
+                </FadeIn>
                 <div className={styles.mainBody}>
-                    {children}
+                    <PageTransition>
+                        {children}
+                    </PageTransition>
                 </div>
             </main>
         </div>

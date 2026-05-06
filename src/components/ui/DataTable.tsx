@@ -5,7 +5,8 @@
  */
 
 import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { useIsMobile } from "@/hooks/useMediaQuery";
+import { motion, AnimatePresence } from "framer-motion";
+import { useIsMobile, useReducedMotion } from "@/hooks/useMediaQuery";
 import styles from "./DataTable.module.css";
 
 export interface Column<T> {
@@ -96,6 +97,7 @@ export function DataTable<T>({
   mobileCardRenderer,
 }: DataTableProps<T>) {
   const isMobile = useIsMobile();
+  const reducedMotion = useReducedMotion();
   const hasSetInitialView = useRef(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection | null>(null);
@@ -217,29 +219,108 @@ export function DataTable<T>({
           })}
         </tr>
       </thead>
-      <tbody>
+      <motion.tbody
+        layout={!reducedMotion}
+        initial="hidden"
+        animate="visible"
+        variants={reducedMotion ? {} : {
+          hidden: { opacity: 0 },
+          visible: {
+            opacity: 1,
+            transition: { staggerChildren: 0.03 }
+          }
+        }}
+      >
         {isLoading ? (
           <SkeletonRows columnCount={columns.length} />
         ) : data.length === 0 ? (
-          <tr>
+          <motion.tr layout={!reducedMotion}>
             <td
               colSpan={columns.length}
               className={styles.emptyCell}
             >
               {emptyMessage}
             </td>
-          </tr>
+          </motion.tr>
         ) : (
-          sortedData.map((row, idx) => (
-            <tr
+          <AnimatePresence initial={false}>
+            {sortedData.map((row, idx) => (
+              <motion.tr
+                layout={!reducedMotion}
+                variants={reducedMotion ? {} : {
+                  hidden: { opacity: 0, y: 10 },
+                  visible: { opacity: 1, y: 0 }
+                }}
+                initial="hidden"
+                animate="visible"
+                exit="hidden"
+                transition={{ duration: 0.2 }}
+                key={getRowKey ? getRowKey(row, idx) : idx}
+                className={onRowClick ? styles.clickable : ""}
+                onClick={() => onRowClick?.(row)}
+                aria-label={onRowClick ? "Click to view details" : undefined}
+                {...(onRowClick
+                  ? {
+                      tabIndex: 0,
+                      onKeyDown: (e: KeyboardEvent<HTMLTableRowElement>) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onRowClick(row);
+                        }
+                      },
+                    }
+                  : {})}
+              >
+                {columns.map((col, colIndex) => (
+                  <td
+                    key={String(col.key)}
+                    className={buildCellClassName(col, colIndex, [
+                      col.align === "right" ? styles.numericCell : "",
+                    ])}
+                    style={stickyOffsets.has(colIndex) ? { left: stickyOffsets.get(colIndex) } : undefined}
+                  >
+                    {col.render
+                      ? col.render(row[col.key as keyof T], row)
+                      : String(row[col.key as keyof T] ?? "\u2014")}
+                  </td>
+                ))}
+              </motion.tr>
+            ))}
+          </AnimatePresence>
+        )}
+      </motion.tbody>
+    </table>
+    </div>
+  );
+
+  if (!hasCardView) return tableView;
+
+  const cardView = (
+    <motion.div 
+      layout={!reducedMotion}
+      className={`${styles.cardList}${forceTableView ? ` ${styles.viewHidden}` : ""}`}
+    >
+      {isLoading ? (
+        <SkeletonCards />
+      ) : data.length === 0 ? (
+        <div className={styles.emptyCell}>{emptyMessage}</div>
+      ) : (
+        <AnimatePresence initial={false}>
+          {sortedData.map((row, idx) => (
+            <motion.div
+              layout={!reducedMotion}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
               key={getRowKey ? getRowKey(row, idx) : idx}
-              className={onRowClick ? styles.clickable : ""}
-              onClick={() => onRowClick?.(row)}
-              aria-label={onRowClick ? "Click to view details" : undefined}
+              className={`${styles.card}${onRowClick ? ` ${styles.clickable}` : ""}`}
               {...(onRowClick
                 ? {
+                    onClick: () => onRowClick(row),
                     tabIndex: 0,
-                    onKeyDown: (e: KeyboardEvent<HTMLTableRowElement>) => {
+                    role: "button",
+                    onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         onRowClick(row);
@@ -248,59 +329,12 @@ export function DataTable<T>({
                   }
                 : {})}
             >
-              {columns.map((col, colIndex) => (
-                <td
-                  key={String(col.key)}
-                  className={buildCellClassName(col, colIndex, [
-                    col.align === "right" ? styles.numericCell : "",
-                  ])}
-                  style={stickyOffsets.has(colIndex) ? { left: stickyOffsets.get(colIndex) } : undefined}
-                >
-                  {col.render
-                    ? col.render(row[col.key as keyof T], row)
-                    : String(row[col.key as keyof T] ?? "\u2014")}
-                </td>
-              ))}
-            </tr>
-          ))
-        )}
-      </tbody>
-    </table>
-    </div>
-  );
-
-  if (!hasCardView) return tableView;
-
-  const cardView = (
-    <div className={`${styles.cardList}${forceTableView ? ` ${styles.viewHidden}` : ""}`}>
-      {isLoading ? (
-        <SkeletonCards />
-      ) : data.length === 0 ? (
-        <div className={styles.emptyCell}>{emptyMessage}</div>
-      ) : (
-        sortedData.map((row, idx) => (
-          <div
-            key={getRowKey ? getRowKey(row, idx) : idx}
-            className={`${styles.card}${onRowClick ? ` ${styles.clickable}` : ""}`}
-            {...(onRowClick
-              ? {
-                  onClick: () => onRowClick(row),
-                  tabIndex: 0,
-                  role: "button",
-                  onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onRowClick(row);
-                    }
-                  },
-                }
-              : {})}
-          >
-            {mobileCardRenderer(row)}
-          </div>
-        ))
+              {mobileCardRenderer(row)}
+            </motion.div>
+          ))}
+        </AnimatePresence>
       )}
-    </div>
+    </motion.div>
   );
 
   return (

@@ -313,14 +313,6 @@
     cursor: default;
     -webkit-appearance: none;
     appearance: none;
-    opacity: 0;
-    animation: fadeIn 0.2s ease forwards;
-  }
-
-  @keyframes fadeIn {
-    to {
-      opacity: 1;
-    }
   }
 }
 
