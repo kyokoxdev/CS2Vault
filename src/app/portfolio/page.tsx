@@ -11,6 +11,7 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { FallbackToast } from "@/components/ui/FallbackToast";
 import { useToast } from "@/components/providers/ToastProvider";
 import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
+import { useSmartRefresh } from "@/hooks/useSmartRefresh";
 
 type PortfolioTab = "active" | "sold";
 
@@ -682,16 +683,10 @@ export default function PortfolioPage() {
     }
   }, [fetchSoldItems, fetchPortfolio, addToast]);
 
-  useEffect(() => {
-    if (priceRefreshIntervalMin <= 0) return;
-
-    const intervalMs = priceRefreshIntervalMin * 60 * 1000;
-    const timer = setInterval(() => {
-      refreshRef.current?.({ silent: true });
-    }, intervalMs);
-
-    return () => clearInterval(timer);
-  }, [priceRefreshIntervalMin]);
+  useSmartRefresh(
+    [{ fn: () => refreshRef.current?.({ silent: true }), priority: 0 }],
+    priceRefreshIntervalMin
+  );
 
   const handleUpdatePrice = useCallback(async (itemId: string) => {
     const price = parseFloat(editPrice);

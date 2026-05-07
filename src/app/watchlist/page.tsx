@@ -11,6 +11,7 @@ import { FallbackToast } from "@/components/ui/FallbackToast";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { useToast } from "@/components/providers/ToastProvider";
 import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
+import { useSmartRefresh } from "@/hooks/useSmartRefresh";
 import styles from "./Watchlist.module.css";
 
 type ItemWithMaybeGroups = Item & { groups?: Item["groups"] };
@@ -131,16 +132,10 @@ export default function WatchlistPage() {
     void refreshWatchlistData(true);
   }, [refreshWatchlistData]);
 
-  useEffect(() => {
-    if (!Number.isFinite(priceRefreshIntervalMin) || priceRefreshIntervalMin <= 0) return;
-
-    const intervalMs = priceRefreshIntervalMin * 60 * 1000;
-    const timer = setInterval(() => {
-      void handleRefreshPrices();
-    }, intervalMs);
-
-    return () => clearInterval(timer);
-  }, [handleRefreshPrices, priceRefreshIntervalMin]);
+  useSmartRefresh(
+    [{ fn: () => void handleRefreshPrices(), priority: 0 }],
+    priceRefreshIntervalMin
+  );
 
   useEffect(() => {
     if (groupFilter && !groups.some((group) => group.id === groupFilter)) {
