@@ -92,16 +92,16 @@ function buildSparkline(snapshots: Array<{ price: number; timestamp: Date }>): S
     return sampleSparkline([...hourMap.values()]);
 }
 
-function calculatePriceChange24h(snapshots: Array<{ price: number; timestamp: Date }>): number | null {
+function calculatePriceChange24h(snapshots: Array<{ price: number; timestamp: Date }>): number {
     if (snapshots.length < 2) {
-        return null;
+        return 0;
     }
 
     const latest = snapshots[0];
     const earliest = snapshots[snapshots.length - 1];
 
     if (!latest || !earliest || earliest.price <= 0) {
-        return null;
+        return 0;
     }
 
     return ((latest.price - earliest.price) / earliest.price) * 100;
