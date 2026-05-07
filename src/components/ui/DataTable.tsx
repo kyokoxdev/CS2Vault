@@ -220,7 +220,6 @@ export function DataTable<T>({
         </tr>
       </thead>
       <motion.tbody
-        layout={!reducedMotion}
         initial="hidden"
         animate="visible"
         variants={reducedMotion ? {} : {
@@ -234,7 +233,7 @@ export function DataTable<T>({
         {isLoading ? (
           <SkeletonRows columnCount={columns.length} />
         ) : data.length === 0 ? (
-          <motion.tr layout={!reducedMotion}>
+          <motion.tr>
             <td
               colSpan={columns.length}
               className={styles.emptyCell}
@@ -246,7 +245,6 @@ export function DataTable<T>({
           <AnimatePresence initial={false}>
             {sortedData.map((row, idx) => (
               <motion.tr
-                layout={!reducedMotion}
                 variants={reducedMotion ? {} : {
                   hidden: { opacity: 0, y: 10 },
                   visible: { opacity: 1, y: 0 }
@@ -297,7 +295,6 @@ export function DataTable<T>({
 
   const cardView = (
     <motion.div 
-      layout={!reducedMotion}
       className={`${styles.cardList}${forceTableView ? ` ${styles.viewHidden}` : ""}`}
     >
       {isLoading ? (
@@ -308,7 +305,6 @@ export function DataTable<T>({
         <AnimatePresence initial={false}>
           {sortedData.map((row, idx) => (
             <motion.div
-              layout={!reducedMotion}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
