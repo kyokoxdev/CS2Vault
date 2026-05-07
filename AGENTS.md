@@ -62,6 +62,27 @@ Version bumps in `package.json` are reserved for changes that affect the **runni
 
 **When in doubt**: Ask yourself "Does this change what the user sees or experiences in the deployed app?" If the answer is no, do not bump the version.
 
+### Rule 7: DO NOT MAKE SPECULATIVE CHANGES — ASK FIRST
+
+**When in doubt of the user's full intent, ask clarifying questions. Do NOT make speculations and do NOT implement changes the user did not explicitly ask for.**
+
+This rule prevents scope creep and unintended side effects:
+
+- **If a request is ambiguous** → Ask ONE specific question before proceeding
+- **If you're considering adding "bonus" functionality** → Don't. Only implement what was asked.
+- **If you think you know what the user "really wants"** → Confirm with the user first
+- **If you're tempted to "fix" adjacent issues** → Stop. Ask permission first.
+
+**Example violations:**
+- User: "Make the 7D chart stay active longer" → Agent adds Market Cap cleanup (user never mentioned Market Cap)
+- User: "Fix the login button color" → Agent refactors the entire auth flow
+- User: "Add a search endpoint" → Agent also adds search UI, filters, and sorting (not requested)
+
+**Correct behavior:**
+- Implement ONLY what was explicitly requested
+- If the scope seems incomplete or unclear → Ask: "Should I also handle X, or just Y?"
+- Wait for explicit confirmation before expanding scope
+
 ---
 
 ## General Agent Behavior
