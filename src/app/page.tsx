@@ -15,6 +15,7 @@ import {
   type DashboardMarketSummary,
 } from "@/lib/market/market-cap-display";
 import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
+import { useSmartRefresh } from "@/hooks/useSmartRefresh";
 
 const TopMovers = dynamic(
   () => import("@/components/market/TopMovers").then((m) => ({ default: m.TopMovers })),
@@ -174,8 +175,7 @@ export default function MarketOverview() {
     fetchMarketSummary();
     fetchTopMovers();
     fetchNewsFeed();
-    fetchMarketCap();
-  }, [fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
+  }, [fetchMarketSummary, fetchTopMovers, fetchNewsFeed]);
 
   const handleSyncNow = useCallback(async () => {
     if (syncInProgress) return;
@@ -190,13 +190,12 @@ export default function MarketOverview() {
       fetchWatchlistPerformance();
       fetchMarketSummary();
       fetchTopMovers();
-      fetchMarketCap();
     } catch (err) {
       console.warn("Sync trigger error:", err);
     } finally {
       setSyncInProgress(false);
     }
-  }, [syncInProgress, fetchSyncLogs, fetchWatchlistPerformance, fetchMarketSummary, fetchTopMovers, fetchMarketCap]);
+  }, [syncInProgress, fetchSyncLogs, fetchWatchlistPerformance, fetchMarketSummary, fetchTopMovers]);
 
   const { status: authStatus } = useSession();
 
@@ -210,11 +209,12 @@ export default function MarketOverview() {
     }
   }, [authStatus, fetchPortfolioValue]);
 
+  // Initial data load - includes market cap (daily data, fetch once)
   useEffect(() => {
+    fetchMarketCap();
     fetchWatchlistPerformance();
     fetchSyncLogs();
     fetchMarketSummary();
-    fetchMarketCap();
 
     const deferredTimer = window.setTimeout(() => {
       fetchTopMovers();
@@ -224,21 +224,17 @@ export default function MarketOverview() {
     return () => window.clearTimeout(deferredTimer);
   }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
 
-  useEffect(() => {
-    if (!Number.isFinite(priceRefreshIntervalMin) || priceRefreshIntervalMin <= 0) return;
-
-    const intervalMs = priceRefreshIntervalMin * 60 * 1000;
-    const timer = setInterval(() => {
-      fetchWatchlistPerformance();
-      fetchSyncLogs();
-      fetchMarketSummary();
-      fetchMarketCap();
-      fetchTopMovers();
-      fetchNewsFeed();
-    }, intervalMs);
-
-    return () => clearInterval(timer);
-  }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap, priceRefreshIntervalMin]);
+  // Smart refresh for frequently-updating data (excludes market cap)
+  useSmartRefresh(
+    [
+      { fn: fetchWatchlistPerformance, priority: 0 },
+      { fn: fetchSyncLogs, priority: 1 },
+      { fn: fetchMarketSummary, priority: 2 },
+      { fn: fetchTopMovers, priority: 3 },
+      { fn: fetchNewsFeed, priority: 4 },
+    ],
+    priceRefreshIntervalMin
+  );
 
   const lastSync = syncLogs[0];
   const displayTimestamp = lastPriceUpdate ?? lastSync?.timestamp;
