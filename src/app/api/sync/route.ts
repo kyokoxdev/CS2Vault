@@ -10,7 +10,6 @@ import { requireAuth } from "@/lib/auth/guard";
 import { initializeMarketProviders } from "@/lib/market/init";
 import { runSync, getRecentSyncLogs, getLatestPriceUpdate, type SyncOptions } from "@/lib/market/sync";
 import { prisma } from "@/lib/db";
-import type { MarketSource } from "@/types";
 
 // Allow up to 300s on Vercel Pro (cron jobs are long-running)
 export const maxDuration = 300;
@@ -29,6 +28,7 @@ async function runPriceSync(opts: SyncOptions = {}) {
 }
 
 const SOLD_ITEM_RETENTION_DAYS = 60;
+const PRICE_SNAPSHOT_RETENTION_DAYS = 21;
 
 async function cleanupOldSoldItems() {
     const cutoff = new Date(Date.now() - SOLD_ITEM_RETENTION_DAYS * 24 * 60 * 60 * 1000);
@@ -39,6 +39,19 @@ async function cleanupOldSoldItems() {
     });
     if (result.count > 0) {
         console.log(`[Sync Cleanup] Deleted ${result.count} sold items older than ${SOLD_ITEM_RETENTION_DAYS} days`);
+    }
+    return result.count;
+}
+
+async function cleanupOldPriceSnapshots() {
+    const cutoff = new Date(Date.now() - PRICE_SNAPSHOT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const result = await prisma.priceSnapshot.deleteMany({
+        where: {
+            timestamp: { lt: cutoff },
+        },
+    });
+    if (result.count > 0) {
+        console.log(`[Sync Cleanup] Deleted ${result.count} price snapshots older than ${PRICE_SNAPSHOT_RETENTION_DAYS} days`);
     }
     return result.count;
 }
@@ -107,12 +120,19 @@ export async function GET(request: NextRequest) {
                         );
                     }),
                 ]);
-                const cleanedCount = await cleanupOldSoldItems();
+                const cleanedSoldItems = await cleanupOldSoldItems();
+                const cleanedPriceSnapshots = await cleanupOldPriceSnapshots();
 
                 return NextResponse.json(
                     {
                         success: syncResult.status !== "failed",
-                        data: { sync: syncResult, soldItemsCleaned: cleanedCount },
+                        data: {
+                            sync: syncResult,
+                            cleanup: {
+                                soldItems: cleanedSoldItems,
+                                priceSnapshots: cleanedPriceSnapshots,
+                            },
+                        },
                     },
                     { status: syncResult.status === "failed" ? 500 : 200 }
                 );
