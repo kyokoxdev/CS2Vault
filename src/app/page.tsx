@@ -313,16 +313,27 @@ export default function MarketOverview() {
             label="Watchlist 24h"
             value={
               <>
-                {watchlistPerf.count} items
-                {watchlistPerf.avg24h === null && watchlistPerf.count > 0 && (
-                  <div className={styles.statSubtext}>No price data yet</div>
+                {watchlistPerf.avg24h === null ? (
+                  watchlistPerf.count === 0 ? "—" : "N/A"
+                ) : (
+                  <span style={{
+                    color: watchlistPerf.avg24h > 0
+                      ? "var(--bull, #00C076)"
+                      : watchlistPerf.avg24h < 0
+                        ? "var(--bear, #FF4D4F)"
+                        : "var(--text-secondary-60, #8C8C8C)"
+                  }}>
+                    {watchlistPerf.avg24h > 0 ? "+" : ""}
+                    {watchlistPerf.avg24h.toFixed(1)}%
+                  </span>
                 )}
-                {watchlistPerf.count === 0 && (
-                  <div className={styles.statSubtext}>Start tracking items</div>
-                )}
+                <div className={styles.statSubtext}>
+                  {watchlistPerf.count} {watchlistPerf.count === 1 ? "item" : "items"}
+                  {watchlistPerf.avg24h === null && watchlistPerf.count > 0 && " • No price data yet"}
+                  {watchlistPerf.count === 0 && " • Start tracking items"}
+                </div>
               </>
             }
-            change={watchlistPerf.avg24h ?? undefined}
           />
         </Link>
         
