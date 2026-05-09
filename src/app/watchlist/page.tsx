@@ -11,7 +11,8 @@ import { FallbackToast } from "@/components/ui/FallbackToast";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { useToast } from "@/components/providers/ToastProvider";
 import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
-import { useSmartRefresh } from "@/hooks/useSmartRefresh";
+import { useSmartRefresh, markRefreshed } from "@/hooks/useSmartRefresh";
+import { useStaleAwareRefresh } from "@/hooks/useStaleAwareRefresh";
 import styles from "./Watchlist.module.css";
 
 type ItemWithMaybeGroups = Item & { groups?: Item["groups"] };
@@ -58,6 +59,7 @@ export default function WatchlistPage() {
   });
   const [bulkLoading, setBulkLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [lastPriceUpdate, setLastPriceUpdate] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 8;
   const priceRefreshIntervalMin = usePriceRefreshInterval();
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -71,6 +73,7 @@ export default function WatchlistPage() {
 
       if (data.success) {
         setItems((data.data.items as ItemWithMaybeGroups[]).map(normalizeItem));
+        setLastPriceUpdate(data.data.lastPriceUpdate ?? null);
       }
     } catch {
       addToast("Failed to load watchlist items", "error");
@@ -131,6 +134,17 @@ export default function WatchlistPage() {
   useEffect(() => {
     void refreshWatchlistData(true);
   }, [refreshWatchlistData]);
+
+  useStaleAwareRefresh({
+    key: "watchlist-prices",
+    lastUpdated: lastPriceUpdate,
+    intervalMin: priceRefreshIntervalMin,
+    onStale: () => {
+      void handleRefreshPrices();
+      markRefreshed();
+    },
+    enabled: !itemsLoading,
+  });
 
   useSmartRefresh(
     [{ fn: () => void handleRefreshPrices(), priority: 0 }],

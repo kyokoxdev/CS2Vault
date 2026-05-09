@@ -11,7 +11,8 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { FallbackToast } from "@/components/ui/FallbackToast";
 import { useToast } from "@/components/providers/ToastProvider";
 import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
-import { useSmartRefresh } from "@/hooks/useSmartRefresh";
+import { useSmartRefresh, markRefreshed } from "@/hooks/useSmartRefresh";
+import { useStaleAwareRefresh } from "@/hooks/useStaleAwareRefresh";
 
 type PortfolioTab = "active" | "sold";
 
@@ -411,6 +412,7 @@ export default function PortfolioPage() {
   const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [sellModalItem, setSellModalItem] = useState<PortfolioItem | null>(null);
+  const [lastPriceUpdate, setLastPriceUpdate] = useState<string | null>(null);
   const [fallbackInfo, setFallbackInfo] = useState<{
     failureReason: string;
     attemptedProvider: string;
@@ -435,6 +437,7 @@ export default function PortfolioPage() {
       const data = await res.json();
       if (data.success) {
         setPortfolio(data.data);
+        setLastPriceUpdate(data.data.lastPriceUpdate ?? null);
       }
     } catch (err) {
       console.error("Failed to fetch portfolio:", err);
@@ -682,6 +685,17 @@ export default function PortfolioPage() {
       addToast(`${err}`, "error");
     }
   }, [fetchSoldItems, fetchPortfolio, addToast]);
+
+  useStaleAwareRefresh({
+    key: "portfolio-prices",
+    lastUpdated: lastPriceUpdate,
+    intervalMin: priceRefreshIntervalMin,
+    onStale: () => {
+      refreshRef.current?.({ silent: true });
+      markRefreshed();
+    },
+    enabled: !loading,
+  });
 
   useSmartRefresh(
     [{ fn: () => refreshRef.current?.({ silent: true }), priority: 0 }],

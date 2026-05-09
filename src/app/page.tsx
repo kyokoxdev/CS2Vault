@@ -15,7 +15,8 @@ import {
   type DashboardMarketSummary,
 } from "@/lib/market/market-cap-display";
 import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
-import { useSmartRefresh } from "@/hooks/useSmartRefresh";
+import { useSmartRefresh, markRefreshed } from "@/hooks/useSmartRefresh";
+import { useStaleAwareRefresh } from "@/hooks/useStaleAwareRefresh";
 
 const TopMovers = dynamic(
   () => import("@/components/market/TopMovers").then((m) => ({ default: m.TopMovers })),
@@ -54,6 +55,7 @@ export default function MarketOverview() {
   const [feedLoading, setFeedLoading] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const priceRefreshIntervalMin = usePriceRefreshInterval();
 
   const fetchWatchlistPerformance = useCallback(async () => {
@@ -211,10 +213,12 @@ export default function MarketOverview() {
 
   // Initial data load - includes market cap (daily data, fetch once)
   useEffect(() => {
-    fetchMarketCap();
-    fetchWatchlistPerformance();
-    fetchSyncLogs();
-    fetchMarketSummary();
+    void Promise.all([
+      fetchMarketCap(),
+      fetchWatchlistPerformance(),
+      fetchSyncLogs(),
+      fetchMarketSummary(),
+    ]).then(() => setInitialLoadComplete(true));
 
     const deferredTimer = window.setTimeout(() => {
       fetchTopMovers();
@@ -223,6 +227,21 @@ export default function MarketOverview() {
 
     return () => window.clearTimeout(deferredTimer);
   }, [fetchWatchlistPerformance, fetchSyncLogs, fetchMarketSummary, fetchTopMovers, fetchNewsFeed, fetchMarketCap]);
+
+  useStaleAwareRefresh({
+    key: "market-overview",
+    lastUpdated: lastPriceUpdate,
+    intervalMin: priceRefreshIntervalMin,
+    onStale: () => {
+      fetchWatchlistPerformance();
+      fetchSyncLogs();
+      fetchMarketSummary();
+      fetchTopMovers();
+      fetchNewsFeed();
+      markRefreshed();
+    },
+    enabled: initialLoadComplete,
+  });
 
   // Smart refresh for frequently-updating data (excludes market cap)
   useSmartRefresh(
