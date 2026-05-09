@@ -218,6 +218,14 @@ export async function GET(request: NextRequest) {
             };
         });
 
+        let lastPriceUpdate: Date | null = null;
+        for (const item of items) {
+            const ts = item.priceSnapshots[0]?.timestamp;
+            if (ts && (!lastPriceUpdate || ts > lastPriceUpdate)) {
+                lastPriceUpdate = ts;
+            }
+        }
+
         return NextResponse.json({
             success: true,
             data: {
@@ -226,6 +234,7 @@ export async function GET(request: NextRequest) {
                 limit: query.limit,
                 offset: query.offset,
                 hasMore: query.offset + formatted.length < total,
+                lastPriceUpdate: lastPriceUpdate?.toISOString() ?? null,
             },
         }, {
             headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },

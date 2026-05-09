@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
                         categories: [],
                         rarities: [],
                     },
+                    lastPriceUpdate: null,
                 },
             });
         }
@@ -77,6 +78,13 @@ export async function GET(request: NextRequest) {
             distinct: ["itemId"],
         });
         const priceMap = new Map(latestPrices.map((p) => [p.itemId, p.price]));
+
+        let lastPriceUpdate: Date | null = null;
+        for (const p of latestPrices) {
+            if (!lastPriceUpdate || p.timestamp > lastPriceUpdate) {
+                lastPriceUpdate = p.timestamp;
+            }
+        }
 
         const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const oldestSnapshots24h = await prisma.priceSnapshot.findMany({
@@ -234,6 +242,7 @@ export async function GET(request: NextRequest) {
                     categories: availableCategories,
                     rarities: availableRarities,
                 },
+                lastPriceUpdate: lastPriceUpdate?.toISOString() ?? null,
             },
         }, {
             headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },

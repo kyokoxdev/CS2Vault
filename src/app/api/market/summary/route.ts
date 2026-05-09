@@ -190,17 +190,23 @@ function pickTopItems(stats: Map<string, ItemStat>): string[] {
 
 export async function GET() {
     try {
+        const priceTimestampResult = await prisma.priceSnapshot.findFirst({
+            orderBy: { timestamp: "desc" },
+            select: { timestamp: true },
+        });
+        const lastPriceUpdate = priceTimestampResult?.timestamp?.toISOString() ?? null;
+
         if (!process.env.CSFLOAT_API_KEY) {
             return NextResponse.json({
                 success: true,
-                data: { marketCapUsd: null, source: "csfloat", status: "missing_key" },
+                data: { marketCapUsd: null, source: "csfloat", status: "missing_key", lastPriceUpdate },
             });
         }
 
         if (cachedSummary && Date.now() - cachedAt < CSFLOAT_CACHE_MS) {
             return NextResponse.json({
                 success: true,
-                data: cachedSummary,
+                data: { ...cachedSummary, lastPriceUpdate },
             }, {
                 headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=300" },
             });
@@ -212,7 +218,7 @@ export async function GET() {
             cachedAt = dbCache.updatedAt.getTime();
             return NextResponse.json({
                 success: true,
-                data: dbCache.data,
+                data: { ...dbCache.data, lastPriceUpdate },
             }, {
                 headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=300" },
             });
@@ -222,7 +228,7 @@ export async function GET() {
             const fallback = cachedSummary ?? dbCache?.data ?? { marketCapUsd: null, source: "csfloat", status: "no_data" as const };
             return NextResponse.json({
                 success: true,
-                data: fallback,
+                data: { ...fallback, lastPriceUpdate },
             });
         }
 
@@ -243,7 +249,7 @@ export async function GET() {
         if (itemStats.size === 0) {
             return NextResponse.json({
                 success: true,
-                data: { marketCapUsd: null, source: "csfloat", status: "no_data" },
+                data: { marketCapUsd: null, source: "csfloat", status: "no_data", lastPriceUpdate },
             });
         }
 
@@ -251,7 +257,7 @@ export async function GET() {
         if (!topItems.length) {
             return NextResponse.json({
                 success: true,
-                data: { marketCapUsd: null, source: "csfloat", status: "no_data" },
+                data: { marketCapUsd: null, source: "csfloat", status: "no_data", lastPriceUpdate },
             });
         }
 
@@ -306,7 +312,7 @@ export async function GET() {
         if (marketCapUsd <= 0 || sampled === 0) {
             return NextResponse.json({
                 success: true,
-                data: { marketCapUsd: null, source: "csfloat", status: "no_data" },
+                data: { marketCapUsd: null, source: "csfloat", status: "no_data", lastPriceUpdate },
             });
         }
 
@@ -324,7 +330,7 @@ export async function GET() {
 
         return NextResponse.json({
             success: true,
-            data: computedSummary,
+            data: { ...computedSummary, lastPriceUpdate },
         }, {
             headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=300" },
         });
@@ -332,7 +338,7 @@ export async function GET() {
         console.warn("[API /market/summary]", error);
         return NextResponse.json({
             success: true,
-            data: { marketCapUsd: null, source: "csfloat", status: "error" },
+            data: { marketCapUsd: null, source: "csfloat", status: "error", lastPriceUpdate: null },
         });
     }
 }
