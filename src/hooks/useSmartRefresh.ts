@@ -70,21 +70,15 @@ export function useSmartRefresh(
     [refreshConfigs, intervalMin]
   );
 
-  useEffect(() => {
-    // Check if page was discarded or needs refresh on mount
-    const stored = sessionStorage.getItem(LAST_REFRESH_KEY);
-    const lastTime = stored ? parseInt(stored) : 0;
-    const elapsed = Date.now() - lastTime;
-    const intervalMs = intervalMin * 60 * 1000;
+    useEffect(() => {
+        if (wasDiscarded) {
+            console.log(
+                `[SmartRefresh] Mount refresh needed (discarded: ${wasDiscarded})`
+            );
+            executeStaggeredRefresh(true);
+        }
 
-    if (wasDiscarded || elapsed >= intervalMs) {
-      console.log(
-        `[SmartRefresh] Mount refresh needed (discarded: ${wasDiscarded}, elapsed: ${Math.round(elapsed / 1000)}s)`
-      );
-      executeStaggeredRefresh(true);
-    }
-
-    // Set up interval timer
+        // Set up interval timer
     const setupTimer = () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -135,4 +129,8 @@ export function useSmartRefresh(
   }, [intervalMin, executeStaggeredRefresh]);
 
   return { refresh: () => executeStaggeredRefresh(true) };
+}
+
+export function markRefreshed(): void {
+    sessionStorage.setItem(LAST_REFRESH_KEY, Date.now().toString());
 }
