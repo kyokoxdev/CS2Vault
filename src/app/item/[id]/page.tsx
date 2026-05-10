@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { FaEye, FaEyeSlash, FaExternalLinkAlt } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaExternalLinkAlt, FaChevronDown } from "react-icons/fa";
 import CandlestickChart from "@/components/charts/CandlestickChart";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
@@ -65,6 +65,7 @@ export default function ItemDetailPage() {
     const [latestPrice, setLatestPrice] = useState<PriceSnapshot | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+    const [summaryExpanded, setSummaryExpanded] = useState(false);
 
     const from = searchParams.get("from");
     const backHref = from === "watchlist" ? "/watchlist" : from === "portfolio" ? "/portfolio" : "/";
@@ -289,51 +290,72 @@ export default function ItemDetailPage() {
             </div>
 
             {/* Stats Row */}
-            <div className={styles.statsGrid}>
-                <StatCard
-                    label="Category"
-                    value={
-                        <span className={styles.capitalized}>
-                            {item.category}
+            <div className={`${styles.summarySection}${summaryExpanded ? ` ${styles.summarySectionExpanded}` : ""}`}>
+                <button
+                    type="button"
+                    className={styles.summaryToggle}
+                    onClick={() => setSummaryExpanded((prev) => !prev)}
+                    aria-expanded={summaryExpanded}
+                >
+                    <span className={styles.summaryToggleLeft}>
+                        <span>Item Details</span>
+                    </span>
+                    <span className={styles.summaryToggleRight}>
+                        <span className={styles.summaryToggleValue}>
+                            <span className={styles.capitalized}>{item.category}</span>
+                            {item.rarity && (
+                                <> · {item.rarity}</>
+                            )}
                         </span>
-                    }
-                />
-                
-                {item.category === "weapon" && item.type && (
+                        <FaChevronDown className={`${styles.summaryChevron}${summaryExpanded ? ` ${styles.summaryChevronOpen}` : ""}`} />
+                    </span>
+                </button>
+                <div className={styles.statsGrid}>
                     <StatCard
-                        label="Weapon Type"
-                        value={item.type}
-                    />
-                )}
-
-                {item.rarity && (
-                    <StatCard
-                        label="Rarity"
+                        label="Category"
                         value={
-                            <Badge variant={getRarityVariant(item.rarity)}>
-                                {item.rarity}
-                            </Badge>
+                            <span className={styles.capitalized}>
+                                {item.category}
+                            </span>
                         }
                     />
-                )}
 
-                {item.exterior && (
+                    {item.category === "weapon" && item.type && (
+                        <StatCard
+                            label="Weapon Type"
+                            value={item.type}
+                        />
+                    )}
+
+                    {item.rarity && (
+                        <StatCard
+                            label="Rarity"
+                            value={
+                                <Badge variant={getRarityVariant(item.rarity)}>
+                                    {item.rarity}
+                                </Badge>
+                            }
+                        />
+                    )}
+
+                    {item.exterior && (
+                        <StatCard
+                            label="Exterior"
+                            value={item.exterior}
+                        />
+                    )}
+
                     <StatCard
-                        label="Exterior"
-                        value={item.exterior}
+                        label="Status"
+                        value={
+                            isWatched ? (
+                                <Badge variant="success">Watching</Badge>
+                            ) : (
+                                <Badge variant="neutral">Not watched</Badge>
+                            )
+                        }
                     />
-                )}
-
-                <StatCard
-                    label="Status"
-                    value={
-                        isWatched ? (
-                            <Badge variant="success">Watching</Badge>
-                        ) : (
-                            <Badge variant="neutral">Not watched</Badge>
-                        )
-                    }
-                />
+                </div>
             </div>
 
             {/* Chart */}
