@@ -11,7 +11,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FaEye, FaEyeSlash, FaExternalLinkAlt } from "react-icons/fa";
 import CandlestickChart from "@/components/charts/CandlestickChart";
-import { StatCard } from "@/components/ui/StatCard";
+import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import styles from "./ItemDetail.module.css";
 import { usePageTitle } from "@/components/providers/PageTitleProvider";
@@ -288,53 +288,49 @@ export default function ItemDetailPage() {
                 </div>
             </div>
 
-            {/* Stats Row */}
-            <div className={styles.statsGrid}>
-                <StatCard
-                    label="Category"
-                    value={
-                        <span className={styles.capitalized}>
+            {/* Summary Card */}
+            <Card padding="md" animate>
+                <div className={styles.summaryRow}>
+                    <div className={styles.summaryItem}>
+                        <span className={styles.summaryLabel}>Category</span>
+                        <span className={`${styles.summaryValue} ${styles.capitalized}`}>
                             {item.category}
                         </span>
-                    }
-                />
-                
-                {item.category === "weapon" && item.type && (
-                    <StatCard
-                        label="Weapon Type"
-                        value={item.type}
-                    />
-                )}
+                    </div>
 
-                {item.rarity && (
-                    <StatCard
-                        label="Rarity"
-                        value={
+                    {item.category === "weapon" && item.type && (
+                        <div className={styles.summaryItem}>
+                            <span className={styles.summaryLabel}>Weapon</span>
+                            <span className={styles.summaryValue}>{item.type}</span>
+                        </div>
+                    )}
+
+                    {item.rarity && (
+                        <div className={styles.summaryItem}>
+                            <span className={styles.summaryLabel}>Rarity</span>
                             <Badge variant={getRarityVariant(item.rarity)}>
                                 {item.rarity}
                             </Badge>
-                        }
-                    />
-                )}
+                        </div>
+                    )}
 
-                {item.exterior && (
-                    <StatCard
-                        label="Exterior"
-                        value={item.exterior}
-                    />
-                )}
+                    {item.exterior && (
+                        <div className={styles.summaryItem}>
+                            <span className={styles.summaryLabel}>Exterior</span>
+                            <span className={styles.summaryValue}>{item.exterior}</span>
+                        </div>
+                    )}
 
-                <StatCard
-                    label="Status"
-                    value={
-                        isWatched ? (
+                    <div className={styles.summaryItem}>
+                        <span className={styles.summaryLabel}>Status</span>
+                        {isWatched ? (
                             <Badge variant="success">Watching</Badge>
                         ) : (
                             <Badge variant="neutral">Not watched</Badge>
-                        )
-                    }
-                />
-            </div>
+                        )}
+                    </div>
+                </div>
+            </Card>
 
             {/* Chart */}
             <CandlestickChart
