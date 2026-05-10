@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { FaRobot, FaTimes, FaPlus, FaArrowRight, FaStop } from "react-icons/fa";
 import styles from "./AIChat.module.css";
 import type { ChatMessageData, AIProviderName } from "@/types";
@@ -434,7 +435,7 @@ export default function AIChat() {
                             {msg.imageBase64 && (
                                 <img src={msg.imageBase64} alt="User attachment" className={styles.chatImage} />
                             )}
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                         </div>
                     );
                 })}

@@ -445,7 +445,9 @@
     }
 }
 
-/* Markdown basic formatting */
+/* ── GitHub Flavored Markdown ── */
+
+/* Paragraphs */
 .messageAssistant p {
     margin-bottom: 12px;
 }
@@ -454,11 +456,24 @@
     margin-bottom: 0;
 }
 
+/* Bold & Italic */
 .messageAssistant strong {
     color: var(--text-primary-90);
     font-weight: 600;
 }
 
+.messageAssistant em {
+    font-style: italic;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Strikethrough */
+.messageAssistant del {
+    text-decoration: line-through;
+    opacity: 0.6;
+}
+
+/* Lists */
 .messageAssistant ul,
 .messageAssistant ol {
     margin-left: 20px;
@@ -467,6 +482,140 @@
 
 .messageAssistant li {
     margin-bottom: 4px;
+}
+
+/* Task lists (GFM checkboxes) */
+.messageAssistant li input[type="checkbox"] {
+    margin-right: 8px;
+    accent-color: var(--bull);
+    cursor: default;
+}
+
+/* Headings */
+.messageAssistant h1,
+.messageAssistant h2,
+.messageAssistant h3,
+.messageAssistant h4,
+.messageAssistant h5,
+.messageAssistant h6 {
+    color: var(--text-primary-90);
+    font-weight: 600;
+    margin-top: 16px;
+    margin-bottom: 8px;
+}
+
+.messageAssistant h1 { font-size: 1.4em; }
+.messageAssistant h2 { font-size: 1.25em; }
+.messageAssistant h3 { font-size: 1.1em; }
+
+.messageAssistant *:first-child {
+    margin-top: 0;
+}
+
+/* Inline code */
+.messageAssistant code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+
+/* Code blocks (pre > code) */
+.messageAssistant pre {
+    background: var(--surface-0);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-active) transparent;
+}
+
+.messageAssistant pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.85em;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.85);
+    white-space: pre;
+}
+
+/* Blockquotes */
+.messageAssistant blockquote {
+    border-left: 3px solid var(--border-active);
+    padding: 8px 16px;
+    margin-bottom: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    color: rgba(255, 255, 255, 0.7);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.messageAssistant blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+/* Tables */
+.messageAssistant table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 12px;
+    font-size: 0.9em;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.messageAssistant th {
+    background: var(--surface-3);
+    color: var(--text-primary-90);
+    font-weight: 600;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.messageAssistant td {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.messageAssistant tr:last-child td {
+    border-bottom: none;
+}
+
+.messageAssistant tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* Horizontal rules */
+.messageAssistant hr {
+    border: none;
+    border-top: 1px solid var(--border-primary);
+    margin: 16px 0;
+}
+
+/* Links */
+.messageAssistant a {
+    color: var(--bull);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color var(--transition-fast);
+}
+
+.messageAssistant a:hover {
+    border-bottom-color: var(--bull);
+}
+
+/* Images inside markdown */
+.messageAssistant img {
+    max-width: 100%;
+    border-radius: var(--radius-sm);
+    margin: 8px 0;
 }
 
 .modelSelect {
