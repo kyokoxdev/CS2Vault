@@ -20,8 +20,8 @@ describe("AI Model Labels", () => {
         it("contains gemini-flash", () => {
             const model = AI_MODELS.find((m) => m.value === "gemini-flash");
             expect(model).toBeDefined();
-            expect(model?.label).toBe("Google Gemini 2.5 Flash");
-            expect(model?.shortLabel).toBe("Gemini 2.5 Flash");
+            expect(model?.label).toBe("Google Gemini 3.1 Flash");
+            expect(model?.shortLabel).toBe("Gemini 3.1 Flash");
         });
 
         it("contains openai", () => {
@@ -48,7 +48,7 @@ describe("AI Model Labels", () => {
 
     describe("getModelLabel", () => {
         it("returns full label for gemini-flash", () => {
-            expect(getModelLabel("gemini-flash")).toBe("Google Gemini 2.5 Flash");
+            expect(getModelLabel("gemini-flash")).toBe("Google Gemini 3.1 Flash");
         });
 
         it("returns full label for openai", () => {
@@ -63,7 +63,7 @@ describe("AI Model Labels", () => {
 
     describe("getModelShortLabel", () => {
         it("returns short label for gemini-flash", () => {
-            expect(getModelShortLabel("gemini-flash")).toBe("Gemini 2.5 Flash");
+            expect(getModelShortLabel("gemini-flash")).toBe("Gemini 3.1 Flash");
         });
 
         it("returns short label for openai", () => {

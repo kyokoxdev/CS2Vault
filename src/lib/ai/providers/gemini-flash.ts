@@ -14,7 +14,7 @@ export class GeminiFlashProvider implements AIProvider {
     }
 
     getModelName(): string {
-        return "gemini-2.5-flash";
+        return "gemini-3.1-flash";
     }
 
     async *chat(messages: ChatMessageData[], context: MarketContext): AsyncGenerator<string> {
@@ -54,7 +54,7 @@ export class GeminiFlashProvider implements AIProvider {
             systemInstruction: { parts: [{ text: buildSystemPrompt(context) }] }
         };
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:streamGenerateContent?alt=sse`;
 
         const response = await geminiFlashQueue.enqueue(async () => {
             return fetch(url, {
