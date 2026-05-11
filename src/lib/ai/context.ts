@@ -297,7 +297,7 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
 
 async function findMatchingItem(query: string): Promise<{ id: string; name: string } | undefined> {
     const lowerQuery = query.toLowerCase();
-    const queryClean = lowerQuery.replace(/[^a-z0-9]/g, "");
+    const queryClean = lowerQuery.replace(/[^a-z0-9]/giu, "");
     const activeItems = await prisma.item.findMany({ select: { id: true, name: true } });
     activeItems.sort((a, b) => b.name.length - a.name.length);
 
@@ -308,10 +308,10 @@ async function findMatchingItem(query: string): Promise<{ id: string; name: stri
         const baseName = nameLower.split("(")[0].trim();
         if (baseName.length > 4 && lowerQuery.includes(baseName)) return true;
 
-        const noPipe = baseName.replace("|", "").replace(/\s+/g, " ").trim();
+        const noPipe = baseName.replace(/\|/g, "").replace(/\s+/g, " ").trim();
         if (noPipe.length > 4 && lowerQuery.includes(noPipe)) return true;
 
-        const compressedName = baseName.replace(/[^a-z0-9]/g, "");
+        const compressedName = baseName.replace(/[^a-z0-9]/giu, "");
         if (compressedName.length > 4 && queryClean.includes(compressedName)) return true;
 
         if (queryClean.length > 4 && compressedName.length > 4) {
