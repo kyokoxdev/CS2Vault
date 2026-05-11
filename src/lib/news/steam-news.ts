@@ -1,3 +1,6 @@
+import DOMPurify from "dompurify";
+import { JSDOM } from "jsdom";
+
 export type NewsSource = "steam" | "steamdb" | "valve";
 
 export type NewsItem = {
@@ -10,22 +13,48 @@ export type NewsItem = {
   source: NewsSource;
 };
 
+// Create a server-safe DOMPurify instance using JSDOM
+const window = new JSDOM("").window;
+const purify = DOMPurify(window);
+
+/**
+ * Properly decode all HTML entities including named, decimal, and hexadecimal.
+ * Uses DOMParser for accurate entity decoding in a server-safe manner.
+ * This fixes:
+ * - Issue #1: Incomplete string escaping/encoding (now handles all entity types)
+ * - Issue #2: Double escaping/unescaping (single-pass decoding)
+ */
 function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+  if (!text) return "";
+
+  // Use the JSDOM window to create a temporary textarea element
+  // This is the most reliable cross-platform way to decode HTML entities
+  const textarea = window.document.createElement("textarea");
+  textarea.innerHTML = text;
+  return textarea.value;
 }
 
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, "");
-}
-
+/**
+ * Properly strip HTML tags and decode HTML entities using a robust library approach.
+ * Uses DOMPurify to sanitize HTML and then extracts text content.
+ * This fixes:
+ * - Issue #3: Incomplete multi-character sanitization (DOMPurify handles all tag variations)
+ */
 export function sanitizeContents(raw: string): string {
-  const stripped = stripHtml(raw);
-  const decoded = decodeHtmlEntities(stripped);
+  if (!raw) return "";
+
+  // First, use DOMPurify to sanitize and strip all HTML tags
+  // ALLOWED_TAGS: [] means no HTML tags are allowed - all tags are stripped
+  const sanitized = purify.sanitize(raw, {
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: [],
+    KEEP_CONTENT: true,
+  });
+
+  // Decode HTML entities properly (named, decimal &#123;, hexadecimal &#x7B;)
+  const decoded = decodeHtmlEntities(sanitized);
+
+  // Truncate if longer than 200 characters
   return decoded.length > 200 ? decoded.slice(0, 200) : decoded;
 }
 
