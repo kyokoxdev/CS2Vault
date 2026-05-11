@@ -107,6 +107,7 @@ Copy-paste ready commands for common tasks:
 ```bash
 # Development
 npm run dev                    # Start development server on :3000
+npm run test:watch             # Run Vitest in watch mode
 npm install                    # Install dependencies (postinstall runs prisma generate)
 
 # Build & Deploy
@@ -120,6 +121,7 @@ npm run db:studio             # Open Prisma Studio for database inspection
 
 # Database (Local Development)
 npx prisma db push            # Push schema changes to local SQLite
+npx prisma migrate dev        # Create and apply a migration
 npx prisma generate           # Regenerate Prisma client (auto-runs on postinstall)
 npx tsx prisma/seed.ts        # Seed default settings manually
 ```
@@ -219,6 +221,198 @@ tests/               # Vitest tests (mirrors src/ structure)
 
 ---
 
+## Decision Trees
+
+Quick reference for common architectural decisions. Use these to avoid searching the codebase for placement and pattern choices.
+
+### Server Component vs Client Component
+
+```
+Needs browser APIs (localStorage, ResizeObserver, canvas)?         → Client Component ("use client")
+Needs React hooks (useState, useEffect, useCallback)?              → Client Component ("use client")
+Needs event handlers (onClick, onSubmit, onChange)?                → Client Component ("use client")
+Needs dynamic imports for client-only libraries (charts, tables)?  → Client Component ("use client")
+Otherwise (static content, server data fetch, no interactivity)?   → Server Component (default)
+```
+
+### Data Fetching: Where to Fetch?
+
+```
+Page initial data, no user interaction needed?                     → Fetch directly in Server Component
+Data changes based on user interaction (tabs, filters, toggles)?   → Client Component + API route + useEffect
+Real-time / polling data (prices, market data)?                    → Client Component + useEffect + setInterval
+Form submissions (POST/PUT/PATCH)?                                 → API route handler
+Cron/automated background sync?                                    → API route (called by Vercel Cron)
+```
+
+### New Feature: Where to Put Files?
+
+```
+New page (e.g., /chat, /market-cap)              → src/app/<route>/page.tsx
+New API endpoint (e.g., /api/alerts)             → src/app/api/<domain>/<action>/route.ts
+New reusable UI primitive (Badge, Card, Button)  → src/components/ui/<Component>.tsx + .module.css
+New page-specific component (WatchlistTable)     → src/components/<domain>/<Component>.tsx
+New shared utility function                      → src/lib/<domain>/<utility>.ts
+New custom React hook                            → src/hooks/use<Name>.ts
+New test for component or utility                → tests/<mirrors-src-path>/<name>.test.tsx
+New database model / schema change               → prisma/schema.prisma
+```
+
+---
+
+## API Route Patterns
+
+All API routes MUST follow this response shape and structure:
+
+```typescript
+// src/app/api/example/route.ts
+import { NextResponse } from "next/server";
+
+export async function GET(request: Request) {
+  try {
+    const result = await fetchData();
+    return NextResponse.json({ success: true, data: result });
+  } catch (error) {
+    console.error("[ExampleRoute]", error);
+    return NextResponse.json(
+      { success: false, status: "error", error: "Human-readable message" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**Rules:**
+- Always wrap handler body in `try/catch`
+- Always use `NextResponse.json()` — never bare `Response`
+- Use appropriate HTTP status codes (`400` client error, `500` server error, `404` not found)
+- Log errors with bracketed context: `console.error("[RouteName]", error)`
+- Return `{ success: boolean, data?: T, error?: string }` shape consistently
+- Use `Cache-Control` headers for cacheable responses
+
+---
+
+## Testing Patterns
+
+**Framework:** Vitest + React Testing Library + jsdom
+
+**Test file location:** `tests/` mirrors `src/` structure:
+- `src/components/ui/Badge.tsx` → `tests/components/Badge.test.tsx`
+- `src/lib/market/price-utils.ts` → `tests/lib/price-utils.test.tsx`
+- `src/components/charts/CandlestickChart.tsx` → `tests/components/CandlestickChart.component.test.tsx`
+
+**Component test pattern:**
+
+```typescript
+import { render, screen } from "@testing-library/react";
+import { Badge } from "@/components/ui/Badge";
+
+describe("Badge", () => {
+  it("renders with correct text", () => {
+    render(<Badge variant="bull">+5%</Badge>);
+    expect(screen.getByText("+5%")).toBeInTheDocument();
+  });
+});
+```
+
+**Testing rules:**
+- Use `getByRole` or `getByTestId` over `getByText` when possible
+- Add `data-testid` to elements that need reliable test selection
+- Mock API calls with `vi.fn()` and `vi.mock()`
+- Mock Next.js router with `useRouter` mock when needed
+- Group related tests in `describe` blocks
+- Name tests descriptively: `it("shows loading state when data is fetching")`
+
+**Mock pattern:**
+```typescript
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+
+vi.mock("@/lib/db", () => ({
+  prisma: { item: { findMany: vi.fn() } },
+}));
+```
+
+---
+
+## Quick Patterns
+
+### Creating a New Page Component
+
+```typescript
+// src/app/example/page.tsx
+export default function ExamplePage() {
+  return <div>Example</div>;
+}
+```
+
+### Creating a New Client Component
+
+```typescript
+"use client";
+
+import { useState } from "react";
+import styles from "./Example.module.css";
+
+interface ExampleProps {
+  title: string;
+}
+
+export function Example({ title }: ExampleProps) {
+  const [count, setCount] = useState(0);
+  return <div className={styles.container}>{title}</div>;
+}
+```
+
+### Creating a New API Route Handler
+
+```typescript
+// src/app/api/example/route.ts
+import { NextResponse } from "next/server";
+
+export async function GET() {
+  try {
+    return NextResponse.json({ success: true, data: [] });
+  } catch (error) {
+    console.error("[Example]", error);
+    return NextResponse.json(
+      { success: false, status: "error", error: "Request failed" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+### Dynamic Import for Client-Only Component
+
+```typescript
+import dynamic from "next/dynamic";
+
+// Replace "CandlestickChart" with your actual component name
+const CandlestickChart = dynamic(
+  () => import("@/components/charts/CandlestickChart").then((m) => ({ default: m.CandlestickChart })),
+  { ssr: false }
+);
+```
+
+### Prisma Model / Migration
+
+```typescript
+// prisma/schema.prisma
+model NewModel {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  @@index([name])
+}
+```
+
+After editing: `npx prisma migrate dev --name add_new_model` then `npm run db:push:turso`
+
+---
+
 ## Environment Setup
 
 Required environment variables (copy `.env.example` to `.env.local`):
@@ -279,6 +473,14 @@ npm run db:push:turso
 
 10. **Git workflow**: Always load the `git-master` skill before any git operations. Never use plain git commands. Follow the commit message format with descriptive bodies.
 
+11. **Chart indicators**: `lightweight-charts-indicators` requires `oakscriptjs` as peer dependency. Use `calculateIndicator(id, candles, inputs)` from `src/lib/indicators/indicator-service.ts`.
+
+12. **Markdown rendering**: AI chat uses `react-markdown` + `remark-gfm` for GitHub Flavored Markdown. Use `DOMPurify` to sanitize HTML output before rendering.
+
+13. **Animation libraries**: `framer-motion` is used for page transitions and layout animations. `gsap` is available for complex scroll-triggered animations. Prefer framer-motion for React component animations.
+
+14. **Design tokens**: Use OKX-inspired tokens from globals.css (`--surface-0`, `--bull`, `--bear`, `--text-primary-90`). Old tokens (`--bg-primary`, `--green`, `--red`) are deprecated but still present for backward compatibility.
+
 ---
 
 ## Coding Style (MANDATORY — CONSISTENCY)
@@ -290,7 +492,7 @@ Every agent MUST match the existing codebase conventions exactly. The project fo
 - **Strict mode enabled** — `tsconfig.json` has `"strict": true`. No `as any`, no `@ts-ignore`, no `@ts-expect-error`. Fix the type properly or leave it alone.
 - **Path alias**: Use `@/` imports (maps to `src/`). Never use relative paths that escape the `src/` boundary (e.g. no `../../../`).
 - **Component files** (`.tsx`): One component per file. Named exports only — never `export default` for React components. The exception is page-level components in `src/app/` which use default exports (Next.js App Router convention).
-- **Component structure order**: `"use client"` directive (if needed) → imports → interfaces/types → component function → export.
+- **Component structure order**: See Gotcha #7.
 - **Types vs interfaces**: Use `interface` for React props and object shapes. Use `type` for unions, primitives, and utility types. Never use `I` prefix (e.g. write `PriceData`, not `IPriceData`).
 - **Props**: Always use `interface` for React props (not `type`). Co-locate in the same file, directly above the component.
 - **State hooks**: Group `useState` declarations together at the top of the component, before any `useCallback` or `useEffect`.
@@ -309,8 +511,8 @@ Every agent MUST match the existing codebase conventions exactly. The project fo
 ### Server vs Client Components
 
 - **Default to Server Components** (no `"use client"`). Only add `"use client"` when the component needs React hooks, browser APIs, or event handlers.
-- **API routes** (`src/app/api/`): Always `NextResponse` from `next/server`. Wrap the handler body in `try/catch`. Return `{ success: boolean, ... }` JSON shape consistently. Use `Cache-Control` headers where appropriate.
-- **Data fetching in pages**: Server components fetch directly (no `useEffect` for initial data). Client components fetch via `useEffect` + `fetch` to API routes.
+- **API routes**: See **API Route Patterns** section above for exact handler template and rules.
+- **Data fetching**: See **Decision Trees > Data Fetching** for where to fetch.
 - **Error boundaries**: Create `error.tsx` in route segments following Next.js convention. Log errors with `console.error`, provide retry functionality.
 
 ### Utility & Service Patterns
@@ -352,8 +554,16 @@ Group imports in this order, separated by blank lines:
 
 1. Load the `git-master` skill FIRST before any git commands
 2. Follow the skill's style detection protocol
-3. Use `GIT_MASTER=1` prefix for ALL git commands
+3. Use the appropriate `GIT_MASTER=1` prefix for ALL git commands (platform-specific syntax below)
 4. Create atomic commits as specified by the skill
+
+**Platform-Specific Git Command Syntax**:
+
+| Platform | Syntax Example |
+|----------|----------------|
+| macOS/Linux/Git Bash | `GIT_MASTER=1 git status` |
+| Windows CMD | `set GIT_MASTER=1 && git status` |
+| Windows PowerShell | `$env:GIT_MASTER=1; git status` or `cmd /c "set GIT_MASTER=1 && git status"` |
 
 **No Exceptions**:
 - Never skip the skill
@@ -447,69 +657,27 @@ For `chore` commits: describe **what** was done (version bump, config update, de
 
 #### Version Bump Decision Framework
 
-**STEP 1: Ask "What does the USER experience?"**
-
-Analyze the primary user-facing impact, not code complexity:
+**Analyze user-facing impact, not code complexity:**
 
 ```
-❌ WRONG: "I added 50 lines of error handling logic" → Minor bump
-✅ RIGHT: "Users now see better error messages for the same failures" → Patch bump
-
-❌ WRONG: "I refactored the entire auth flow" → Minor bump  
-✅ RIGHT: "Users log in exactly the same way, code is just cleaner" → Patch bump
+Does this add a NEW capability users didn't have before?     → Minor (+0.1.0)
+Does this change EXISTING user workflows or behavior?         → Major (+1.0.0)
+Does this improve/fix something users already use?            → Patch (+0.0.1)
+Unsure?                                                       → Patch (default)
 ```
 
-**STEP 2: Use the Decision Tree**
-
-```
-Does this add a NEW capability users didn't have before?
-  ├─ YES: New feature → Minor (+0.1.0)
-  └─ NO: Continue...
-    
-Does this change EXISTING user workflows or behavior?
-  ├─ YES: Breaking change → Major (+1.0.0)  
-  └─ NO: Continue...
-
-Does this improve/fix something users already use?
-  ├─ YES: Bug fix or UX improvement → Patch (+0.0.1)
-  └─ NO: Unclear → Ask user or default to Patch
-```
-
-**STEP 3: Watch for Common Mistakes**
-
-These often LOOK like features but are PATCHES:
-
-| Change | Looks Like | Actually Is | Why |
-|--------|-----------|-------------|-----|
-| Better error messages | Feature | **Patch** | Same failures, better UX |
-| Form validation improvements | Feature | **Patch** | Same forms, better feedback |
-| Loading states/spinners | Feature | **Patch** | Same loading, better UX |
-| Refactored code | Feature | **Patch** | No user-facing change |
-| Accessibility fixes | Feature | **Patch** | Same functionality, better compliance |
-| Performance optimization | Feature | **Patch** | Same behavior, faster |
-| Code reorganized | Refactor | **Patch** | No user-facing change |
-
-**STEP 4: Determine Final Scope**
-
-After analyzing ALL unpushed commits:
-
-```
-IF any commit is Major → Major bump
-ELSE IF any commit is Minor → Minor bump
-ELSE → Patch bump (most common)
-```
+**Common mistakes:** Better error messages, loading spinners, performance fixes, refactors, and accessibility improvements are PATCHES — they don't add new capabilities.
 
 **Workflow**:
 1. Finish all code changes and commit them
-2. **Analyze each commit** using the decision framework above
-3. Determine the highest scope among all commits
+2. Analyze each commit using the framework above
+3. Determine the highest scope among all unpushed commits
 4. Bump `version` in `package.json` accordingly
-5. Commit the version bump with message like `chore: bump version to X.Y.Z`
+5. Commit: `chore: bump version to X.Y.Z`
 6. Push everything
 
 **No Exceptions**:
 - Never push without bumping version
-- **Never** skip the scope assessment
 - **When in doubt, prefer Patch over Minor**
 - Mixed scopes default to the highest scope among unpushed changes
 
