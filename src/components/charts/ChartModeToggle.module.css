@@ -1,0 +1,44 @@
+.toggleGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.toggleButton {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--text-secondary-60);
+  border: 1px solid var(--border-primary);
+  transition: all var(--transition-fast);
+}
+
+.toggleButton:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.toggleButton:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px;
+}
+
+.toggleButton:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary-90);
+  border-color: var(--border-active);
+}
+
+.toggleButton.active {
+  background: rgba(0, 192, 118, 0.12);
+  color: var(--bull);
+  border-color: rgba(0, 192, 118, 0.3);
+}
+
+.toggleButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
