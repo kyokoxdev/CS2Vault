@@ -14,11 +14,17 @@ import {
 } from "lightweight-charts";
 import {
     calculateChartStats,
-    calculateSimpleMovingAverage,
     toLineSeriesData,
     type ChartCandlePoint,
     type ChartStats,
 } from "./chart-utils";
+import { ChartModeToggle } from "./ChartModeToggle";
+import { InlineDetails } from "./InlineDetails";
+import { IndicatorPanel } from "./IndicatorPanel";
+import { TimeframeDropdown } from "./TimeframeDropdown";
+import { useIsSmallMobile } from "@/hooks/useMediaQuery";
+import { calculateIndicator, type IndicatorDataPoint } from "@/lib/indicators/indicator-service";
+import { indicatorRegistry, type IndicatorRegistryEntry } from "@/lib/indicators/indicator-registry";
 
 const TIMEFRAMES = [
     { label: "15M", value: "15m", limit: 192, description: "Short-range structure" },
@@ -30,6 +36,9 @@ const TIMEFRAMES = [
 
 type TimeframeValue = (typeof TIMEFRAMES)[number]["value"];
 type ChartMode = "candles" | "line";
+type ViewMode = "regular" | "advanced";
+
+const TIMEFRAME_OPTIONS = TIMEFRAMES.map(({ label, value, description }) => ({ label, value, description }));
 
 interface PricesApiResponse {
     success: boolean;
@@ -47,8 +56,6 @@ interface ChartDataset {
     candles: ChartCandlePoint[];
     candlestickData: CandlestickData<Time>[];
     lineData: LineData<Time>[];
-    maShortData: LineData<Time>[];
-    maLongData: LineData<Time>[];
     stats: ChartStats | null;
     latestPrice: number | null;
     latestTimestamp: string | null;
@@ -82,6 +89,53 @@ const CHART_COLORS = {
     crosshair: "rgba(140, 140, 140, 0.3)",
 };
 
+interface IndicatorSeriesEntry {
+    id: string;
+    series: ISeriesApi<"Line">[];
+}
+
+function toIndicatorLineSeriesData(points: IndicatorDataPoint[], valueIndex = 0): LineData<Time>[] {
+    return points
+        .map((point) => {
+            const value = point.value ?? point.values?.[valueIndex];
+
+            if (value === undefined || !Number.isFinite(value)) {
+                return null;
+            }
+
+            return {
+                time: point.time as Time,
+                value,
+            };
+        })
+        .filter((point): point is LineData<Time> => point !== null);
+}
+
+function getIndicatorSeriesCount(points: IndicatorDataPoint[]): number {
+    return Math.max(
+        1,
+        ...points.map((point) => point.values?.length ?? (point.value === undefined ? 0 : 1))
+    );
+}
+
+function getActiveIndicatorEntries(activeIndicators: string[], category: IndicatorRegistryEntry["category"]): IndicatorRegistryEntry[] {
+    return activeIndicators
+        .map((indicatorId) => indicatorRegistry.find((indicator) => indicator.id === indicatorId))
+        .filter((indicator): indicator is IndicatorRegistryEntry => Boolean(indicator && indicator.category === category));
+}
+
+function removeIndicatorSeries(chart: IChartApi | null, entries: IndicatorSeriesEntry[]) {
+    if (!chart || typeof chart.removeSeries !== "function") {
+        return;
+    }
+
+    for (const entry of entries) {
+        for (const series of entry.series) {
+            chart.removeSeries(series);
+        }
+    }
+}
+
 function getTimeframeConfig(timeframe: TimeframeValue) {
     return TIMEFRAMES.find((candidate) => candidate.value === timeframe) ?? TIMEFRAMES[0];
 }
@@ -95,32 +149,6 @@ function formatPrice(value: number | null): string {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     })}`;
-}
-
-function formatSignedPrice(value: number): string {
-    const formatted = Math.abs(value).toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
-
-    if (value === 0) {
-        return `$${formatted}`;
-    }
-
-    return `${value > 0 ? "+" : "-"}$${formatted}`;
-}
-
-function formatPercent(value: number): string {
-    const formatted = Math.abs(value).toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
-
-    if (value === 0) {
-        return `${formatted}%`;
-    }
-
-    return `${value > 0 ? "+" : "-"}${formatted}%`;
 }
 
 function formatTimestamp(value: string | null): string {
@@ -151,23 +179,11 @@ function buildDataset(
         value: point.value,
     }));
 
-    const maShortData: LineData<Time>[] = calculateSimpleMovingAverage(candles, 7).map((point) => ({
-        time: point.time as Time,
-        value: point.value,
-    }));
-
-    const maLongData: LineData<Time>[] = calculateSimpleMovingAverage(candles, 21).map((point) => ({
-        time: point.time as Time,
-        value: point.value,
-    }));
-
     return {
         interval,
         candles,
         candlestickData,
         lineData,
-        maShortData,
-        maLongData,
         stats: calculateChartStats(candles),
         latestPrice,
         latestTimestamp,
@@ -181,12 +197,17 @@ export default function CandlestickChart({
     height = 400,
     onMarketSnapshotChange,
 }: CandlestickChartProps) {
+    const isSmallMobile = useIsSmallMobile();
+    const responsiveHeight = isSmallMobile ? 300 : height;
+
     const chartContainerRef = useRef<HTMLDivElement>(null);
+    const oscillatorContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
+    const oscillatorChartRef = useRef<IChartApi | null>(null);
     const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
     const lineSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-    const maShortSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-    const maLongSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+    const indicatorSeriesRef = useRef<IndicatorSeriesEntry[]>([]);
+    const oscillatorSeriesRef = useRef<IndicatorSeriesEntry[]>([]);
     const cacheRef = useRef<Map<TimeframeValue, ChartDataset>>(new Map());
     const abortRef = useRef<AbortController | null>(null);
     const marketSnapshotChangeRef = useRef(onMarketSnapshotChange);
@@ -194,8 +215,9 @@ export default function CandlestickChart({
 
     const [timeframe, setTimeframe] = useState<TimeframeValue>("1d");
     const [chartMode, setChartMode] = useState<ChartMode>("candles");
-    const [showMA7, setShowMA7] = useState(true);
-    const [showMA21, setShowMA21] = useState(false);
+    const [viewMode, setViewMode] = useState<ViewMode>("regular");
+    const [activeIndicators, setActiveIndicators] = useState<string[]>([]);
+    const [indicatorInputs, setIndicatorInputs] = useState<Record<string, Record<string, number>>>({});
     const [dataset, setDataset] = useState<ChartDataset | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -206,6 +228,12 @@ export default function CandlestickChart({
     useEffect(() => {
         marketSnapshotChangeRef.current = onMarketSnapshotChange;
     }, [onMarketSnapshotChange]);
+
+    useEffect(() => {
+        return () => {
+            abortRef.current?.abort();
+        };
+    }, []);
 
     const publishSnapshot = useCallback(
         (nextDataset: ChartDataset | null, nextInterval: TimeframeValue) => {
@@ -321,8 +349,9 @@ export default function CandlestickChart({
         setDataset(null);
         setTimeframe("1d");
         setChartMode("candles");
-        setShowMA7(true);
-        setShowMA21(false);
+        setViewMode("regular");
+        setActiveIndicators([]);
+        setIndicatorInputs({});
         setLoading(true);
         setRefreshing(false);
         setError(null);
@@ -338,7 +367,7 @@ export default function CandlestickChart({
 
         const chart = createChart(chartContainerRef.current, {
             width: chartContainerRef.current.clientWidth,
-            height,
+            height: responsiveHeight,
             layout: {
                 background: { type: ColorType.Solid, color: CHART_COLORS.surface },
                 textColor: CHART_COLORS.text,
@@ -390,34 +419,15 @@ export default function CandlestickChart({
             visible: false,
         });
 
-        const maShortSeries = chart.addSeries(LineSeries, {
-            color: CHART_COLORS.amber,
-            lineWidth: 2,
-            priceLineVisible: false,
-            lastValueVisible: false,
-            crosshairMarkerVisible: false,
-        });
-
-        const maLongSeries = chart.addSeries(LineSeries, {
-            color: CHART_COLORS.violet,
-            lineWidth: 2,
-            priceLineVisible: false,
-            lastValueVisible: false,
-            crosshairMarkerVisible: false,
-            visible: false,
-        });
-
         chartRef.current = chart;
         candleSeriesRef.current = candleSeries;
         lineSeriesRef.current = lineSeries;
-        maShortSeriesRef.current = maShortSeries;
-        maLongSeriesRef.current = maLongSeries;
 
         const ro = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 chart.applyOptions({
                     width: entry.contentRect.width,
-                    height,
+                    height: responsiveHeight,
                 });
             }
         });
@@ -425,49 +435,58 @@ export default function CandlestickChart({
         ro.observe(chartContainerRef.current);
 
         return () => {
-            abortRef.current?.abort();
             ro.disconnect();
             chart.remove();
             chartRef.current = null;
             candleSeriesRef.current = null;
             lineSeriesRef.current = null;
-            maShortSeriesRef.current = null;
-            maLongSeriesRef.current = null;
+            indicatorSeriesRef.current = [];
         };
-    }, [height]);
+    }, [responsiveHeight]);
 
     useEffect(() => {
         void fetchData(timeframe);
     }, [fetchData, timeframe]);
 
+    const handleIndicatorToggle = useCallback((indicatorId: string) => {
+        setActiveIndicators((current) =>
+            current.includes(indicatorId)
+                ? current.filter((id) => id !== indicatorId)
+                : [...current, indicatorId]
+        );
+    }, []);
+
+    const handleIndicatorInputChange = useCallback((indicatorId: string, key: string, value: number) => {
+        if (!Number.isFinite(value)) {
+            return;
+        }
+
+        setIndicatorInputs((current) => ({
+            ...current,
+            [indicatorId]: { ...current[indicatorId], [key]: value },
+        }));
+    }, []);
+
     useEffect(() => {
         const chart = chartRef.current;
         const candleSeries = candleSeriesRef.current;
         const lineSeries = lineSeriesRef.current;
-        const maShortSeries = maShortSeriesRef.current;
-        const maLongSeries = maLongSeriesRef.current;
 
-        if (!chart || !candleSeries || !lineSeries || !maShortSeries || !maLongSeries) {
+        if (!chart || !candleSeries || !lineSeries) {
             return;
         }
 
         if (!dataset || dataset.candles.length === 0) {
             candleSeries.setData([]);
             lineSeries.setData([]);
-            maShortSeries.setData([]);
-            maLongSeries.setData([]);
             return;
         }
 
         candleSeries.setData(dataset.candlestickData);
         lineSeries.setData(dataset.lineData);
-        maShortSeries.setData(dataset.maShortData);
-        maLongSeries.setData(dataset.maLongData);
 
         candleSeries.applyOptions({ visible: chartMode === "candles" });
         lineSeries.applyOptions({ visible: chartMode === "line" });
-        maShortSeries.applyOptions({ visible: showMA7 && dataset.maShortData.length > 0 });
-        maLongSeries.applyOptions({ visible: showMA21 && dataset.maLongData.length > 0 });
 
         chart.priceScale("right").applyOptions({
             scaleMargins: { top: 0.08, bottom: 0.08 },
@@ -475,11 +494,143 @@ export default function CandlestickChart({
 
         chart.timeScale().fitContent();
 
-    }, [chartMode, dataset, showMA21, showMA7]);
+    }, [chartMode, dataset]);
+
+    useEffect(() => {
+        const chart = chartRef.current;
+        const candles = dataset?.candles ?? [];
+
+        removeIndicatorSeries(chart, indicatorSeriesRef.current);
+        indicatorSeriesRef.current = [];
+
+        if (!chart || viewMode !== "advanced" || candles.length === 0) {
+            return;
+        }
+
+        const overlayIndicators = getActiveIndicatorEntries(activeIndicators, "overlay");
+
+        for (const indicator of overlayIndicators) {
+            const points = calculateIndicator(indicator.id, candles, indicatorInputs[indicator.id]);
+            const seriesCount = getIndicatorSeriesCount(points);
+            const seriesList: ISeriesApi<"Line">[] = [];
+
+            for (let index = 0; index < seriesCount; index += 1) {
+                const series = chart.addSeries(LineSeries, {
+                    color: indicator.colors[index] ?? indicator.colors[0] ?? CHART_COLORS.accent,
+                    lineWidth: 2,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                    crosshairMarkerVisible: false,
+                    visible: points.length > 0,
+                });
+
+                series.setData(toIndicatorLineSeriesData(points, index));
+                series.applyOptions({ visible: points.length > 0 });
+                seriesList.push(series);
+            }
+
+            indicatorSeriesRef.current.push({ id: indicator.id, series: seriesList });
+        }
+
+        chart.timeScale().fitContent();
+
+        return () => {
+            removeIndicatorSeries(chart, indicatorSeriesRef.current);
+            indicatorSeriesRef.current = [];
+        };
+    }, [activeIndicators, dataset, indicatorInputs, viewMode]);
+
+    useEffect(() => {
+        const container = oscillatorContainerRef.current;
+        const candles = dataset?.candles ?? [];
+
+        oscillatorChartRef.current?.remove();
+        oscillatorChartRef.current = null;
+        oscillatorSeriesRef.current = [];
+
+        if (!container || viewMode !== "advanced" || candles.length === 0) {
+            return;
+        }
+
+        const oscillatorIndicators = getActiveIndicatorEntries(activeIndicators, "oscillator");
+
+        if (oscillatorIndicators.length === 0) {
+            return;
+        }
+
+        const oscillatorChart = createChart(container, {
+            width: container.clientWidth,
+            height: 180,
+            layout: {
+                background: { type: ColorType.Solid, color: CHART_COLORS.surface },
+                textColor: CHART_COLORS.text,
+                fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                fontSize: 12,
+                attributionLogo: false,
+            },
+            grid: {
+                vertLines: { color: CHART_COLORS.grid },
+                horzLines: { color: CHART_COLORS.grid },
+            },
+            rightPriceScale: {
+                borderColor: CHART_COLORS.border,
+                scaleMargins: { top: 0.12, bottom: 0.12 },
+            },
+            timeScale: {
+                borderColor: CHART_COLORS.border,
+                timeVisible: true,
+            },
+        });
+
+        oscillatorChartRef.current = oscillatorChart;
+
+        for (const indicator of oscillatorIndicators) {
+            const points = calculateIndicator(indicator.id, candles, indicatorInputs[indicator.id]);
+            const seriesCount = getIndicatorSeriesCount(points);
+            const seriesList: ISeriesApi<"Line">[] = [];
+
+            for (let index = 0; index < seriesCount; index += 1) {
+                const series = oscillatorChart.addSeries(LineSeries, {
+                    color: indicator.colors[index] ?? indicator.colors[0] ?? CHART_COLORS.accent,
+                    lineWidth: 2,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                    crosshairMarkerVisible: false,
+                    visible: points.length > 0,
+                });
+
+                series.setData(toIndicatorLineSeriesData(points, index));
+                series.applyOptions({ visible: points.length > 0 });
+                seriesList.push(series);
+            }
+
+            oscillatorSeriesRef.current.push({ id: indicator.id, series: seriesList });
+        }
+
+        oscillatorChart.timeScale().fitContent();
+
+        const ro = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                oscillatorChart.applyOptions({ width: entry.contentRect.width, height: 180 });
+            }
+        });
+
+        ro.observe(container);
+
+        return () => {
+            ro.disconnect();
+            oscillatorChart.remove();
+            if (oscillatorChartRef.current === oscillatorChart) {
+                oscillatorChartRef.current = null;
+                oscillatorSeriesRef.current = [];
+            }
+        };
+    }, [activeIndicators, dataset, indicatorInputs, viewMode]);
 
     const timeframeConfig = getTimeframeConfig(timeframe);
     const stats = dataset?.stats ?? null;
     const hasChartData = Boolean(dataset && dataset.candles.length > 0 && !error);
+    const hasActiveOscillators = getActiveIndicatorEntries(activeIndicators, "oscillator").length > 0;
     const trendClassName =
         stats?.trend === "up"
             ? "chart-stat-positive"
@@ -490,124 +641,176 @@ export default function CandlestickChart({
     return (
         <div
             className="chart-container"
-            style={{ minHeight: height }}
+            style={{ minHeight: responsiveHeight }}
         >
-            <div className="chart-toolbar chart-toolbar-expanded">
-                <div className="chart-toolbar-top">
-                    <div className="chart-heading">
-                        <div className="chart-heading-title-row">
-                            {itemName && <span className="chart-heading-title">{itemName}</span>}
-                            <span className="chart-heading-badge">{timeframeConfig.label}</span>
+            {viewMode === "regular" ? (
+                <>
+                    <div className="chart-toolbar">
+                        <div className="chart-toolbar-top">
+                            <div className="chart-heading">
+                                <div className="chart-heading-title-row">
+                                    {itemName && <span className="chart-heading-title">{itemName}</span>}
+                                    <span className="chart-heading-badge">{timeframeConfig.label}</span>
+                                </div>
+                                <span className="chart-heading-subtitle">{timeframeConfig.description}</span>
+                            </div>
+
+                            <div className="chart-header-metrics">
+                                <span className="chart-price-value">{formatPrice(dataset?.latestPrice ?? null)}</span>
+                                <span className="chart-heading-subtitle">{formatTimestamp(dataset?.latestTimestamp ?? null)}</span>
+                            </div>
                         </div>
-                        <span className="chart-heading-subtitle">{timeframeConfig.description}</span>
-                    </div>
 
-                    <div className="chart-header-metrics">
-                        <span className="chart-price-value">{formatPrice(dataset?.latestPrice ?? null)}</span>
-                        <span className="chart-heading-subtitle">{formatTimestamp(dataset?.latestTimestamp ?? null)}</span>
-                    </div>
-                </div>
+                        <div className="chart-toolbar-row">
+                            <div className="chart-toolbar-group">
+                                <TimeframeDropdown
+                                    value={timeframe}
+                                    onChange={(value) => setTimeframe(value as TimeframeValue)}
+                                    options={TIMEFRAME_OPTIONS}
+                                />
 
-                <div className="chart-toolbar-row">
-                    <div className="chart-toolbar-group">
-                        {TIMEFRAMES.map((candidate) => (
-                            <button
-                                key={candidate.value}
-                                type="button"
-                                className={`timeframe-btn ${timeframe === candidate.value ? "active" : ""}`}
-                                aria-pressed={timeframe === candidate.value}
-                                onClick={() => setTimeframe(candidate.value)}
-                            >
-                                {candidate.label}
-                            </button>
-                        ))}
-                    </div>
+                                <button
+                                    type="button"
+                                    className={`chart-toggle-btn ${chartMode === "candles" ? "active" : ""}`}
+                                    aria-pressed={chartMode === "candles"}
+                                    onClick={() => setChartMode("candles")}
+                                >
+                                    Candles
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`chart-toggle-btn ${chartMode === "line" ? "active" : ""}`}
+                                    aria-pressed={chartMode === "line"}
+                                    onClick={() => setChartMode("line")}
+                                >
+                                    Line
+                                </button>
+                            </div>
 
-                    <div className="chart-toolbar-group">
-                        <button
-                            type="button"
-                            className={`chart-toggle-btn ${chartMode === "candles" ? "active" : ""}`}
-                            aria-pressed={chartMode === "candles"}
-                            onClick={() => setChartMode("candles")}
-                        >
-                            Candles
-                        </button>
-                        <button
-                            type="button"
-                            className={`chart-toggle-btn ${chartMode === "line" ? "active" : ""}`}
-                            aria-pressed={chartMode === "line"}
-                            onClick={() => setChartMode("line")}
-                        >
-                            Line
-                        </button>
-                    </div>
+                            <InlineDetails
+                                stats={stats}
+                                chartMode={chartMode}
+                                trendClassName={trendClassName}
+                            />
 
-                    <div className="chart-toolbar-group">
-                        <button
-                            type="button"
-                            className={`chart-toggle-btn ${showMA7 ? "active" : ""}`}
-                            aria-pressed={showMA7}
-                            onClick={() => setShowMA7((current) => !current)}
-                        >
-                            MA 7
-                        </button>
-                        <button
-                            type="button"
-                            className={`chart-toggle-btn ${showMA21 ? "active" : ""}`}
-                            aria-pressed={showMA21}
-                            onClick={() => setShowMA21((current) => !current)}
-                            disabled={!dataset || dataset.maLongData.length === 0}
-                        >
-                            MA 21
-                        </button>
-                    </div>
+                            <div className="chart-toolbar-group chart-toolbar-group-actions">
+                                <button
+                                    type="button"
+                                    className="chart-ghost-btn"
+                                    onClick={() => chartRef.current?.timeScale().fitContent()}
+                                    aria-label="Reset chart view"
+                                >
+                                    Reset
+                                </button>
+                                <button
+                                    type="button"
+                                    className="chart-ghost-btn"
+                                    onClick={() => {
+                                        cacheRef.current.delete(timeframe);
+                                        void fetchData(timeframe, true);
+                                    }}
+                                    aria-label="Refresh chart data"
+                                >
+                                    Refresh
+                                </button>
 
-                    <div className="chart-toolbar-group chart-toolbar-group-actions">
-                        <button
-                            type="button"
-                            className="chart-ghost-btn"
-                            onClick={() => chartRef.current?.timeScale().fitContent()}
-                        >
-                            Reset view
-                        </button>
-                        <button
-                            type="button"
-                            className="chart-ghost-btn"
-                            onClick={() => {
-                                cacheRef.current.delete(timeframe);
-                                void fetchData(timeframe, true);
-                            }}
-                        >
-                            Refresh
-                        </button>
+                                <ChartModeToggle
+                                    mode={viewMode}
+                                    onModeChange={setViewMode}
+                                />
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
+                </>
+            ) : (
+                <>
+                    <div className="chart-toolbar chart-toolbar-expanded">
+                        <div className="chart-toolbar-top">
+                            <div className="chart-heading">
+                                <div className="chart-heading-title-row">
+                                    {itemName && <span className="chart-heading-title">{itemName}</span>}
+                                    <span className="chart-heading-badge">{timeframeConfig.label}</span>
+                                </div>
+                                <span className="chart-heading-subtitle">{timeframeConfig.description}</span>
+                            </div>
 
-            {stats && hasChartData && (
-                <div className="chart-summary-grid">
-                    <div className="chart-summary-card">
-                        <span className="chart-summary-label">Change</span>
-                        <span className={`chart-summary-value ${trendClassName}`}>{formatPercent(stats.changePercent)}</span>
-                        <span className={`chart-summary-meta ${trendClassName}`}>{formatSignedPrice(stats.delta)}</span>
-                    </div>
+                            <div className="chart-header-metrics">
+                                <span className="chart-price-value">{formatPrice(dataset?.latestPrice ?? null)}</span>
+                                <span className="chart-heading-subtitle">{formatTimestamp(dataset?.latestTimestamp ?? null)}</span>
+                            </div>
+                        </div>
 
-                    <div className="chart-summary-card">
-                        <span className="chart-summary-label">Range</span>
-                        <span className="chart-summary-value">{formatPrice(stats.low)}</span>
-                        <span className="chart-summary-meta">to {formatPrice(stats.high)}</span>
-                    </div>
+                        <div className="chart-toolbar-row">
+                            <div className="chart-toolbar-group">
+                                {TIMEFRAMES.map((candidate) => (
+                                    <button
+                                        key={candidate.value}
+                                        type="button"
+                                        className={`timeframe-btn ${timeframe === candidate.value ? "active" : ""}`}
+                                        aria-pressed={timeframe === candidate.value}
+                                        onClick={() => setTimeframe(candidate.value)}
+                                    >
+                                        {candidate.label}
+                                    </button>
+                                ))}
+                            </div>
 
-                    <div className="chart-summary-card">
-                        <span className="chart-summary-label">Candles</span>
-                        <span className="chart-summary-value">{stats.candleCount}</span>
-                        <span className="chart-summary-meta">{chartMode === "candles" ? "OHLC" : "Close line"} view</span>
+                            <div className="chart-toolbar-group">
+                                <button
+                                    type="button"
+                                    className={`chart-toggle-btn ${chartMode === "candles" ? "active" : ""}`}
+                                    aria-pressed={chartMode === "candles"}
+                                    onClick={() => setChartMode("candles")}
+                                >
+                                    Candles
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`chart-toggle-btn ${chartMode === "line" ? "active" : ""}`}
+                                    aria-pressed={chartMode === "line"}
+                                    onClick={() => setChartMode("line")}
+                                >
+                                    Line
+                                </button>
+                            </div>
+
+                            <div className="chart-toolbar-group chart-toolbar-group-actions">
+                                <button
+                                    type="button"
+                                    className="chart-ghost-btn"
+                                    onClick={() => chartRef.current?.timeScale().fitContent()}
+                                >
+                                    Reset view
+                                </button>
+                                <button
+                                    type="button"
+                                    className="chart-ghost-btn"
+                                    onClick={() => {
+                                        cacheRef.current.delete(timeframe);
+                                        void fetchData(timeframe, true);
+                                    }}
+                                >
+                                    Refresh
+                                </button>
+
+                                <ChartModeToggle
+                                    mode={viewMode}
+                                    onModeChange={setViewMode}
+                                />
+                            </div>
+                        </div>
+
+                        <IndicatorPanel
+                            activeIndicators={activeIndicators}
+                            onToggle={handleIndicatorToggle}
+                            onInputChange={handleIndicatorInputChange}
+                        />
                     </div>
-                </div>
+                </>
             )}
 
             {loading && !dataset && (
-                <div className="chart-state chart-state-loading" style={{ minHeight: height - 80 }}>
+                <div className="chart-state chart-state-loading" style={{ minHeight: responsiveHeight - 80 }}>
                     <svg
                         width="20"
                         height="20"
@@ -624,7 +827,7 @@ export default function CandlestickChart({
             )}
 
             {error && !loading && (
-                <div className="chart-state" style={{ minHeight: height - 80 }}>
+                <div className="chart-state" style={{ minHeight: responsiveHeight - 80 }}>
                     <span className="chart-state-error">{error}</span>
                     <button type="button" className="chart-ghost-btn" onClick={() => void fetchData(timeframe, true)}>
                         Retry
@@ -633,7 +836,7 @@ export default function CandlestickChart({
             )}
 
             {isEmpty && !loading && !error && (
-                <div className="chart-state" style={{ minHeight: height - 80 }}>
+                <div className="chart-state" style={{ minHeight: responsiveHeight - 80 }}>
                     <span>No price history available for this timeframe.</span>
                 </div>
             )}
@@ -645,10 +848,20 @@ export default function CandlestickChart({
                 aria-label={`Price chart for ${itemName ?? "item"}`}
                 style={{
                     visibility: hasChartData ? "visible" : "hidden",
-                    height: hasChartData ? height : 0,
+                    height: hasChartData ? responsiveHeight : 0,
                     overflow: "hidden",
                 }}
             />
+
+            {viewMode === "advanced" && hasActiveOscillators && hasChartData && (
+                <div
+                    ref={oscillatorContainerRef}
+                    className="chart-canvas"
+                    role="img"
+                    aria-label={`Oscillator indicators for ${itemName ?? "item"}`}
+                    style={{ height: 180, marginTop: 12, overflow: "hidden" }}
+                />
+            )}
 
             {(refreshing || notice || dataset) && (
                 <div className="chart-meta-bar">

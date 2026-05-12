@@ -21,6 +21,7 @@ const applyVolumeOptions = vi.fn();
 const fitContent = vi.fn();
 const chartApplyOptions = vi.fn();
 const remove = vi.fn();
+const removeSeries = vi.fn();
 const volumeScaleApplyOptions = vi.fn();
 const rightScaleApplyOptions = vi.fn();
 
@@ -29,6 +30,8 @@ global.ResizeObserver = class ResizeObserver {
   unobserve() {}
   disconnect() {}
 };
+
+Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {});
 
 vi.mock("lightweight-charts", () => ({
   createChart: vi.fn(() => ({
@@ -57,6 +60,7 @@ vi.mock("lightweight-charts", () => ({
     priceScale: (id: string) => ({
       applyOptions: id === "volume" ? volumeScaleApplyOptions : rightScaleApplyOptions,
     }),
+    removeSeries,
     remove,
   })),
   CandlestickSeries: "CandlestickSeries",
@@ -109,8 +113,7 @@ describe("CandlestickChart", () => {
     await waitFor(() => {
       expect(screen.getByText("AK-47 | Redline")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Candles" })).toBeInTheDocument();
-      expect(screen.getByText("MA 7")).toBeInTheDocument();
-      expect(screen.getByText("Average volume")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Chart mode" })).toBeInTheDocument();
     });
 
     expect(onMarketSnapshotChange).toHaveBeenLastCalledWith({
@@ -120,7 +123,6 @@ describe("CandlestickChart", () => {
       interval: "1d",
     });
     expect(setCandleData).toHaveBeenCalled();
-    expect(setVolumeData).toHaveBeenCalled();
   });
 
   it("uses cached timeframe data when switching back to an already loaded range", async () => {
@@ -130,12 +132,21 @@ describe("CandlestickChart", () => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "1H" }));
+    // Open the timeframe dropdown and select 1H
+    const dropdownTrigger = screen.getByRole("button", { name: /Timeframe:/ });
+    fireEvent.click(dropdownTrigger);
+
+    const option1H = await screen.findByRole("option", { name: /1H/ });
+    fireEvent.click(option1H);
+
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(2);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "1D" }));
+    // Switch back to 1D via dropdown
+    fireEvent.click(dropdownTrigger);
+    const option1D = await screen.findByRole("option", { name: /1D/ });
+    fireEvent.click(option1D);
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -156,17 +167,49 @@ describe("CandlestickChart", () => {
     const fitCallsBeforeToggle = fitContent.mock.calls.length;
 
     fireEvent.click(screen.getByRole("button", { name: "Line" }));
-    fireEvent.click(screen.getByRole("button", { name: "Volume" }));
-    fireEvent.click(screen.getByRole("button", { name: "MA 21" }));
 
     await waitFor(() => {
       expect(applyLineOptions).toHaveBeenCalledWith({ visible: true });
       expect(applyCandleOptions).toHaveBeenCalledWith({ visible: false });
-      expect(applyVolumeOptions).toHaveBeenCalled();
     });
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
-    expect(fitContent.mock.calls.length).toBe(fitCallsBeforeToggle);
+  });
+
+  it("shows indicator panel in advanced mode and toggles indicators", async () => {
+    render(<CandlestickChart itemId="item-123" itemName="AK-47 | Redline" />);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    expect(screen.queryByText("Overlay")).not.toBeInTheDocument();
+    expect(screen.queryByText("SMA")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Advanced mode" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Overlay")).toBeInTheDocument();
+      expect(screen.getByText("SMA")).toBeInTheDocument();
+      expect(screen.getByText("RSI")).toBeInTheDocument();
+    });
+
+    const smaToggle = screen.getByRole("button", { name: "Toggle Simple Moving Average" });
+    expect(smaToggle.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(smaToggle);
+
+    await waitFor(() => {
+      expect(smaToggle.getAttribute("aria-pressed")).toBe("true");
+      expect(setShortMaData).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Relative Strength Index" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("img", { name: "Oscillator indicators for AK-47 | Redline" })).toBeInTheDocument();
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   it("refreshes chart state when the item id changes", async () => {

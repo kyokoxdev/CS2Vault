@@ -289,8 +289,4 @@
   .summarySectionExpanded .statsGrid {
     grid-template-columns: 1fr;
   }
-
-  .page :global(.chart-container) {
-    max-height: 300px;
-  }
 }
