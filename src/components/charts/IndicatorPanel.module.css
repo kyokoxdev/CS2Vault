@@ -1,0 +1,102 @@
+.panel {
+  width: 240px;
+  background: var(--surface-2);
+  border-left: 1px solid var(--border-primary);
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.category {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.categoryTitle {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--text-secondary-60);
+  margin: 0 0 0.5rem 0;
+  font-weight: 600;
+}
+
+.indicatorRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.indicatorInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.indicatorName {
+  font-weight: 500;
+  color: var(--text-primary-90);
+  font-size: 0.875rem;
+}
+
+.indicatorDescription {
+  font-size: 0.75rem;
+  color: var(--text-secondary-60);
+}
+
+.toggleButton {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-secondary-60);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  align-self: flex-start;
+  transition: all 0.2s ease;
+}
+
+.toggleButton:hover {
+  border-color: var(--border-active);
+  color: var(--text-primary-90);
+}
+
+.toggleButton.active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: white;
+}
+
+.inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.inputGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inputLabel {
+  font-size: 0.75rem;
+  color: var(--text-secondary-60);
+  min-width: 60px;
+  text-transform: capitalize;
+}
+
+.input {
+  width: 60px;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border-primary);
+  background: var(--surface-3);
+  color: var(--text-primary-90);
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
