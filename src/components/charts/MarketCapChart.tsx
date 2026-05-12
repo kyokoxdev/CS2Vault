@@ -4,12 +4,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
     AreaSeries,
     ColorType,
+    LineSeries,
     createChart,
     type IChartApi,
     type ISeriesApi,
     type AreaData,
+    type LineData,
     type Time,
 } from "lightweight-charts";
+import { ChartModeToggle } from "./ChartModeToggle";
+import { IndicatorPanel } from "./IndicatorPanel";
+import { MarketCapInlineDetails } from "./MarketCapInlineDetails";
+import { calculateIndicator, type IndicatorDataPoint } from "@/lib/indicators/indicator-service";
+import { indicatorRegistry, type IndicatorRegistryEntry } from "@/lib/indicators/indicator-registry";
 
 interface MarketCapDataPoint {
     time: number;
@@ -47,6 +54,11 @@ interface MarketCapChartProps {
     height?: number;
 }
 
+interface IndicatorSeriesEntry {
+    id: string;
+    series: ISeriesApi<"Line">[];
+}
+
 const CHART_COLORS = {
     accent: "#3B82F6",
     accentArea: "rgba(59, 130, 246, 0.08)",
@@ -56,6 +68,104 @@ const CHART_COLORS = {
     border: "#262626",
     crosshair: "rgba(140, 140, 140, 0.3)",
 };
+
+const MARKET_CAP_OVERLAY_INDICATOR_IDS = ["sma", "ema", "bollinger"];
+
+function toIndicatorLineSeriesData(points: IndicatorDataPoint[], valueIndex = 0): LineData<Time>[] {
+    return points
+        .map((point) => {
+            const value = point.value ?? point.values?.[valueIndex];
+
+            if (value === undefined || !Number.isFinite(value)) {
+                return null;
+            }
+
+            return {
+                time: point.time as Time,
+                value,
+            };
+        })
+        .filter((point): point is LineData<Time> => point !== null);
+}
+
+function getIndicatorSeriesCount(points: IndicatorDataPoint[]): number {
+    return Math.max(
+        1,
+        ...points.map((point) => point.values?.length ?? (point.value === undefined ? 0 : 1))
+    );
+}
+
+function getActiveIndicatorEntries(activeIndicators: string[]): IndicatorRegistryEntry[] {
+    return activeIndicators
+        .map((id) => indicatorRegistry.find((entry) => entry.id === id))
+        .filter((entry): entry is IndicatorRegistryEntry => (
+            entry !== undefined
+            && entry.category === "overlay"
+            && MARKET_CAP_OVERLAY_INDICATOR_IDS.includes(entry.id)
+        ));
+}
+
+function removeIndicatorSeries(chart: IChartApi | null, entries: IndicatorSeriesEntry[]) {
+    if (!chart || typeof chart.removeSeries !== "function") {
+        return;
+    }
+
+    for (const entry of entries) {
+        for (const series of entry.series) {
+            chart.removeSeries(series);
+        }
+    }
+}
+
+function toMarketCapIndicatorCandles(series: MarketCapDataPoint[]) {
+    return series.map((point) => ({
+        time: point.time,
+        open: point.value,
+        high: point.value,
+        low: point.value,
+        close: point.value,
+        volume: 0,
+    }));
+}
+
+function calculateBollingerBands(series: MarketCapDataPoint[], inputs?: Record<string, number>): IndicatorDataPoint[] {
+    const length = inputs?.length ?? 20;
+    const stdDev = inputs?.stdDev ?? 2;
+
+    if (series.length < length) {
+        return [];
+    }
+
+    const points: IndicatorDataPoint[] = [];
+
+    for (let index = length - 1; index < series.length; index += 1) {
+        const window = series.slice(index - length + 1, index + 1);
+        const mean = window.reduce((sum, point) => sum + point.value, 0) / length;
+        const variance = window.reduce((sum, point) => sum + (point.value - mean) ** 2, 0) / length;
+        const bandWidth = Math.sqrt(variance) * stdDev;
+
+        points.push({
+            time: series[index].time,
+            values: [mean + bandWidth, mean, mean - bandWidth],
+        });
+    }
+
+    return points;
+}
+
+function calculateMarketCapIndicator(
+    indicatorId: string,
+    series: MarketCapDataPoint[],
+    inputs?: Record<string, number>
+): IndicatorDataPoint[] {
+    const points = calculateIndicator(indicatorId, toMarketCapIndicatorCandles(series), inputs);
+
+    if (points.length > 0 || indicatorId !== "bollinger") {
+        return points;
+    }
+
+    return calculateBollingerBands(series, inputs);
+}
 
 function formatMarketCap(value: number): string {
     if (value >= 1_000_000_000) {
@@ -121,17 +231,46 @@ function calculateStats(series: MarketCapDataPoint[]): MarketCapStats | null {
     };
 }
 
+
+
 export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
     const areaSeriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+    const indicatorSeriesRef = useRef<IndicatorSeriesEntry[]>([]);
     const abortRef = useRef<AbortController | null>(null);
 
     const [series, setSeries] = useState<MarketCapDataPoint[]>([]);
     const [stats, setStats] = useState<MarketCapStats | null>(null);
     const [latestTimestamp, setLatestTimestamp] = useState<string | null>(null);
+    const [chartMode, setChartMode] = useState<"regular" | "advanced">("regular");
+    const [activeIndicators, setActiveIndicators] = useState<string[]>([]);
+    const [indicatorInputs, setIndicatorInputs] = useState<Record<string, Record<string, number>>>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    const handleIndicatorToggle = useCallback((indicatorId: string) => {
+        if (!MARKET_CAP_OVERLAY_INDICATOR_IDS.includes(indicatorId)) {
+            return;
+        }
+
+        setActiveIndicators((prev) =>
+            prev.includes(indicatorId)
+                ? prev.filter((id) => id !== indicatorId)
+                : [...prev, indicatorId]
+        );
+    }, []);
+
+    const handleIndicatorInputChange = useCallback((indicatorId: string, key: string, value: number) => {
+        if (!Number.isFinite(value) || !MARKET_CAP_OVERLAY_INDICATOR_IDS.includes(indicatorId)) {
+            return;
+        }
+
+        setIndicatorInputs((prev) => ({
+            ...prev,
+            [indicatorId]: { ...prev[indicatorId], [key]: value },
+        }));
+    }, []);
 
     const fetchData = useCallback(async (force = false) => {
         if (!force) setLoading(true);
@@ -248,6 +387,7 @@ export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
             chart.remove();
             chartRef.current = null;
             areaSeriesRef.current = null;
+            indicatorSeriesRef.current = [];
         };
     }, [height]);
 
@@ -265,6 +405,49 @@ export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
         chart.timeScale().fitContent();
     }, [series]);
 
+    useEffect(() => {
+        const chart = chartRef.current;
+
+        removeIndicatorSeries(chart, indicatorSeriesRef.current);
+        indicatorSeriesRef.current = [];
+
+        if (!chart || chartMode !== "advanced" || series.length === 0) {
+            return;
+        }
+
+        const overlayIndicators = getActiveIndicatorEntries(activeIndicators);
+
+        for (const indicator of overlayIndicators) {
+            const points = calculateMarketCapIndicator(indicator.id, series, indicatorInputs[indicator.id]);
+            const seriesCount = getIndicatorSeriesCount(points);
+            const seriesList: ISeriesApi<"Line">[] = [];
+
+            for (let index = 0; index < seriesCount; index += 1) {
+                const lineSeries = chart.addSeries(LineSeries, {
+                    color: indicator.colors[index] ?? indicator.colors[0] ?? CHART_COLORS.accent,
+                    lineWidth: 2,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                    crosshairMarkerVisible: false,
+                    visible: points.length > 0,
+                });
+
+                lineSeries.setData(toIndicatorLineSeriesData(points, index));
+                lineSeries.applyOptions({ visible: points.length > 0 });
+                seriesList.push(lineSeries);
+            }
+
+            indicatorSeriesRef.current.push({ id: indicator.id, series: seriesList });
+        }
+
+        chart.timeScale().fitContent();
+
+        return () => {
+            removeIndicatorSeries(chart, indicatorSeriesRef.current);
+            indicatorSeriesRef.current = [];
+        };
+    }, [activeIndicators, chartMode, indicatorInputs, series]);
+
     const hasData = series.length > 0 && !error;
     const trendClassName =
         stats?.trend === "up"
@@ -275,86 +458,186 @@ export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
 
     return (
         <div className="chart-container" style={{ minHeight: height }}>
-            <div className="chart-toolbar chart-toolbar-expanded">
-                <div className="chart-toolbar-top">
-                    <div className="chart-heading">
-                        <div className="chart-heading-title-row">
-                            <span className="chart-heading-title">CS2 Market Cap</span>
-                            <span className="chart-heading-badge">1D</span>
+            {chartMode === "regular" ? (
+                <div className="chart-toolbar">
+                    <div className="chart-toolbar-top">
+                        <div className="chart-heading">
+                            <div className="chart-heading-title-row">
+                                <span className="chart-heading-title">CS2 Market Cap</span>
+                                <span className="chart-heading-badge">1D</span>
+                            </div>
+                            <span className="chart-heading-subtitle">
+                                Daily estimated market capitalization
+                            </span>
                         </div>
-                        <span className="chart-heading-subtitle">
-                            Daily estimated market capitalization
-                        </span>
+
+                        <div className="chart-header-metrics">
+                            <span className="chart-price-value">
+                                {stats ? formatMarketCap(stats.currentValue) : "—"}
+                            </span>
+                            <span className="chart-heading-subtitle">
+                                {latestTimestamp
+                                    ? new Date(latestTimestamp).toLocaleString()
+                                    : "Waiting for data"}
+                            </span>
+                        </div>
                     </div>
 
-                    <div className="chart-header-metrics">
-                        <span className="chart-price-value">
-                            {stats ? formatMarketCap(stats.currentValue) : "—"}
-                        </span>
-                        <span className="chart-heading-subtitle">
-                            {latestTimestamp
-                                ? new Date(latestTimestamp).toLocaleString()
-                                : "Waiting for data"}
-                        </span>
+                    <div className="chart-toolbar-row">
+                        <div className="chart-toolbar-group">
+                            <span className="chart-heading-badge">Daily interval</span>
+                        </div>
+
+<MarketCapInlineDetails
+                            stats={stats}
+                            trendClassName={trendClassName}
+                        />
+
+                        <div className="chart-toolbar-group chart-toolbar-group-actions">
+                            <button
+                                type="button"
+                                className="chart-ghost-btn btn-sm"
+                                onClick={() => chartRef.current?.timeScale().fitContent()}
+                                aria-label="Reset chart view"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path
+                                        d="M4 4v6h6"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+                                    <path
+                                        d="M4.5 10a7.5 7.5 0 1 0 2.2-5.3"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                className="chart-ghost-btn btn-sm"
+                                onClick={() => void fetchData(true)}
+                                aria-label="Refresh chart data"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path
+                                        d="M20 6v5h-5"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+                                    <path
+                                        d="M20 11.5A8.5 8.5 0 1 0 6.2 18"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+                                </svg>
+                            </button>
+
+                            <ChartModeToggle mode={chartMode} onModeChange={setChartMode} />
+                        </div>
                     </div>
                 </div>
+            ) : (
+                <>
+                    <div className="chart-toolbar chart-toolbar-expanded">
+                        <div className="chart-toolbar-top">
+                            <div className="chart-heading">
+                                <div className="chart-heading-title-row">
+                                    <span className="chart-heading-title">CS2 Market Cap</span>
+                                    <span className="chart-heading-badge">1D</span>
+                                </div>
+                                <span className="chart-heading-subtitle">
+                                    Daily estimated market capitalization
+                                </span>
+                            </div>
 
-                <div className="chart-toolbar-row">
-                    <div className="chart-toolbar-group">
-                        <span className="chart-heading-badge">Daily interval</span>
+                            <div className="chart-header-metrics">
+                                <span className="chart-price-value">
+                                    {stats ? formatMarketCap(stats.currentValue) : "—"}
+                                </span>
+                                <span className="chart-heading-subtitle">
+                                    {latestTimestamp
+                                        ? new Date(latestTimestamp).toLocaleString()
+                                        : "Waiting for data"}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="chart-toolbar-row">
+                            <div className="chart-toolbar-group">
+                                <span className="chart-heading-badge">Daily interval</span>
+                            </div>
+
+                            <IndicatorPanel
+                                activeIndicators={activeIndicators}
+                                onToggle={handleIndicatorToggle}
+                                onInputChange={handleIndicatorInputChange}
+                                allowedIndicatorIds={MARKET_CAP_OVERLAY_INDICATOR_IDS}
+                            />
+
+                            <div className="chart-toolbar-group chart-toolbar-group-actions">
+                                <button
+                                    type="button"
+                                    className="chart-ghost-btn"
+                                    onClick={() => chartRef.current?.timeScale().fitContent()}
+                                >
+                                    Reset view
+                                </button>
+                                <button
+                                    type="button"
+                                    className="chart-ghost-btn"
+                                    onClick={() => void fetchData(true)}
+                                >
+                                    Refresh
+                                </button>
+
+                                <ChartModeToggle mode={chartMode} onModeChange={setChartMode} />
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="chart-toolbar-group chart-toolbar-group-actions">
-                        <button
-                            type="button"
-                            className="chart-ghost-btn"
-                            onClick={() => chartRef.current?.timeScale().fitContent()}
-                        >
-                            Reset view
-                        </button>
-                        <button
-                            type="button"
-                            className="chart-ghost-btn"
-                            onClick={() => void fetchData(true)}
-                        >
-                            Refresh
-                        </button>
-                    </div>
-                </div>
-            </div>
+                    {stats && hasData && (
+                        <div className="chart-summary-grid">
+                            <div className="chart-summary-card">
+                                <span className="chart-summary-label">Change</span>
+                                <span className={`chart-summary-value ${trendClassName}`}>
+                                    {formatPercent(stats.changePercent)}
+                                </span>
+                                <span className={`chart-summary-meta ${trendClassName}`}>
+                                    {formatSignedMarketCap(stats.delta)}
+                                </span>
+                            </div>
 
-            {stats && hasData && (
-                <div className="chart-summary-grid">
-                    <div className="chart-summary-card">
-                        <span className="chart-summary-label">Change</span>
-                        <span className={`chart-summary-value ${trendClassName}`}>
-                            {formatPercent(stats.changePercent)}
-                        </span>
-                        <span className={`chart-summary-meta ${trendClassName}`}>
-                            {formatSignedMarketCap(stats.delta)}
-                        </span>
-                    </div>
+                            <div className="chart-summary-card">
+                                <span className="chart-summary-label">ATH</span>
+                                <span className="chart-summary-value">{formatMarketCap(stats.high)}</span>
+                                <span className="chart-summary-meta">
+                                    {stats.highTime
+                                        ? new Date(stats.highTime * 1000).toLocaleDateString("en-US", {
+                                            year: "numeric",
+                                            month: "short",
+                                            day: "numeric",
+                                        })
+                                        : "—"}
+                                </span>
+                            </div>
 
-                    <div className="chart-summary-card">
-                        <span className="chart-summary-label">ATH</span>
-                        <span className="chart-summary-value">{formatMarketCap(stats.high)}</span>
-                        <span className="chart-summary-meta">
-                            {stats.highTime
-                                ? new Date(stats.highTime * 1000).toLocaleDateString("en-US", {
-                                    year: "numeric",
-                                    month: "short",
-                                    day: "numeric",
-                                })
-                                : "—"}
-                        </span>
-                    </div>
-
-                    <div className="chart-summary-card">
-                        <span className="chart-summary-label">Data Points</span>
-                        <span className="chart-summary-value">{stats.dataPoints}</span>
-                        <span className="chart-summary-meta">Daily snapshots</span>
-                    </div>
-                </div>
+                            <div className="chart-summary-card">
+                                <span className="chart-summary-label">Data Points</span>
+                                <span className="chart-summary-value">{stats.dataPoints}</span>
+                                <span className="chart-summary-meta">Daily snapshots</span>
+                            </div>
+                        </div>
+                    )}
+                </>
             )}
 
             {loading && series.length === 0 && (
