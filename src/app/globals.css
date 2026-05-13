@@ -465,7 +465,25 @@ button {
 .chart-toolbar-expanded {
   flex-direction: column;
   align-items: stretch;
+  gap: 8px;
+}
+
+.chart-toolbar-advanced {
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.chart-toolbar-advanced .chart-toolbar-top {
+  align-items: center;
   gap: 12px;
+}
+
+.chart-toolbar-advanced .chart-heading {
+  gap: 2px;
+}
+
+.chart-toolbar-advanced .chart-price-value {
+  font-size: 20px;
 }
 
 .chart-toolbar-top {
@@ -856,6 +874,10 @@ button {
   }
 }
 @media (max-width: 480px) {
+  .chart-toolbar-advanced {
+    padding: 8px;
+  }
+
   .chart-toolbar-top,
   .chart-header-metrics {
     align-items: flex-start;

@@ -100,3 +100,93 @@
   outline: none;
   border-color: var(--accent-primary);
 }
+
+/* ─── Compact variant (horizontal strip for advanced mode) ─── */
+
+.compact {
+  width: 100%;
+  border-left: none;
+  border-top: 1px solid var(--border-primary);
+  max-height: none;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.compact .category {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border-bottom: none;
+  white-space: nowrap;
+}
+
+.compact .categoryTitle {
+  margin: 0;
+  font-size: 0.6875rem;
+  padding-right: 2px;
+  white-space: nowrap;
+}
+
+.indicatorRowCompact {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+}
+
+.compact .indicatorInfo {
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+
+.compact .indicatorName {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.compact .toggleButton {
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+}
+
+.compact .inputs {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding-top: 0;
+}
+
+.compact .inputGroup {
+  gap: 2px;
+}
+
+.compact .inputLabel {
+  min-width: auto;
+  font-size: 0.6875rem;
+}
+
+.compact .input {
+  width: 44px;
+  padding: 1px 4px;
+  font-size: 0.6875rem;
+}
+
+@media (max-width: 480px) {
+  .compact {
+    gap: 6px;
+  }
+
+  .compact .category {
+    align-items: center;
+  }
+}

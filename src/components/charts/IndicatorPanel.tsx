@@ -9,9 +9,10 @@ interface IndicatorPanelProps {
   onToggle: (indicatorId: string) => void;
   onInputChange?: (indicatorId: string, inputKey: string, value: number) => void;
   allowedIndicatorIds?: string[];
+  compact?: boolean;
 }
 
-export function IndicatorPanel({ activeIndicators, onToggle, onInputChange, allowedIndicatorIds }: IndicatorPanelProps) {
+export function IndicatorPanel({ activeIndicators, onToggle, onInputChange, allowedIndicatorIds, compact }: IndicatorPanelProps) {
   const allowedIndicatorSet = useMemo(
     () => allowedIndicatorIds ? new Set(allowedIndicatorIds) : null,
     [allowedIndicatorIds]
@@ -28,7 +29,7 @@ export function IndicatorPanel({ activeIndicators, onToggle, onInputChange, allo
   );
 
   return (
-    <div className={styles.panel}>
+    <div className={`${styles.panel} ${compact ? styles.compact : ""}`}>
       <div className={styles.category}>
         <h4 className={styles.categoryTitle}>Overlay</h4>
         {overlayIndicators.map(indicator => (
@@ -38,6 +39,7 @@ export function IndicatorPanel({ activeIndicators, onToggle, onInputChange, allo
             isActive={activeIndicators.includes(indicator.id)}
             onToggle={() => onToggle(indicator.id)}
             onInputChange={onInputChange}
+            compact={compact}
           />
         ))}
       </div>
@@ -52,6 +54,7 @@ export function IndicatorPanel({ activeIndicators, onToggle, onInputChange, allo
               isActive={activeIndicators.includes(indicator.id)}
               onToggle={() => onToggle(indicator.id)}
               onInputChange={onInputChange}
+              compact={compact}
             />
           ))}
         </div>
@@ -65,16 +68,17 @@ interface IndicatorRowProps {
   isActive: boolean;
   onToggle: () => void;
   onInputChange?: (indicatorId: string, inputKey: string, value: number) => void;
+  compact?: boolean;
 }
 
-function IndicatorRow({ indicator, isActive, onToggle, onInputChange }: IndicatorRowProps) {
+function IndicatorRow({ indicator, isActive, onToggle, onInputChange, compact }: IndicatorRowProps) {
   const hasInputs = Object.keys(indicator.defaultInputs).length > 0;
   
   return (
-    <div className={styles.indicatorRow}>
+    <div className={`${styles.indicatorRow} ${compact ? styles.indicatorRowCompact : ""}`}>
       <div className={styles.indicatorInfo}>
         <span className={styles.indicatorName}>{indicator.shortName}</span>
-        <span className={styles.indicatorDescription}>{indicator.description}</span>
+        {!compact && <span className={styles.indicatorDescription}>{indicator.description}</span>}
       </div>
       
       <button
