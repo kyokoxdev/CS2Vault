@@ -13,9 +13,9 @@ describe("ChartModeToggle", () => {
   it("renders both modes and marks the active one", () => {
     render(<ChartModeToggle mode="regular" onModeChange={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Chart mode" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Regular mode" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Advanced mode" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Chart mode" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Regular mode" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Advanced mode" })).toHaveAttribute("aria-pressed", "false");
   });
 
@@ -34,10 +34,10 @@ describe("ChartModeToggle", () => {
 
     render(<ChartModeToggle mode="advanced" onModeChange={onModeChange} disabled />);
 
-    expect(screen.getByRole("button", { name: "Chart mode" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Regular mode" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Advanced mode" })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Chart mode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Regular mode" }));
 
     expect(onModeChange).not.toHaveBeenCalled();
   });

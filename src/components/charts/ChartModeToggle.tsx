@@ -12,12 +12,12 @@ export function ChartModeToggle({ mode, onModeChange, disabled = false }: ChartM
       <button
         type="button"
         className={`${styles.toggleButton} ${mode === "regular" ? styles.active : ""}`}
-        aria-label="Chart mode"
+        aria-label="Regular mode"
         aria-pressed={mode === "regular"}
         onClick={() => onModeChange("regular")}
         disabled={disabled}
       >
-        Chart
+        Regular
       </button>
       <button
         type="button"
