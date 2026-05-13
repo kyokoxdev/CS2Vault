@@ -116,13 +116,25 @@ describe("CandlestickChart", () => {
       expect(screen.getByRole("button", { name: "Chart mode" })).toBeInTheDocument();
     });
 
-    expect(onMarketSnapshotChange).toHaveBeenLastCalledWith({
+    expect(onMarketSnapshotChange).toHaveBeenLastCalledWith(expect.objectContaining({
       price: 18,
       timestamp: "2026-03-26T12:00:00Z",
       source: "steam",
       interval: "1d",
-    });
+      liquidityScore: expect.objectContaining({ score: 78, rating: "high" }),
+    }));
     expect(setCandleData).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(setVolumeData).toHaveBeenCalledWith([
+        { time: 1000, value: 100, color: "rgba(0, 192, 118, 0.35)" },
+        { time: 2000, value: 150, color: "rgba(0, 192, 118, 0.35)" },
+        { time: 3000, value: 180, color: "rgba(0, 192, 118, 0.35)" },
+        { time: 4000, value: 220, color: "rgba(0, 192, 118, 0.35)" },
+        { time: 5000, value: 250, color: "rgba(0, 192, 118, 0.35)" },
+        { time: 6000, value: 300, color: "rgba(0, 192, 118, 0.35)" },
+        { time: 7000, value: 360, color: "rgba(0, 192, 118, 0.35)" },
+      ]);
+    });
   });
 
   it("uses cached timeframe data when switching back to an already loaded range", async () => {
@@ -242,11 +254,11 @@ describe("CandlestickChart", () => {
       expect(screen.getByText("M4A4 | Howl")).toBeInTheDocument();
     });
 
-    expect(onMarketSnapshotChange).toHaveBeenLastCalledWith({
+    expect(onMarketSnapshotChange).toHaveBeenLastCalledWith(expect.objectContaining({
       price: 18,
       timestamp: "2026-03-26T12:00:00Z",
       source: "steam",
       interval: "1d",
-    });
+    }));
   });
 });

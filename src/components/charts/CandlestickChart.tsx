@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
     CandlestickSeries,
     ColorType,
+    HistogramSeries,
     LineSeries,
     createChart,
     type CandlestickData,
+    type HistogramData,
     type IChartApi,
     type ISeriesApi,
     type LineData,
@@ -25,6 +27,7 @@ import { TimeframeDropdown } from "./TimeframeDropdown";
 import { useIsSmallMobile } from "@/hooks/useMediaQuery";
 import { calculateIndicator, type IndicatorDataPoint } from "@/lib/indicators/indicator-service";
 import { indicatorRegistry, type IndicatorRegistryEntry } from "@/lib/indicators/indicator-registry";
+import { calculateLiquidityScore, type LiquidityScoreResult } from "@/lib/market/liquidity-score";
 
 const TIMEFRAMES = [
     { label: "15M", value: "15m", limit: 192, description: "Short-range structure" },
@@ -67,6 +70,7 @@ interface MarketSnapshot {
     timestamp: string | null;
     source: string | null;
     interval: TimeframeValue;
+    liquidityScore: LiquidityScoreResult | null;
 }
 
 interface CandlestickChartProps {
@@ -109,6 +113,14 @@ function toIndicatorLineSeriesData(points: IndicatorDataPoint[], valueIndex = 0)
             };
         })
         .filter((point): point is LineData<Time> => point !== null);
+}
+
+function toVolumeSeriesData(candles: ChartCandlePoint[]): HistogramData<Time>[] {
+    return candles.map((candle) => ({
+        time: candle.time as Time,
+        value: candle.volume,
+        color: candle.close >= candle.open ? "rgba(0, 192, 118, 0.35)" : "rgba(255, 77, 79, 0.35)",
+    }));
 }
 
 function getIndicatorSeriesCount(points: IndicatorDataPoint[]): number {
@@ -206,6 +218,7 @@ export default function CandlestickChart({
     const oscillatorChartRef = useRef<IChartApi | null>(null);
     const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
     const lineSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+    const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
     const indicatorSeriesRef = useRef<IndicatorSeriesEntry[]>([]);
     const oscillatorSeriesRef = useRef<IndicatorSeriesEntry[]>([]);
     const cacheRef = useRef<Map<TimeframeValue, ChartDataset>>(new Map());
@@ -242,6 +255,7 @@ export default function CandlestickChart({
                 timestamp: nextDataset?.latestTimestamp ?? null,
                 source: nextDataset?.latestSource ?? null,
                 interval: nextInterval,
+                liquidityScore: nextDataset ? calculateLiquidityScore(nextDataset.candles) : null,
             });
         },
         []
@@ -393,7 +407,7 @@ export default function CandlestickChart({
             },
             rightPriceScale: {
                 borderColor: CHART_COLORS.border,
-                scaleMargins: { top: 0.08, bottom: 0.08 },
+                scaleMargins: { top: 0.08, bottom: 0.24 },
             },
             timeScale: {
                 borderColor: CHART_COLORS.border,
@@ -419,9 +433,22 @@ export default function CandlestickChart({
             visible: false,
         });
 
+        const volumeSeries = chart.addSeries(HistogramSeries, {
+            color: "rgba(140, 140, 140, 0.28)",
+            priceFormat: { type: "volume" },
+            priceScaleId: "volume",
+            priceLineVisible: false,
+            lastValueVisible: false,
+        });
+
+        chart.priceScale("volume").applyOptions({
+            scaleMargins: { top: 0.78, bottom: 0 },
+        });
+
         chartRef.current = chart;
         candleSeriesRef.current = candleSeries;
         lineSeriesRef.current = lineSeries;
+        volumeSeriesRef.current = volumeSeries;
 
         const ro = new ResizeObserver((entries) => {
             for (const entry of entries) {
@@ -440,6 +467,7 @@ export default function CandlestickChart({
             chartRef.current = null;
             candleSeriesRef.current = null;
             lineSeriesRef.current = null;
+            volumeSeriesRef.current = null;
             indicatorSeriesRef.current = [];
         };
     }, [responsiveHeight]);
@@ -471,25 +499,31 @@ export default function CandlestickChart({
         const chart = chartRef.current;
         const candleSeries = candleSeriesRef.current;
         const lineSeries = lineSeriesRef.current;
+        const volumeSeries = volumeSeriesRef.current;
 
-        if (!chart || !candleSeries || !lineSeries) {
+        if (!chart || !candleSeries || !lineSeries || !volumeSeries) {
             return;
         }
 
         if (!dataset || dataset.candles.length === 0) {
             candleSeries.setData([]);
             lineSeries.setData([]);
+            volumeSeries.setData([]);
             return;
         }
 
         candleSeries.setData(dataset.candlestickData);
         lineSeries.setData(dataset.lineData);
+        volumeSeries.setData(toVolumeSeriesData(dataset.candles));
 
         candleSeries.applyOptions({ visible: chartMode === "candles" });
         lineSeries.applyOptions({ visible: chartMode === "line" });
 
         chart.priceScale("right").applyOptions({
-            scaleMargins: { top: 0.08, bottom: 0.08 },
+            scaleMargins: { top: 0.08, bottom: 0.24 },
+        });
+        chart.priceScale("volume").applyOptions({
+            scaleMargins: { top: 0.78, bottom: 0 },
         });
 
         chart.timeScale().fitContent();
@@ -724,7 +758,7 @@ export default function CandlestickChart({
                 </>
             ) : (
                 <>
-                    <div className="chart-toolbar chart-toolbar-expanded">
+                    <div className="chart-toolbar chart-toolbar-expanded chart-toolbar-advanced">
                         <div className="chart-toolbar-top">
                             <div className="chart-heading">
                                 <div className="chart-heading-title-row">
@@ -804,6 +838,7 @@ export default function CandlestickChart({
                             activeIndicators={activeIndicators}
                             onToggle={handleIndicatorToggle}
                             onInputChange={handleIndicatorInputChange}
+                            compact
                         />
                     </div>
                 </>

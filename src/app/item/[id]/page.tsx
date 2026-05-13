@@ -13,9 +13,10 @@ import { FaEye, FaEyeSlash, FaExternalLinkAlt, FaChevronDown } from "react-icons
 import CandlestickChart from "@/components/charts/CandlestickChart";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
-import styles from "./ItemDetail.module.css";
 import { usePageTitle } from "@/components/providers/PageTitleProvider";
 import { useToast } from "@/components/providers/ToastProvider";
+import { type LiquidityScoreResult } from "@/lib/market/liquidity-score";
+import styles from "./ItemDetail.module.css";
 
 const CSFLOAT_SEARCH_URL = "https://csfloat.com/search?market_hash_name=";
 
@@ -49,6 +50,14 @@ interface PriceSnapshot {
     timestamp: string;
 }
 
+interface MarketSnapshot {
+    price: number | null;
+    timestamp: string | null;
+    source: string | null;
+    interval: "15m" | "1h" | "4h" | "1d" | "1w";
+    liquidityScore: LiquidityScoreResult | null;
+}
+
 interface ItemApiResponse {
     success: boolean;
     data?: ItemDetail;
@@ -63,6 +72,7 @@ export default function ItemDetailPage() {
     const [isWatched, setIsWatched] = useState(false);
     const [watchLoading, setWatchLoading] = useState(false);
     const [latestPrice, setLatestPrice] = useState<PriceSnapshot | null>(null);
+    const [liquidityScore, setLiquidityScore] = useState<LiquidityScoreResult | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -122,12 +132,9 @@ export default function ItemDetailPage() {
         setWatchLoading(false);
     }, [id, isWatched, watchLoading, addToast]);
 
-    const handleMarketSnapshotChange = useCallback((snapshot: {
-        price: number | null;
-        timestamp: string | null;
-        source: string | null;
-        interval: "15m" | "1h" | "4h" | "1d" | "1w";
-    }) => {
+    const handleMarketSnapshotChange = useCallback((snapshot: MarketSnapshot) => {
+        setLiquidityScore(snapshot.liquidityScore);
+
         if (snapshot.price === null || snapshot.timestamp === null) {
             setLatestPrice(null);
             return;
@@ -199,6 +206,16 @@ export default function ItemDetailPage() {
         if (r.includes("classified")) return "warning";
         if (r.includes("restricted")) return "info";
         return "neutral";
+    };
+
+    const getLiquidityVariant = (rating: LiquidityScoreResult["rating"]): "danger" | "warning" | "success" => {
+        if (rating === "high") return "success";
+        if (rating === "medium") return "warning";
+        return "danger";
+    };
+
+    const formatVolume = (value: number): string => {
+        return value.toLocaleString("en-US", { maximumFractionDigits: 0 });
     };
 
     return (
@@ -352,6 +369,25 @@ export default function ItemDetailPage() {
                                 <Badge variant="success">Watching</Badge>
                             ) : (
                                 <Badge variant="neutral">Not watched</Badge>
+                            )
+                        }
+                    />
+
+                    <StatCard
+                        label="Liquidity Score"
+                        value={
+                            liquidityScore ? (
+                                <span className={styles.liquidityMetric}>
+                                    <span>{liquidityScore.score}/100</span>
+                                    <Badge variant={getLiquidityVariant(liquidityScore.rating)} size="sm">
+                                        {liquidityScore.rating}
+                                    </Badge>
+                                    <span className={styles.liquidityMeta}>
+                                        {formatVolume(liquidityScore.averageVolume)} avg volume • {liquidityScore.trend}
+                                    </span>
+                                </span>
+                            ) : (
+                                <span className={styles.mutedMetric}>Waiting for volume</span>
                             )
                         }
                     />
