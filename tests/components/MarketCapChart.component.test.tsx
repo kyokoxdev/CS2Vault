@@ -61,7 +61,7 @@ describe("MarketCapChart", () => {
 
     await waitFor(() => {
       expect(screen.getByText("CS2 Market Cap")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Chart mode" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Regular mode" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Advanced mode" })).toBeInTheDocument();
     });
 

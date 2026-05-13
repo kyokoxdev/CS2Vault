@@ -113,7 +113,7 @@ describe("CandlestickChart", () => {
     await waitFor(() => {
       expect(screen.getByText("AK-47 | Redline")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Candles" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Chart mode" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Regular mode" })).toBeInTheDocument();
     });
 
     expect(onMarketSnapshotChange).toHaveBeenLastCalledWith(expect.objectContaining({

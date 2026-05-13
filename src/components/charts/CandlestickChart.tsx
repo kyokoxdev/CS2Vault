@@ -679,7 +679,7 @@ export default function CandlestickChart({
         >
             {viewMode === "regular" ? (
                 <>
-                    <div className="chart-toolbar">
+                    <div className="chart-toolbar chart-toolbar-expanded">
                         <div className="chart-toolbar-top">
                             <div className="chart-heading">
                                 <div className="chart-heading-title-row">

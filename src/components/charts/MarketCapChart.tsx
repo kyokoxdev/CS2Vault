@@ -444,7 +444,7 @@ export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
     return (
         <div className="chart-container" style={{ minHeight: height }}>
             {chartMode === "regular" ? (
-                <div className="chart-toolbar">
+                <div className="chart-toolbar chart-toolbar-expanded">
                     <div className="chart-toolbar-top">
                         <div className="chart-heading">
                             <div className="chart-heading-title-row">
