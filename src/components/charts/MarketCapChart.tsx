@@ -183,21 +183,6 @@ function formatMarketCap(value: number): string {
     return `$${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
-function formatSignedMarketCap(value: number): string {
-    const formatted = formatMarketCap(Math.abs(value));
-    if (value === 0) return formatted;
-    return `${value > 0 ? "+" : "-"}${formatted.slice(1)}`;
-}
-
-function formatPercent(value: number): string {
-    const formatted = Math.abs(value).toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
-    if (value === 0) return `${formatted}%`;
-    return `${value > 0 ? "+" : "-"}${formatted}%`;
-}
-
 function calculateStats(series: MarketCapDataPoint[]): MarketCapStats | null {
     if (series.length === 0) return null;
 
@@ -547,7 +532,7 @@ export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
                 </div>
             ) : (
                 <>
-                    <div className="chart-toolbar chart-toolbar-expanded">
+                    <div className="chart-toolbar chart-toolbar-expanded chart-toolbar-advanced">
                         <div className="chart-toolbar-top">
                             <div className="chart-heading">
                                 <div className="chart-heading-title-row">
@@ -576,13 +561,6 @@ export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
                                 <span className="chart-heading-badge">Daily interval</span>
                             </div>
 
-                            <IndicatorPanel
-                                activeIndicators={activeIndicators}
-                                onToggle={handleIndicatorToggle}
-                                onInputChange={handleIndicatorInputChange}
-                                allowedIndicatorIds={MARKET_CAP_OVERLAY_INDICATOR_IDS}
-                            />
-
                             <div className="chart-toolbar-group chart-toolbar-group-actions">
                                 <button
                                     type="button"
@@ -602,41 +580,15 @@ export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
                                 <ChartModeToggle mode={chartMode} onModeChange={setChartMode} />
                             </div>
                         </div>
+
+                        <IndicatorPanel
+                            activeIndicators={activeIndicators}
+                            onToggle={handleIndicatorToggle}
+                            onInputChange={handleIndicatorInputChange}
+                            allowedIndicatorIds={MARKET_CAP_OVERLAY_INDICATOR_IDS}
+                            compact
+                        />
                     </div>
-
-                    {stats && hasData && (
-                        <div className="chart-summary-grid">
-                            <div className="chart-summary-card">
-                                <span className="chart-summary-label">Change</span>
-                                <span className={`chart-summary-value ${trendClassName}`}>
-                                    {formatPercent(stats.changePercent)}
-                                </span>
-                                <span className={`chart-summary-meta ${trendClassName}`}>
-                                    {formatSignedMarketCap(stats.delta)}
-                                </span>
-                            </div>
-
-                            <div className="chart-summary-card">
-                                <span className="chart-summary-label">ATH</span>
-                                <span className="chart-summary-value">{formatMarketCap(stats.high)}</span>
-                                <span className="chart-summary-meta">
-                                    {stats.highTime
-                                        ? new Date(stats.highTime * 1000).toLocaleDateString("en-US", {
-                                            year: "numeric",
-                                            month: "short",
-                                            day: "numeric",
-                                        })
-                                        : "—"}
-                                </span>
-                            </div>
-
-                            <div className="chart-summary-card">
-                                <span className="chart-summary-label">Data Points</span>
-                                <span className="chart-summary-value">{stats.dataPoints}</span>
-                                <span className="chart-summary-meta">Daily snapshots</span>
-                            </div>
-                        </div>
-                    )}
                 </>
             )}
 

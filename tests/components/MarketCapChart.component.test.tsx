@@ -83,10 +83,11 @@ describe("MarketCapChart", () => {
     fireEvent.click(screen.getByRole("button", { name: "Advanced mode" }));
 
     await waitFor(() => {
-      expect(screen.getByText("ATH")).toBeInTheDocument();
-      expect(screen.getByText("Data Points")).toBeInTheDocument();
+      expect(screen.getByText("Overlay")).toBeInTheDocument();
+      expect(screen.getByText("SMA")).toBeInTheDocument();
       expect(screen.getByText("Reset view")).toBeInTheDocument();
       expect(screen.getByText("Refresh")).toBeInTheDocument();
+      expect(screen.getByRole("img", { name: "Market cap history chart" })).toBeInTheDocument();
     });
   });
 });
