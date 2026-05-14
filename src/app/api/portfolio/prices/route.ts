@@ -82,6 +82,7 @@ export async function GET(request: NextRequest) {
                             minAgeMinutes: undefined,
                             allowSteamLimit: false,
                             allowFallback,
+                            fetchSteamVolume: true,
                             ...(allowFallback ? { overrideSource: "steam" as const } : {}),
                             onProgress(progress) {
                                 controller.enqueue(encoder.encode(createStreamEvent("progress", progress)));
@@ -176,6 +177,7 @@ export async function POST(request: NextRequest) {
             allowFallback,
             skipCandleAggregation,
             bulkOnly,
+            fetchSteamVolume: true,
             ...(allowFallback ? { overrideSource: "steam" } : {}),
         });
 

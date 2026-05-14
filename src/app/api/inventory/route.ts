@@ -201,6 +201,7 @@ export async function POST(request: NextRequest) {
             minAgeMinutes: 0,
             allowFallback,
             skipCandleAggregation: true,
+            fetchSteamVolume: true,
             ...(allowFallback ? { overrideSource: "steam" } : {}),
         });
 

@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
             minAgeMinutes: undefined,
             allowSteamLimit: true,
             allowFallback,
+            fetchSteamVolume: true,
             ...(allowFallback ? { overrideSource: "steam" as const } : {}),
         });
 
