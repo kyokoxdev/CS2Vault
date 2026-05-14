@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { initializeMarketProviders } from "@/lib/market/init";
 import { getMarketProvider } from "@/lib/market/registry";
 import { resolveMarketSource } from "@/lib/market/source";
+import { steamProvider } from "@/lib/market/steam";
 import { aggregateCandlesticks, type CandleInterval } from "@/lib/candles/aggregator";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/market/sync-lock";
 import type { MarketSource, SyncResult } from "@/types";
@@ -23,6 +24,8 @@ export interface SyncOptions {
      * a once-per-day sync — those are populated by browser refreshes.
      */
     candleIntervals?: CandleInterval[];
+    /** When true, attempts to backfill missing volume data from Steam. */
+    backfillVolume?: boolean;
 }
 
 /**
@@ -59,6 +62,32 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
 
 const ALL_CANDLE_INTERVALS: CandleInterval[] = ["15m", "1h", "4h", "1d", "1w"];
 const AGGREGATION_BATCH_SIZE = 10;
+const MAX_STEAM_VOLUME_BACKFILL = 20;
+
+async function backfillMissingVolumesWithSteam(
+    snapshots: Array<{ itemId: string; marketHashName?: string; volume: number | null }>,
+    items?: Array<{ id: string; marketHashName: string }>
+): Promise<void> {
+    const missing = snapshots.filter((s) => s.volume === null);
+    if (missing.length === 0) return;
+
+    const itemMap = new Map(items?.map((i) => [i.id, i.marketHashName]) ?? []);
+    const toFetch = missing.slice(0, MAX_STEAM_VOLUME_BACKFILL);
+
+    for (const snapshot of toFetch) {
+        const hashName = snapshot.marketHashName ?? itemMap.get(snapshot.itemId);
+        if (!hashName) continue;
+
+        try {
+            const steamData = await steamProvider.fetchItemPrice(hashName);
+            if (steamData.volume !== undefined) {
+                snapshot.volume = steamData.volume;
+            }
+        } catch (error) {
+            console.warn("[SyncVolumeBackfill] Failed for", hashName, ":", error instanceof Error ? error.message : error);
+        }
+    }
+}
 
 async function runSyncInner(opts: SyncOptions, startTime: number): Promise<SyncResult> {
     // Get app settings
@@ -170,6 +199,10 @@ async function runSyncInner(opts: SyncOptions, startTime: number): Promise<SyncR
                     timestamp: priceData.timestamp,
                 });
             }
+        }
+
+        if (opts.backfillVolume) {
+            await backfillMissingVolumesWithSteam(snapshotsToCreate, items);
         }
 
         if (snapshotsToCreate.length > 0) {

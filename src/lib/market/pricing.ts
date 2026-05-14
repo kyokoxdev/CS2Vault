@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { initializeMarketProviders } from "@/lib/market/init";
 import { getMarketProvider } from "@/lib/market/registry";
 import { aggregateAllIntervals } from "@/lib/candles/aggregator";
+import { steamProvider } from "@/lib/market/steam";
 import type { MarketDataProvider, MarketSource, PriceData } from "@/types";
 
 export interface BulkPriceResult {
@@ -38,6 +39,11 @@ export interface PriceWriteOptions {
     allowFallback?: boolean;
     skipCandleAggregation?: boolean;
     bulkOnly?: boolean;
+    /**
+     * When true, fetches volume from Steam for items where the primary provider
+     * did not include volume data. Limited to small batches to respect rate limits.
+     */
+    fetchSteamVolume?: boolean;
 }
 
 export interface PriceWriteChunkProgress {
@@ -76,6 +82,41 @@ function getMinAgeMinutes(override?: number): number {
     const parsed = Number.parseInt(raw, 10);
     if (!Number.isFinite(parsed)) return DEFAULT_MIN_AGE_MINUTES;
     return clampNumber(parsed, 0, 24 * 60);
+}
+
+const MAX_STEAM_VOLUME_FETCH = 20;
+
+async function fetchSteamVolumesForMissingItems(
+    entries: [string, string][],
+    prices: Map<string, PriceData>
+): Promise<Map<string, number>> {
+    const missing: string[] = [];
+    for (const [hashName] of entries) {
+        const priceData = prices.get(hashName);
+        if (priceData && priceData.volume === undefined) {
+            missing.push(hashName);
+        }
+    }
+
+    if (missing.length === 0) {
+        return new Map();
+    }
+
+    const toFetch = missing.slice(0, MAX_STEAM_VOLUME_FETCH);
+    const volumes = new Map<string, number>();
+
+    for (const hashName of toFetch) {
+        try {
+            const steamData = await steamProvider.fetchItemPrice(hashName);
+            if (steamData.volume !== undefined) {
+                volumes.set(hashName, steamData.volume);
+            }
+        } catch (error) {
+            console.warn("[SteamVolumeFallback] Failed for", hashName, ":", error instanceof Error ? error.message : error);
+        }
+    }
+
+    return volumes;
 }
 
 async function getPreferredMarketSource(
@@ -385,7 +426,11 @@ export async function writePriceSnapshotsForItems(
             };
         }
     }
-    // Batch all snapshot creates into a single INSERT
+
+    const steamVolumes = options.fetchSteamVolume
+        ? await fetchSteamVolumesForMissingItems(entriesToFetch, prices)
+        : new Map<string, number>();
+
     const snapshotsToCreate: Array<{
         itemId: string;
         price: number;
@@ -398,10 +443,12 @@ export async function writePriceSnapshotsForItems(
         const priceData = prices.get(hashName);
         if (!priceData || priceData.price <= 0) continue;
 
+        const volume = priceData.volume ?? steamVolumes.get(hashName) ?? null;
+
         snapshotsToCreate.push({
             itemId,
             price: priceData.price,
-            volume: priceData.volume ?? null,
+            volume,
             source: priceData.source,
             timestamp: priceData.timestamp,
         });
