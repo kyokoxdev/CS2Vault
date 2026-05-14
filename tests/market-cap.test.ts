@@ -177,7 +177,7 @@ describe("calculateAndStoreMarketCap", () => {
         expect(result.data).toBeNull();
     });
 
-    it("cleans up old snapshots after successful calculation", async () => {
+    it("stores a new snapshot after successful calculation", async () => {
         mockFetchSuccess({ "Item": { price: 50.00 } });
         vi.mocked(prisma.marketCapSnapshot.create).mockResolvedValueOnce({
             id: "new",
@@ -191,8 +191,9 @@ describe("calculateAndStoreMarketCap", () => {
 
         await calculateAndStoreMarketCap();
 
-        expect(prisma.marketCapSnapshot.deleteMany).toHaveBeenCalledWith({
-            where: expect.objectContaining({
+        expect(prisma.marketCapSnapshot.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+                totalListings: 1,
                 provider: "csgotrader-csfloat",
             }),
         });

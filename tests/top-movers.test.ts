@@ -43,6 +43,14 @@ function hoursAgo(hours: number): Date {
     return new Date(Date.now() - hours * 60 * 60 * 1000);
 }
 
+function makeSnapshots(itemId: string, prices: number[]) {
+    return prices.map((price, index) => ({
+        itemId,
+        price,
+        timestamp: hoursAgo(index === 0 ? 20 : 1),
+    }));
+}
+
 // Helper to create a price map (simulates provider bulk response)
 function makePriceMap(
     items: Array<{ name: string; price?: number }>
@@ -98,9 +106,7 @@ describe("GET /api/market/top-movers", () => {
             { id: "item1", name: "AK-47 | Redline", marketHashName: "AK-47 | Redline (Field-Tested)" },
         ] as never);
 
-        mockSnapshotFindMany.mockResolvedValue([
-            { price: 10.5, timestamp: hoursAgo(12) },
-        ] as never);
+        mockSnapshotFindMany.mockResolvedValue(makeSnapshots("item1", [10.5]) as never);
 
         const result = await computeTopMovers(null);
 
@@ -129,8 +135,7 @@ describe("GET /api/market/top-movers", () => {
         // Loser Big: 100 -> 60 = -40%
         // Loser Small: 100 -> 95 = -5%
         // Flat Item: 100 -> 100 = 0%
-        mockSnapshotFindMany.mockImplementation(((args: { where: { itemId: string } }) => {
-            const id = args.where.itemId;
+        mockSnapshotFindMany.mockImplementation(((args: { where: { itemId: { in: string[] } } }) => {
             const priceMap: Record<string, [number, number]> = {
                 g1: [100, 150],
                 g2: [100, 110],
@@ -138,11 +143,7 @@ describe("GET /api/market/top-movers", () => {
                 l2: [100, 95],
                 flat: [100, 100],
             };
-            const [start, end] = priceMap[id] || [100, 100];
-            return Promise.resolve([
-                { price: start, timestamp: hoursAgo(20) },
-                { price: end, timestamp: hoursAgo(1) },
-            ]);
+            return Promise.resolve(args.where.itemId.in.flatMap((id) => makeSnapshots(id, priceMap[id] || [100, 100])));
         }) as never);
 
         const result = await computeTopMovers(null);
@@ -170,10 +171,7 @@ describe("GET /api/market/top-movers", () => {
             { id: "flat", name: "Flat", marketHashName: "Flat" },
         ] as never);
 
-        mockSnapshotFindMany.mockResolvedValue([
-            { price: 100, timestamp: hoursAgo(20) },
-            { price: 100, timestamp: hoursAgo(1) },
-        ] as never);
+        mockSnapshotFindMany.mockResolvedValue(makeSnapshots("flat", [100, 100]) as never);
 
         const result = await computeTopMovers(null);
 
@@ -194,19 +192,15 @@ describe("GET /api/market/top-movers", () => {
 
         // First 7 are gainers (ascending: +10, +20, ..., +70)
         // Last 5 are losers (-10, -20, ..., -50)
-        mockSnapshotFindMany.mockImplementation(((args: { where: { itemId: string } }) => {
-            const idx = parseInt(args.where.itemId.replace("item", ""));
+        mockSnapshotFindMany.mockImplementation(((args: { where: { itemId: { in: string[] } } }) => {
             const start = 100;
-            let end: number;
-            if (idx < 7) {
-                end = 100 + (idx + 1) * 10; // +10% to +70%
-            } else {
-                end = 100 - (idx - 6) * 10; // -10% to -50%
-            }
-            return Promise.resolve([
-                { price: start, timestamp: hoursAgo(20) },
-                { price: end, timestamp: hoursAgo(1) },
-            ]);
+            return Promise.resolve(args.where.itemId.in.flatMap((id) => {
+                const idx = parseInt(id.replace("item", ""));
+                const end = idx < 7
+                    ? 100 + (idx + 1) * 10
+                    : 100 - (idx - 6) * 10;
+                return makeSnapshots(id, [start, end]);
+            }));
         }) as never);
 
         const result = await computeTopMovers(null);
@@ -225,10 +219,7 @@ describe("GET /api/market/top-movers", () => {
             { id: "g1", name: "Gainer", marketHashName: "Gainer" },
         ] as never);
 
-        mockSnapshotFindMany.mockResolvedValue([
-            { price: 100, timestamp: hoursAgo(20) },
-            { price: 120, timestamp: hoursAgo(1) },
-        ] as never);
+        mockSnapshotFindMany.mockResolvedValue(makeSnapshots("g1", [100, 120]) as never);
 
         const result = await computeTopMovers(null);
 
@@ -248,10 +239,10 @@ describe("GET /api/market/top-movers", () => {
         const now = Date.now();
         const dayMs = 86400000;
         mockSnapshotFindMany.mockResolvedValue([
-            { price: 90, timestamp: new Date(now - 2 * dayMs) },
-            { price: 91, timestamp: new Date(now - 2 * dayMs + 3600000) }, // Different hour key, not deduped
-            { price: 95, timestamp: new Date(now - 1 * dayMs) },
-            { price: 100, timestamp: new Date(now) },
+            { itemId: "s1", price: 90, timestamp: new Date(now - 2 * dayMs) },
+            { itemId: "s1", price: 91, timestamp: new Date(now - 2 * dayMs + 3600000) }, // Different hour key, not deduped
+            { itemId: "s1", price: 95, timestamp: new Date(now - 1 * dayMs) },
+            { itemId: "s1", price: 100, timestamp: new Date(now) },
         ] as never);
 
         const result = await computeTopMovers(null);
@@ -288,10 +279,7 @@ describe("GET /api/market/top-movers", () => {
             { id: "c1", name: "Cache Item", marketHashName: "Cache Item" },
         ] as never);
 
-        mockSnapshotFindMany.mockResolvedValue([
-            { price: 100, timestamp: hoursAgo(20) },
-            { price: 120, timestamp: hoursAgo(1) },
-        ] as never);
+        mockSnapshotFindMany.mockResolvedValue(makeSnapshots("c1", [100, 120]) as never);
 
         // First call computes
         const res1 = await GET();
@@ -335,14 +323,8 @@ describe("GET /api/market/top-movers", () => {
             .mockResolvedValueOnce([{ id: "st-1", name: "Steam Item", marketHashName: "Steam Item" }] as never);
 
         mockSnapshotFindMany
-            .mockResolvedValueOnce([
-                { price: 100, timestamp: hoursAgo(20) },
-                { price: 120, timestamp: hoursAgo(1) },
-            ] as never)
-            .mockResolvedValueOnce([
-                { price: 90, timestamp: hoursAgo(20) },
-                { price: 130, timestamp: hoursAgo(1) },
-            ] as never);
+            .mockResolvedValueOnce(makeSnapshots("cf-1", [100, 120]) as never)
+            .mockResolvedValueOnce(makeSnapshots("st-1", [90, 130]) as never);
 
         mockResolveMarketProvider
             .mockReturnValueOnce(makeMockProvider(makePriceMap([
@@ -375,10 +357,7 @@ describe("GET /api/market/top-movers", () => {
             { id: "item1", name: "AK-47 | Redline", marketHashName: "AK-47 | Redline (Field-Tested)" },
         ] as never);
 
-        mockSnapshotFindMany.mockResolvedValue([
-            { price: 100, timestamp: hoursAgo(20) },
-            { price: 120, timestamp: hoursAgo(1) },
-        ] as never);
+        mockSnapshotFindMany.mockResolvedValue(makeSnapshots("item1", [100, 120]) as never);
 
         const result = await computeTopMovers(null);
 
@@ -398,10 +377,7 @@ describe("GET /api/market/top-movers", () => {
         mockItemFindMany.mockResolvedValue([
             { id: "s1", name: "Steam Item", marketHashName: "Steam Item" },
         ] as never);
-        mockSnapshotFindMany.mockResolvedValue([
-            { price: 100, timestamp: hoursAgo(20) },
-            { price: 150, timestamp: hoursAgo(1) },
-        ] as never);
+        mockSnapshotFindMany.mockResolvedValue(makeSnapshots("s1", [100, 150]) as never);
 
         const result = await computeTopMovers(null);
 
@@ -524,10 +500,7 @@ describe("GET /api/market/top-movers", () => {
                 { id: "m1", name: "Market Item", marketHashName: "Market Item" },
             ] as never);
 
-        mockSnapshotFindMany.mockResolvedValue([
-            { price: 100, timestamp: hoursAgo(20) },
-            { price: 150, timestamp: hoursAgo(1) },
-        ] as never);
+        mockSnapshotFindMany.mockResolvedValue(makeSnapshots("m1", [100, 150]) as never);
 
         mockResolveMarketProvider
             .mockReturnValueOnce(null)
@@ -573,10 +546,7 @@ describe("GET /api/market/top-movers", () => {
         mockItemFindMany.mockResolvedValue([
             { id: "live-1", name: "Live Item", marketHashName: "Live Item" },
         ] as never);
-        mockSnapshotFindMany.mockResolvedValue([
-            { price: 100, timestamp: hoursAgo(20) },
-            { price: 150, timestamp: hoursAgo(1) },
-        ] as never);
+        mockSnapshotFindMany.mockResolvedValue(makeSnapshots("live-1", [100, 150]) as never);
 
         const response = await GET();
         const body = await response.json();
@@ -618,10 +588,7 @@ describe("GET /api/market/top-movers", () => {
             { marketHashName: "Steam Item" },
             { id: "steam-1", name: "Steam Item", marketHashName: "Steam Item" },
         ] as never);
-        mockSnapshotFindMany.mockResolvedValue([
-            { price: 100, timestamp: hoursAgo(20) },
-            { price: 140, timestamp: hoursAgo(1) },
-        ] as never);
+        mockSnapshotFindMany.mockResolvedValue(makeSnapshots("steam-1", [100, 140]) as never);
 
         const response = await GET();
         const body = await response.json();

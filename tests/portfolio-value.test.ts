@@ -87,7 +87,7 @@ describe('Portfolio Value auth-dependent fetching', () => {
       const url = getFetchUrl(input);
       const method = init?.method ?? 'GET';
 
-      if (url === '/api/items?limit=1') {
+      if (url === '/api/items?limit=200') {
         return makeResponse({ success: true, data: { items: [], total: 0 } });
       }
 
@@ -163,7 +163,7 @@ describe('Portfolio Value auth-dependent fetching', () => {
     expect(screen.getByText('Login required')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/items?limit=1');
+      expect(fetch).toHaveBeenCalledWith('/api/items?limit=200');
     });
 
     const calledPortfolio = vi
@@ -180,7 +180,7 @@ describe('Portfolio Value auth-dependent fetching', () => {
     expect(screen.getByText('Loading...')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/items?limit=1');
+      expect(fetch).toHaveBeenCalledWith('/api/items?limit=200');
     });
   });
 });
