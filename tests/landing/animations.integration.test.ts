@@ -187,14 +187,20 @@ describe("Landing animations integration", () => {
         const revealWrappers = screen.getAllByTestId("scroll-reveal");
         const firstReveal = revealWrappers[0];
 
-        expect(firstReveal.className).not.toContain("revealed");
+        await waitFor(() => {
+            expect(observerRecords.some((record) => record.observed.has(firstReveal))).toBe(true);
+        });
+
+        expect(firstReveal).toHaveAttribute("data-revealed", "false");
 
         act(() => {
-            triggerIntersection(firstReveal, true);
+            for (const wrapper of revealWrappers) {
+                triggerIntersection(wrapper, true);
+            }
         });
 
         await waitFor(() => {
-            expect(firstReveal.className).toContain("revealed");
+            expect(firstReveal).toHaveAttribute("data-revealed", "true");
         });
     });
 });
