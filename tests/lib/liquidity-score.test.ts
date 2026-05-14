@@ -5,7 +5,13 @@ import { calculateLiquidityScore } from "@/lib/market/liquidity-score";
 describe("calculateLiquidityScore", () => {
     it("returns null when candles have no usable volume", () => {
         expect(calculateLiquidityScore([])).toBeNull();
-        expect(calculateLiquidityScore([{ volume: 0 }, { volume: -1 }])).toBeNull();
+    });
+
+    it("returns a proxy score when volume is zero or invalid", () => {
+        const result = calculateLiquidityScore([{ volume: 0 }, { volume: -1 }]);
+        expect(result).not.toBeNull();
+        expect(result?.score).toBeGreaterThanOrEqual(0);
+        expect(result?.averageVolume).toBe(0);
     });
 
     it("scores liquid items from sustained high volume", () => {

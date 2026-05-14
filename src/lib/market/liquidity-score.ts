@@ -43,13 +43,30 @@ function getTrend(volumes: number[]): LiquidityTrend {
     return "stable";
 }
 
+function calculatePriceActivityProxy(candles: LiquidityCandle[]): LiquidityScoreResult {
+    const dataPoints = candles.length;
+    const score = Math.min(100, Math.round(dataPoints * 3));
+
+    return {
+        score,
+        rating: score >= 70 ? "high" : score >= 40 ? "medium" : "low",
+        averageVolume: 0,
+        recentVolume: 0,
+        trend: "stable",
+    };
+}
+
 export function calculateLiquidityScore(candles: LiquidityCandle[]): LiquidityScoreResult | null {
+    if (candles.length === 0) {
+        return null;
+    }
+
     const volumes = candles
         .map((candle) => candle.volume)
         .filter((volume) => Number.isFinite(volume) && volume > 0);
 
     if (volumes.length === 0) {
-        return null;
+        return calculatePriceActivityProxy(candles);
     }
 
     const recentVolumes = volumes.slice(-14);
