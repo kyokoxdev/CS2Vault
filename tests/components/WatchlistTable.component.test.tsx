@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "../setup-component";
 import { WatchlistTable, type Item } from "@/components/market/WatchlistTable";
@@ -112,13 +112,15 @@ describe("WatchlistTable Component", () => {
       />
     );
 
-    expect(screen.getByText("Item")).toBeInTheDocument();
-    expect(screen.getByText("Category")).toBeInTheDocument();
-    expect(screen.getByText("Type")).toBeInTheDocument();
-    expect(screen.getByText("Rarity")).toBeInTheDocument();
-    expect(screen.getByText("Price")).toBeInTheDocument();
-    expect(screen.getByText("24h")).toBeInTheDocument();
-    expect(screen.getByText("7d")).toBeInTheDocument();
+    const table = screen.getByRole("table");
+
+    expect(within(table).getByText("Item")).toBeInTheDocument();
+    expect(within(table).getByText("Category")).toBeInTheDocument();
+    expect(within(table).getByText("Type")).toBeInTheDocument();
+    expect(within(table).getByText("Rarity")).toBeInTheDocument();
+    expect(within(table).getByText("Price")).toBeInTheDocument();
+    expect(within(table).getByText("24h")).toBeInTheDocument();
+    expect(within(table).getByText("7d")).toBeInTheDocument();
   });
 
   it("renders items correctly", () => {
@@ -130,9 +132,9 @@ describe("WatchlistTable Component", () => {
       />
     );
 
-    expect(screen.getByText("AK-47 | Redline")).toBeInTheDocument();
-    expect(screen.getByText("AWP | Asiimov")).toBeInTheDocument();
-    expect(screen.getByText("$15.50")).toBeInTheDocument();
+    expect(screen.getAllByText("AK-47 | Redline").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("AWP | Asiimov").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("$15.50").length).toBeGreaterThan(0);
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
 
@@ -145,12 +147,15 @@ describe("WatchlistTable Component", () => {
       />
     );
 
-    const images = container.querySelectorAll("img");
+    const table = container.querySelector("table");
+    expect(table).not.toBeNull();
+
+    const images = table?.querySelectorAll("img") ?? [];
     expect(images).toHaveLength(1);
     expect(images[0]).toHaveAttribute("src", "https://example.com/ak47.png");
     expect(images[0]).toHaveAttribute("loading", "lazy");
 
-    const placeholders = container.querySelectorAll("[role='img']");
+    const placeholders = table?.querySelectorAll("[role='img']") ?? [];
     expect(placeholders).toHaveLength(1);
   });
 
@@ -163,7 +168,7 @@ describe("WatchlistTable Component", () => {
       />
     );
 
-    expect(screen.getByText(/\+3\.25%/)).toBeInTheDocument();
+    expect(screen.getAllByText(/\+3\.25%/).length).toBeGreaterThan(0);
   });
 
   it("renders sparkline charts for items with data", () => {
@@ -175,7 +180,8 @@ describe("WatchlistTable Component", () => {
       />
     );
 
-    const sparklines = screen.getAllByTestId("sparkline");
+    const table = screen.getByRole("table");
+    const sparklines = within(table).getAllByTestId("sparkline");
     expect(sparklines).toHaveLength(1);
     expect(sparklines[0]).toHaveAttribute("data-points", "2");
   });
@@ -247,10 +253,10 @@ describe("WatchlistTable Component", () => {
     );
 
     expect(
-      screen.getByText(
+      screen.getAllByText(
         /No items in watchlist. Add items above to start tracking./i
-      )
-    ).toBeInTheDocument();
+      ).length
+    ).toBeGreaterThan(0);
   });
 
   it("renders rarity badges correctly", () => {
