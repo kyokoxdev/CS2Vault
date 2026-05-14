@@ -199,12 +199,16 @@ export default function ItemDetailPage() {
         );
     }
 
-    const getRarityVariant = (rarity: string | null): "danger" | "warning" | "info" | "neutral" | "success" => {
+    const getRarityVariant = (rarity: string | null): string => {
         if (!rarity) return "neutral";
         const r = rarity.toLowerCase();
-        if (r.includes("contraband") || r.includes("covert")) return "danger";
-        if (r.includes("classified")) return "warning";
-        if (r.includes("restricted")) return "info";
+        if (r.includes("contraband")) return "contraband";
+        if (r.includes("covert")) return "covert";
+        if (r.includes("classified")) return "classified";
+        if (r.includes("restricted")) return "restricted";
+        if (r.includes("mil-spec")) return "milspec";
+        if (r.includes("industrial")) return "industrial";
+        if (r.includes("consumer") || r.includes("base")) return "consumer";
         return "neutral";
     };
 
@@ -383,7 +387,9 @@ export default function ItemDetailPage() {
                                         {liquidityScore.rating}
                                     </Badge>
                                     <span className={styles.liquidityMeta}>
-                                        {formatVolume(liquidityScore.averageVolume)} avg volume • {liquidityScore.trend}
+                                        {liquidityScore.averageVolume > 0
+                                            ? `${formatVolume(liquidityScore.averageVolume)} avg volume • ${liquidityScore.trend}`
+                                            : "No volume data available"}
                                     </span>
                                 </span>
                             ) : (
