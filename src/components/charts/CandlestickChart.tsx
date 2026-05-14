@@ -734,7 +734,7 @@ export default function CandlestickChart({
                                     onClick={() => chartRef.current?.timeScale().fitContent()}
                                     aria-label="Reset chart view"
                                 >
-                                    Reset
+                                    Reset view
                                 </button>
                                 <button
                                     type="button"
