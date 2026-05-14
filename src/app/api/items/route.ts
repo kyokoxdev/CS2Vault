@@ -9,8 +9,9 @@ import { normalizeItemType, normalizeRarity } from "@/lib/market/rarity";
 import { z } from "zod";
 import { requireAuth } from "@/lib/auth/guard";
 
-const PRICE_WINDOW_MS = 24 * 60 * 60 * 1000;
-const MAX_SPARKLINE_POINTS = 20;
+const PRICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days of history for sparkline
+const PRICE_CHANGE_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h for price change %
+const MAX_SPARKLINE_POINTS = 7; // one point per day, max 7 days
 
 type SparklinePoint = { time: number; value: number };
 
@@ -75,21 +76,21 @@ function buildSparkline(snapshots: Array<{ price: number; timestamp: Date }>): S
         return [];
     }
 
-    const hourMap = new Map<number, SparklinePoint>();
+    const dayMap = new Map<number, SparklinePoint>();
 
     for (const snapshot of [...snapshots].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())) {
         const timestamp = snapshot.timestamp.getTime();
-        const hourKey = Math.floor(timestamp / 3600000);
+        const dayKey = Math.floor(timestamp / (24 * 60 * 60 * 1000));
 
-        if (!hourMap.has(hourKey)) {
-            hourMap.set(hourKey, {
+        if (!dayMap.has(dayKey)) {
+            dayMap.set(dayKey, {
                 time: Math.floor(timestamp / 1000),
                 value: snapshot.price,
             });
         }
     }
 
-    return sampleSparkline([...hourMap.values()]);
+    return sampleSparkline([...dayMap.values()]);
 }
 
 function calculatePriceChange24h(snapshots: Array<{ price: number; timestamp: Date }>): number {
@@ -111,7 +112,8 @@ export async function GET(request: NextRequest) {
     try {
         const params = Object.fromEntries(request.nextUrl.searchParams);
         const query = ItemQuerySchema.parse(params);
-        const cutoff24h = new Date(Date.now() - PRICE_WINDOW_MS);
+        const cutoff7d = new Date(Date.now() - PRICE_WINDOW_MS);
+        const cutoff24h = new Date(Date.now() - PRICE_CHANGE_WINDOW_MS);
 
         const where: Record<string, unknown> = { isActive: true };
 
@@ -167,7 +169,7 @@ export async function GET(request: NextRequest) {
             ? await prisma.priceSnapshot.findMany({
                 where: {
                     itemId: { in: itemIds },
-                    timestamp: { gte: cutoff24h },
+                    timestamp: { gte: cutoff7d },
                 },
                 select: {
                     itemId: true,
@@ -194,7 +196,8 @@ export async function GET(request: NextRequest) {
         // Format response with latest price
         const formatted = items.map((item) => {
             const latestSnapshot = item.priceSnapshots[0];
-            const snapshots24h = snapshotsByItemId.get(item.id) ?? [];
+            const snapshots7d = snapshotsByItemId.get(item.id) ?? [];
+            const snapshots24h = snapshots7d.filter((s) => s.timestamp >= cutoff24h);
 
             return {
                 id: item.id,
@@ -212,7 +215,7 @@ export async function GET(request: NextRequest) {
                 isWatched: item.isWatched,
                 currentPrice: latestSnapshot?.price ?? null,
                 priceChange24h: calculatePriceChange24h(snapshots24h),
-                sparkline: buildSparkline(snapshots24h),
+                sparkline: buildSparkline(snapshots7d),
                 priceSource: latestSnapshot?.source ?? null,
                 lastUpdated: latestSnapshot?.timestamp ?? null,
             };
