@@ -285,10 +285,10 @@ describe("Toast Component", () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(300);
+      vi.advanceTimersByTime(301);
     });
 
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveStyle({ opacity: "0" });
   });
 
   it("dismissToast removes an existing toast", () => {

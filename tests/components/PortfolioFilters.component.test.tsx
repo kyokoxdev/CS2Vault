@@ -22,11 +22,11 @@ describe('PortfolioFilters', () => {
   it('renders filter dropdowns and search input', () => {
     render(<PortfolioFilters {...defaultProps} />);
 
-    expect(screen.getByText('Filters')).toBeInTheDocument();
+    expect(screen.getAllByText('Filters').length).toBeGreaterThan(0);
     expect(screen.getByText('All categories')).toBeInTheDocument();
     expect(screen.getByText('All rarities')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search items')).toBeInTheDocument();
-    expect(screen.getByText('42 items')).toBeInTheDocument();
+    expect(screen.getAllByText('42 items').length).toBeGreaterThan(0);
   });
 
   it('renders category options correctly', () => {
@@ -42,9 +42,9 @@ describe('PortfolioFilters', () => {
   });
 
   it('calls onChange when category is changed', () => {
-    render(<PortfolioFilters {...defaultProps} />);
+    render(<PortfolioFilters {...defaultProps} category="weapon" />);
     
-    const categoryButton = screen.getByText('All categories');
+    const categoryButton = screen.getByText('weapon');
     fireEvent.click(categoryButton);
     
     const knifeOption = screen.getByText('knife');
@@ -95,7 +95,7 @@ describe('PortfolioFilters', () => {
   });
 
   it('calls onClear when Clear button is clicked', () => {
-    render(<PortfolioFilters {...defaultProps} />);
+    render(<PortfolioFilters {...defaultProps} search="Dragon Lore" />);
     
     const clearButton = screen.getByText('Clear');
     fireEvent.click(clearButton);

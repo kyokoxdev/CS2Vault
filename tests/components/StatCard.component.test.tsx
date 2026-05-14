@@ -2,9 +2,13 @@
  * @vitest-environment jsdom
  */
 import '../setup-component';
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import { StatCard } from '@/components/ui/StatCard';
+
+vi.mock('@/hooks/useMediaQuery', () => ({
+  useReducedMotion: () => true,
+}));
 
 describe('StatCard Component', () => {
   it('renders label correctly', () => {
@@ -55,13 +59,13 @@ describe('StatCard Component', () => {
     expect(changeElements.length).toBe(0);
   });
 
-  it('renders prefix before value', () => {
+  it('renders prefix before value', async () => {
     render(<StatCard label="Portfolio Value" value={1000} prefix="$" />);
-    const valueElement = screen.getByText((content, element) => {
-      if (element?.className.includes('value') && content.includes('$1000')) return true;
-      return false;
+
+    await waitFor(() => {
+      expect(screen.getByText('$')).toBeInTheDocument();
+      expect(screen.getByText('1,000')).toBeInTheDocument();
     });
-    expect(valueElement).toBeInTheDocument();
   });
 
   it('renders icon when provided', () => {
