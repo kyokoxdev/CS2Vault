@@ -20,3 +20,13 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: vi.fn(),
   })),
 });
+
+if (typeof Element !== 'undefined' && !Element.prototype.animate) {
+  Element.prototype.animate = vi.fn().mockReturnValue({
+    cancel: vi.fn(),
+    finished: Promise.resolve(),
+    onfinish: null,
+    pause: vi.fn(),
+    play: vi.fn(),
+  });
+}

@@ -19,6 +19,7 @@ vi.mock("next-auth/react", () => ({
 // Mock react-icons/fa
 vi.mock("react-icons/fa", () => ({
     FaChartPie: () => <span data-testid="icon-chart">icon</span>,
+    FaChartLine: () => <span data-testid="icon-chart-line">icon</span>,
     FaWallet: () => <span data-testid="icon-wallet">icon</span>,
     FaEye: () => <span data-testid="icon-eye">icon</span>,
     FaBoxOpen: () => <span data-testid="icon-box">icon</span>,

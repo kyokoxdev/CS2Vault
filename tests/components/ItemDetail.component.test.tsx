@@ -11,6 +11,7 @@ import '../setup-component';
 // Mock dependencies
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'item-123' }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock('next/link', () => ({
@@ -104,6 +105,6 @@ describe('ItemDetail Page', () => {
     });
     
     expect(screen.getByText('Try again')).toBeInTheDocument();
-    expect(screen.getByText('← Back to Market')).toBeInTheDocument();
+    expect(screen.getByText(/Back to Market Overview/)).toBeInTheDocument();
   });
 });

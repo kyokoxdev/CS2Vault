@@ -142,7 +142,7 @@ describe("WatchlistTable — Notes UI", () => {
       />
     );
 
-    fireEvent.click(screen.getByLabelText("Item actions"));
+    fireEvent.click(screen.getAllByLabelText("Item actions")[0]);
     expect(screen.getByText("Edit Note")).toBeInTheDocument();
   });
 
@@ -156,7 +156,7 @@ describe("WatchlistTable — Notes UI", () => {
       />
     );
 
-    fireEvent.click(screen.getByLabelText("Item actions"));
+    fireEvent.click(screen.getAllByLabelText("Item actions")[0]);
     expect(screen.getByText("Add Note")).toBeInTheDocument();
   });
 
@@ -170,7 +170,7 @@ describe("WatchlistTable — Notes UI", () => {
       />
     );
 
-    fireEvent.click(screen.getByLabelText("Item actions"));
+    fireEvent.click(screen.getAllByLabelText("Item actions")[0]);
     fireEvent.click(screen.getByText("Add Note"));
 
     expect(mockOnAddNote).toHaveBeenCalledWith("2");
