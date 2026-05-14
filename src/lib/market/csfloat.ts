@@ -13,24 +13,22 @@
 import type { BulkPriceFetchOptions, MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
 import { csfloatQueue } from "@/lib/api-queue";
 import { prisma } from "@/lib/db";
-import { parseSimplePriceFormat } from "@/lib/market/csgotrader-parsers";
+import { parseSimplePriceFormat, type PriceVolumeEntry } from "@/lib/market/csgotrader-parsers";
 
 const BASE_URL = "https://csfloat.com/api/v1";
 const BULK_CACHE_URL = "https://prices.csgotrader.app/latest/csfloat.json";
 const BULK_CACHE_TTL_MS = 30 * 60 * 1000;
 
-let bulkPriceCache: Map<string, number> | null = null;
+let bulkPriceCache: Map<string, PriceVolumeEntry> | null = null;
 let bulkCacheTimestamp = 0;
 
-async function getBulkPriceCache(): Promise<Map<string, number>> {
+async function getBulkPriceCache(): Promise<Map<string, PriceVolumeEntry>> {
     const now = Date.now();
 
-    // 1. Fast path — in-memory cache is still fresh
     if (bulkPriceCache && now - bulkCacheTimestamp < BULK_CACHE_TTL_MS) {
         return bulkPriceCache;
     }
 
-    // 2. Check DB cache (survives serverless cold starts)
     try {
         const dbCache = await prisma.bulkPriceCache.findUnique({
             where: { id: "singleton" },
@@ -38,7 +36,7 @@ async function getBulkPriceCache(): Promise<Map<string, number>> {
         if (dbCache) {
             const dbAge = now - dbCache.updatedAt.getTime();
             if (dbAge < BULK_CACHE_TTL_MS) {
-                const parsed = JSON.parse(dbCache.data) as Record<string, { price: number | null }>;
+                const parsed = JSON.parse(dbCache.data) as Record<string, { price: number | null; volume?: number | null }>;
                 bulkPriceCache = parseSimplePriceFormat(parsed);
                 bulkCacheTimestamp = dbCache.updatedAt.getTime();
                 return bulkPriceCache;
@@ -48,7 +46,6 @@ async function getBulkPriceCache(): Promise<Map<string, number>> {
         console.warn("[CSFloat Bulk] Failed to read DB cache:", error instanceof Error ? error.message : error);
     }
 
-    // 3. Fetch from web (both in-memory and DB caches are stale/missing)
     try {
         const res = await fetch(BULK_CACHE_URL, {
             signal: AbortSignal.timeout(10_000),
@@ -59,10 +56,9 @@ async function getBulkPriceCache(): Promise<Map<string, number>> {
         }
 
         const data = await res.json();
-        bulkPriceCache = parseSimplePriceFormat(data as Record<string, { price: number | null }>);
+        bulkPriceCache = parseSimplePriceFormat(data as Record<string, { price: number | null; volume?: number | null }>);
         bulkCacheTimestamp = now;
 
-        // 4. Persist to DB so the next cold start doesn't re-fetch
         try {
             await prisma.bulkPriceCache.upsert({
                 where: { id: "singleton" },
@@ -123,10 +119,11 @@ export const csfloatProvider: MarketDataProvider = {
 
     async fetchItemPrice(marketHashName: string): Promise<PriceData> {
         const bulkCache = await getBulkPriceCache();
-        const bulkPrice = bulkCache.get(marketHashName);
-        if (bulkPrice !== undefined) {
+        const entry = bulkCache.get(marketHashName);
+        if (entry !== undefined) {
             return {
-                price: bulkPrice,
+                price: entry.price,
+                volume: entry.volume,
                 source: "csfloat",
                 timestamp: new Date(),
             };
@@ -141,10 +138,11 @@ export const csfloatProvider: MarketDataProvider = {
         const missingItems: string[] = [];
 
         for (const marketHashName of items) {
-            const bulkPrice = bulkCache.get(marketHashName);
-            if (bulkPrice !== undefined) {
+            const entry = bulkCache.get(marketHashName);
+            if (entry !== undefined) {
                 result.set(marketHashName, {
-                    price: bulkPrice,
+                    price: entry.price,
+                    volume: entry.volume,
                     source: "csfloat",
                     timestamp: new Date(),
                 });

@@ -6,11 +6,12 @@ import {
     parseMultiModeFormat,
     parseSimplePriceFormat,
     PROVIDER_FORMAT_MAP,
+    type PriceVolumeEntry,
 } from "@/lib/market/csgotrader-parsers";
 
 const BASE_URL = "https://prices.csgotrader.app/latest";
 
-let cachedPrices: Map<string, number> | null = null;
+let cachedPrices: Map<string, PriceVolumeEntry> | null = null;
 let cacheTimestamp = 0;
 let cachedSubProvider: string | null = null;
 const CACHE_TTL_MS = 30 * 60 * 1000;
@@ -24,11 +25,11 @@ async function getSubProvider(): Promise<CSGOTraderSubProvider> {
 function parseProviderData(
     data: unknown,
     subProvider: CSGOTraderSubProvider
-): Map<string, number> {
+): Map<string, PriceVolumeEntry> {
     const config = PROVIDER_FORMAT_MAP[subProvider];
 
     if (config.parser === "simple") {
-        return parseSimplePriceFormat(data as Record<string, { price: number | null }>);
+        return parseSimplePriceFormat(data as Record<string, { price: number | null; volume?: number | null }>);
     }
 
     if (config.parser === "keyvalue") {
@@ -44,7 +45,7 @@ function parseProviderData(
 
 async function fetchPricesForSubProvider(
     subProvider: CSGOTraderSubProvider
-): Promise<Map<string, number>> {
+): Promise<Map<string, PriceVolumeEntry>> {
     const data = await csgotraderQueue.enqueue(async () => {
         const res = await fetch(`${BASE_URL}/${subProvider}.json`, {
             signal: AbortSignal.timeout(15_000),
@@ -60,7 +61,7 @@ async function fetchPricesForSubProvider(
 
 async function getCachedPrices(
     subProvider: CSGOTraderSubProvider
-): Promise<Map<string, number>> {
+): Promise<Map<string, PriceVolumeEntry>> {
     const now = Date.now();
     const isExpired = now - cacheTimestamp > CACHE_TTL_MS;
     const isDifferentProvider = cachedSubProvider !== subProvider;
@@ -80,14 +81,15 @@ export const csgotraderProvider: MarketDataProvider = {
     async fetchItemPrice(marketHashName: string): Promise<PriceData> {
         const subProvider = await getSubProvider();
         const prices = await getCachedPrices(subProvider);
-        const price = prices.get(marketHashName);
+        const entry = prices.get(marketHashName);
 
-        if (!price) {
+        if (!entry) {
             throw new Error(`No CSGOTrader price found for "${marketHashName}"`);
         }
 
         return {
-            price,
+            price: entry.price,
+            volume: entry.volume,
             source: subProvider,
             timestamp: new Date(),
         };
@@ -99,10 +101,11 @@ export const csgotraderProvider: MarketDataProvider = {
         const prices = await getCachedPrices(subProvider);
 
         for (const marketHashName of items) {
-            const price = prices.get(marketHashName);
-            if (price) {
+            const entry = prices.get(marketHashName);
+            if (entry) {
                 result.set(marketHashName, {
-                    price,
+                    price: entry.price,
+                    volume: entry.volume,
                     source: subProvider,
                     timestamp: new Date(),
                 });

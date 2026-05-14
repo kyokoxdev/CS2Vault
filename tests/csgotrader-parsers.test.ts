@@ -10,9 +10,9 @@ import {
 describe("csgotrader parsers", () => {
     describe("parseSimplePriceFormat", () => {
         it("parses valid prices and filters invalid values", () => {
-            const data: Record<string, { price: number | null }> = {
+            const data: Record<string, { price: number | null; volume?: number | null }> = {
                 "AK-47 | Redline": { price: 12.5 },
-                "M4A1-S | Nitro": { price: 4.2 },
+                "M4A1-S | Nitro": { price: 4.2, volume: 100 },
                 "Null Price": { price: null },
                 "Zero Price": { price: 0 },
                 "Negative Price": { price: -5 },
@@ -23,8 +23,8 @@ describe("csgotrader parsers", () => {
             const result = parseSimplePriceFormat(data);
 
             expect(Array.from(result.entries())).toEqual([
-                ["AK-47 | Redline", 12.5],
-                ["M4A1-S | Nitro", 4.2],
+                ["AK-47 | Redline", { price: 12.5 }],
+                ["M4A1-S | Nitro", { price: 4.2, volume: 100 }],
             ]);
         });
 
@@ -47,8 +47,8 @@ describe("csgotrader parsers", () => {
             const result = parseKeyValueFormat(data);
 
             expect(Array.from(result.entries())).toEqual([
-                ["AWP | Asiimov", 99.99],
-                ["Glock-18 | Fade", 250],
+                ["AWP | Asiimov", { price: 99.99 }],
+                ["Glock-18 | Fade", { price: 250 }],
             ]);
         });
 
@@ -61,7 +61,7 @@ describe("csgotrader parsers", () => {
         it("parses last_24h mode and filters invalid values", () => {
             const data: Record<string, unknown> = {
                 "Valid 1": { last_24h: 10 },
-                "Valid 2": { last_24h: 25.5 },
+                "Valid 2": { last_24h: 25.5, volume: 200 },
                 "Zero": { last_24h: 0 },
                 "NaN": { last_24h: Number.NaN },
                 "Missing": { price: 12 },
@@ -71,8 +71,8 @@ describe("csgotrader parsers", () => {
             const result = parseMultiModeFormat(data, "last_24h");
 
             expect(Array.from(result.entries())).toEqual([
-                ["Valid 1", 10],
-                ["Valid 2", 25.5],
+                ["Valid 1", { price: 10 }],
+                ["Valid 2", { price: 25.5, volume: 200 }],
             ]);
         });
 
@@ -85,7 +85,7 @@ describe("csgotrader parsers", () => {
 
             const result = parseMultiModeFormat(data, "price");
 
-            expect(Array.from(result.entries())).toEqual([["Valid", 6.5]]);
+            expect(Array.from(result.entries())).toEqual([["Valid", { price: 6.5 }]]);
         });
 
         it("parses starting_at mode for nested and direct values", () => {
@@ -99,8 +99,8 @@ describe("csgotrader parsers", () => {
             const result = parseMultiModeFormat(data, "starting_at");
 
             expect(Array.from(result.entries())).toEqual([
-                ["Nested", 15],
-                ["Direct", 7],
+                ["Nested", { price: 15 }],
+                ["Direct", { price: 7 }],
             ]);
         });
 
@@ -113,7 +113,7 @@ describe("csgotrader parsers", () => {
 
             const result = parseMultiModeFormat(data, "highest_order");
 
-            expect(Array.from(result.entries())).toEqual([["Valid", 22]]);
+            expect(Array.from(result.entries())).toEqual([["Valid", { price: 22 }]]);
         });
 
         it("parses suggested_price mode", () => {
@@ -125,7 +125,7 @@ describe("csgotrader parsers", () => {
 
             const result = parseMultiModeFormat(data, "suggested_price");
 
-            expect(Array.from(result.entries())).toEqual([["Valid", 18]]);
+            expect(Array.from(result.entries())).toEqual([["Valid", { price: 18 }]]);
         });
 
         it("parses instant_sale_price mode", () => {
@@ -137,7 +137,7 @@ describe("csgotrader parsers", () => {
 
             const result = parseMultiModeFormat(data, "instant_sale_price");
 
-            expect(Array.from(result.entries())).toEqual([["Valid", 30]]);
+            expect(Array.from(result.entries())).toEqual([["Valid", { price: 30 }]]);
         });
     });
 

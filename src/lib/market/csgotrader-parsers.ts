@@ -13,26 +13,44 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
     return value !== null && typeof value === "object";
 };
 
+function extractVolumeFromEntry(entry: Record<string, unknown>): unknown {
+    if (isValidPositiveNumber(entry.volume)) return entry.volume;
+
+    const steamData = entry.steam;
+    if (isRecord(steamData) && isValidPositiveNumber(steamData.volume)) {
+        return steamData.volume;
+    }
+
+    return undefined;
+}
+
+export interface PriceVolumeEntry {
+    price: number;
+    volume?: number;
+}
+
 export function parseSimplePriceFormat(
-    data: Record<string, { price: number | null }>
-): Map<string, number> {
-    const out = new Map<string, number>();
+    data: Record<string, { price: number | null; volume?: number | null }>
+): Map<string, PriceVolumeEntry> {
+    const out = new Map<string, PriceVolumeEntry>();
 
     for (const [hashName, entry] of Object.entries(data)) {
         const price = entry?.price;
         if (!isValidPositiveNumber(price)) continue;
-        out.set(hashName, price);
+        out.set(hashName, {
+            price,
+            volume: isValidPositiveNumber(entry?.volume) ? entry.volume : undefined,
+        });
     }
 
     return out;
 }
 
-export function parseKeyValueFormat(data: Record<string, number>): Map<string, number> {
-    const out = new Map<string, number>();
-
+export function parseKeyValueFormat(data: Record<string, number>): Map<string, PriceVolumeEntry> {
+    const out = new Map<string, PriceVolumeEntry>();
     for (const [hashName, price] of Object.entries(data)) {
         if (!isValidPositiveNumber(price)) continue;
-        out.set(hashName, price);
+        out.set(hashName, { price });
     }
 
     return out;
@@ -41,8 +59,8 @@ export function parseKeyValueFormat(data: Record<string, number>): Map<string, n
 export function parseMultiModeFormat(
     data: Record<string, unknown>,
     mode: string
-): Map<string, number> {
-    const out = new Map<string, number>();
+): Map<string, PriceVolumeEntry> {
+    const out = new Map<string, PriceVolumeEntry>();
 
     for (const [hashName, rawEntry] of Object.entries(data)) {
         if (!isRecord(rawEntry)) continue;
@@ -73,7 +91,13 @@ export function parseMultiModeFormat(
         }
 
         if (!isValidPositiveNumber(candidate)) continue;
-        out.set(hashName, candidate);
+
+        const volume = extractVolumeFromEntry(entry);
+
+        out.set(hashName, {
+            price: candidate,
+            volume: isValidPositiveNumber(volume) ? volume : undefined,
+        });
     }
 
     return out;
