@@ -20,24 +20,28 @@ model User {
 }
 
 model Item {
-  id             String          @id @default(cuid())
-  marketHashName String          @unique
-  name           String
-  weapon         String?
-  skin           String?
-  category       String
-  rarity         String?
-  exterior       String?
-  imageUrl       String?
-  isWatched      Boolean         @default(false)
-  isActive       Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  type           String?
-  notes          String?
-  candlesticks   Candlestick[]
-  groups         ItemGroup[]
-  inventoryItems InventoryItem[]
-  priceSnapshots PriceSnapshot[]
+  id                       String                      @id @default(cuid())
+  marketHashName           String                      @unique
+  name                     String
+  weapon                   String?
+  skin                     String?
+  category                 String
+  rarity                   String?
+  exterior                 String?
+  imageUrl                 String?
+  isWatched                Boolean                     @default(false)
+  isActive                 Boolean                     @default(true)
+  createdAt                DateTime                    @default(now())
+  type                     String?
+  notes                    String?
+  candlesticks             Candlestick[]
+  groups                   ItemGroup[]
+  intelligenceCacheEntries IntelligenceProviderCache[]
+  intelligenceObservations IntelligenceObservation[]
+  intelligenceQueueItems   IntelligenceQueueItem[]
+  intelligenceSignals      IntelligenceSignal[]
+  inventoryItems           InventoryItem[]
+  priceSnapshots           PriceSnapshot[]
 }
 
 model PriceSnapshot {
@@ -195,4 +199,129 @@ model ItemGroup {
   @@unique([itemId, groupId])
   @@index([itemId])
   @@index([groupId])
+}
+
+model IntelligenceConfig {
+  id                           String    @id @default("default")
+  liveScmEnabled               Boolean   @default(false)
+  circuitBreakerUntil          DateTime?
+  consecutiveProviderFailures  Int       @default(0)
+  lastRunAt                    DateTime?
+  lastError                    String?
+  requestBudget                Json      @default("{}")
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+}
+
+model IntelligenceQueueItem {
+  id             String    @id @default(cuid())
+  itemId         String
+  nextRunAt      DateTime
+  priority       Int       @default(0)
+  tier           String    @default("standard")
+  attempts       Int       @default(0)
+  lastError      String?
+  lockedUntil    DateTime?
+  lastFetchedAt  DateTime?
+  disabledReason String?
+  status         String    @default("pending")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  item           Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId])
+  @@index([nextRunAt])
+  @@index([tier])
+  @@index([status])
+  @@index([itemId])
+  @@index([status, nextRunAt, priority])
+}
+
+model IntelligenceProviderCache {
+  id                String    @id @default(cuid())
+  provider          String
+  lookupType        String
+  lookupKey         String
+  itemId            String?
+  rawPayload        Json      @default("{}")
+  normalizedPayload Json      @default("{}")
+  fetchedAt         DateTime  @default(now())
+  expiresAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  item              Item?     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, lookupType, lookupKey])
+  @@index([provider, lookupType, lookupKey])
+  @@index([itemId])
+}
+
+model IntelligenceObservation {
+  id              Int      @id @default(autoincrement())
+  itemId          String
+  provider        String
+  observedAt      DateTime @default(now())
+  floorPriceCents Int?
+  medianPriceCents Int?
+  listingCount    Int?
+  volume          Int?
+  confidence      Float    @default(0)
+  freshness       String   @default("fresh")
+  status          String   @default("observed")
+  reasons         Json     @default("[]")
+  rawPayload      Json     @default("{}")
+  createdAt       DateTime @default(now())
+  item            Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([observedAt])
+  @@index([status])
+  @@index([provider, observedAt])
+}
+
+model IntelligenceSignal {
+  id              String                    @id @default(cuid())
+  itemId          String
+  signalType      String
+  status          String                    @default("active")
+  confidence      Float                     @default(0)
+  detectedAt      DateTime                  @default(now())
+  lastSeenAt      DateTime                  @default(now())
+  staleAt         DateTime?
+  priceCents      Int?
+  baselineCents   Int?
+  deltaCents      Int?
+  reasons         Json                      @default("[]")
+  metadata        Json                      @default("{}")
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  events          IntelligenceSignalEvent[]
+  item            Item                      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, signalType, status])
+  @@index([itemId])
+  @@index([signalType])
+  @@index([status])
+  @@index([detectedAt])
+}
+
+model IntelligenceSignalEvent {
+  id            Int                @id @default(autoincrement())
+  signalId      String
+  itemId        String
+  eventType     String
+  signalType    String
+  occurredAt    DateTime           @default(now())
+  confidence    Float              @default(0)
+  priceCents    Int?
+  baselineCents Int?
+  deltaCents    Int?
+  reasons       Json               @default("[]")
+  metadata      Json               @default("{}")
+  signal        IntelligenceSignal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  @@index([signalId])
+  @@index([itemId])
+  @@index([signalType])
+  @@index([occurredAt])
 }
