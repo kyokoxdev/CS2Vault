@@ -1,0 +1,189 @@
+.container {
+  background-color: var(--surface-1);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.pageTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary-90);
+  margin: 0;
+}
+
+.advisory {
+  font-size: 11px;
+  color: var(--text-secondary-60);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background-color: var(--surface-2);
+  border: 1px solid var(--bear);
+  border-radius: 8px;
+  animation: fadeSlideIn 0.25s ease forwards;
+}
+
+.errorMessage {
+  font-size: 12px;
+  color: var(--bear);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.errorRetryBtn {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary-90);
+  background-color: transparent;
+  border: 1px solid var(--bear);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.errorRetryBtn:hover {
+  background-color: var(--bear);
+  color: #fff;
+}
+
+.staleBanner {
+  background: rgba(255, 217, 61, 0.08);
+  border: 1px solid rgba(255, 217, 61, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--yellow, #ffd93d);
+  line-height: 1.4;
+}
+
+.skeletonRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.skeleton {
+  flex: 1;
+  min-width: 180px;
+  height: 80px;
+  background: var(--surface-3);
+  border-radius: var(--radius-md);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeletonCardRow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeletonCard {
+  height: 160px;
+  background: var(--surface-3);
+  border-radius: var(--radius-md);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.signalList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 24px;
+  color: var(--text-secondary-60);
+  font-size: 13px;
+  text-align: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+}
+
+.emptyIcon {
+  font-size: 32px;
+  opacity: 0.5;
+}
+
+.emptySubtext {
+  font-size: 11px;
+  color: var(--text-secondary-60);
+  max-width: 320px;
+}
+
+.loadMoreRow {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.loadMoreBtn {
+  padding: 8px 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary-90);
+  background-color: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.loadMoreBtn:hover {
+  background-color: var(--surface-hover);
+  border-color: var(--border-active);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    gap: 4px;
+  }
+}

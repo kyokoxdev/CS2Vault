@@ -1,0 +1,227 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+
+import { SummaryCards } from "./SummaryCards";
+import { SignalFilters } from "./SignalFilters";
+import { SignalCard } from "./SignalCard";
+import { QueueStatusPanel } from "./QueueStatusPanel";
+import type { IntelligenceSignal, IntelligenceStatus, SignalFilters as Filters } from "./types";
+import styles from "./IntelligenceDashboard.module.css";
+
+const DEFAULT_FILTERS: Filters = {
+  signalType: "",
+  tier: "",
+  freshness: "",
+};
+
+function buildSignalsUrl(filters: Filters): string {
+  const params = new URLSearchParams();
+  if (filters.signalType) params.set("signalType", filters.signalType);
+  if (filters.tier) params.set("tier", filters.tier);
+  if (filters.freshness) params.set("freshness", filters.freshness);
+  const qs = params.toString();
+  return `/api/intelligence/signals${qs ? `?${qs}` : ""}`;
+}
+
+export function IntelligenceDashboard() {
+  const [signals, setSignals] = useState<IntelligenceSignal[]>([]);
+  const [status, setStatus] = useState<IntelligenceStatus | null>(null);
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statusActionPending, setStatusActionPending] = useState(false);
+  const [statusActionError, setStatusActionError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [referenceTimeMs] = useState(() => Date.now());
+
+  const fetchSignals = useCallback(async (currentFilters: Filters, cursor?: string) => {
+    try {
+      let url = buildSignalsUrl(currentFilters);
+      if (cursor) {
+        const sep = url.includes("?") ? "&" : "?";
+        url = `${url}${sep}cursor=${encodeURIComponent(cursor)}`;
+      }
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error ?? "Failed to fetch signals");
+      }
+      if (cursor) {
+        setSignals((prev) => [...prev, ...data.data.items]);
+      } else {
+        setSignals(data.data.items);
+      }
+      setHasMore(data.data.meta.hasMore);
+      setNextCursor(data.data.meta.nextCursor);
+    } catch (err) {
+      console.error("[IntelligenceDashboard] signals fetch error:", err);
+      throw err;
+    }
+  }, []);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/intelligence/status");
+      const data = await res.json();
+      if (data.success && data.data) {
+        setStatus(data.data);
+      }
+    } catch (err) {
+      console.error("[IntelligenceDashboard] status fetch error:", err);
+    }
+  }, []);
+
+  const loadAll = useCallback(async (currentFilters: Filters) => {
+    setLoading(true);
+    setError(null);
+    try {
+      await Promise.all([fetchSignals(currentFilters), fetchStatus()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load intelligence data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchSignals, fetchStatus]);
+
+  useEffect(() => {
+    loadAll(filters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
+  }, []);
+
+  const handleFilterChange = useCallback((key: keyof Filters, value: string) => {
+    setFilters((prev) => {
+      const next = { ...prev, [key]: value };
+      loadAll(next);
+      return next;
+    });
+  }, [loadAll]);
+
+  const handleClearFilters = useCallback(() => {
+    setFilters(DEFAULT_FILTERS);
+    loadAll(DEFAULT_FILTERS);
+  }, [loadAll]);
+
+  const handleRetry = useCallback(() => {
+    loadAll(filters);
+  }, [loadAll, filters]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (!nextCursor) return;
+    try {
+      await fetchSignals(filters, nextCursor);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load more signals.");
+    }
+  }, [fetchSignals, filters, nextCursor]);
+
+  const handleToggleProcessing = useCallback(async () => {
+    if (!status) return;
+
+    setStatusActionPending(true);
+    setStatusActionError(null);
+    try {
+      const action = status.killSwitch ? "resume" : "pause";
+      const res = await fetch("/api/intelligence/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!data.success || !data.data) {
+        throw new Error(data.error ?? "Failed to update queue status");
+      }
+      setStatus(data.data);
+    } catch (err) {
+      setStatusActionError(err instanceof Error ? err.message : "Failed to update queue status");
+    } finally {
+      setStatusActionPending(false);
+    }
+  }, [status]);
+
+  const hasStaleSignals = signals.some(
+    (s) => s.freshness === "stale" || s.freshness === "expired"
+  );
+
+  if (loading) {
+    return (
+      <div className={styles.container} data-testid="intelligence-dashboard">
+        <div className={styles.header}>
+          <h1 className={styles.pageTitle}>Intelligence</h1>
+          <span className={styles.advisory}>Advisory signals only</span>
+        </div>
+        <div className={styles.skeletonRow}>
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className={styles.skeleton} />
+          ))}
+        </div>
+        <div className={styles.skeletonCardRow}>
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className={styles.skeletonCard} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.container} data-testid="intelligence-dashboard">
+      <div className={styles.header}>
+        <h1 className={styles.pageTitle}>Intelligence</h1>
+        <span className={styles.advisory}>Advisory signals only</span>
+      </div>
+
+      {error && (
+        <div className={styles.errorBanner} data-testid="error-banner">
+          <span className={styles.errorMessage}>{error}</span>
+          <button type="button" className={styles.errorRetryBtn} onClick={handleRetry}>
+            Try again
+          </button>
+        </div>
+      )}
+
+      {hasStaleSignals && !error && (
+        <div className={styles.staleBanner} data-testid="stale-warning">
+          Some signals are stale or expired. Data may not reflect current market conditions.
+        </div>
+      )}
+
+      <SummaryCards signals={signals} status={status} />
+
+      {status && (
+        <QueueStatusPanel
+          status={status}
+          referenceTimeMs={referenceTimeMs}
+          actionPending={statusActionPending}
+          actionError={statusActionError}
+          onToggleProcessing={handleToggleProcessing}
+        />
+      )}
+
+      <SignalFilters filters={filters} onChange={handleFilterChange} onClear={handleClearFilters} />
+
+      {signals.length === 0 && !error ? (
+        <div className={styles.emptyState} data-testid="empty-state">
+          <span className={styles.emptyIcon}>📡</span>
+          <span>No signals detected yet</span>
+          <span className={styles.emptySubtext}>Signals will appear here when market anomalies are identified.</span>
+        </div>
+      ) : (
+        <div className={styles.signalList}>
+          {signals.map((signal) => (
+            <SignalCard key={signal.id} signal={signal} referenceTimeMs={referenceTimeMs} />
+          ))}
+        </div>
+      )}
+
+      {hasMore && nextCursor && (
+        <div className={styles.loadMoreRow}>
+          <button type="button" className={styles.loadMoreBtn} onClick={handleLoadMore}>
+            Load more signals
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
