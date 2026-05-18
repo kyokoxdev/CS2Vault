@@ -21,7 +21,7 @@ export function useSmartRefresh(
   refreshConfigs: RefreshConfig[],
   intervalMin: number
 ) {
-  const lastRefreshRef = useRef<number>(Date.now());
+  const lastRefreshRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isVisibleRef = useRef<boolean>(true);
 
@@ -67,18 +67,25 @@ export function useSmartRefresh(
       lastRefreshRef.current = now;
       sessionStorage.setItem(LAST_REFRESH_KEY, now.toString());
     },
-    [refreshConfigs, intervalMin]
+    [refreshConfigs, intervalMin, wasDiscarded]
   );
 
-    useEffect(() => {
-        if (wasDiscarded) {
-            console.log(
-                `[SmartRefresh] Mount refresh needed (discarded: ${wasDiscarded})`
-            );
-            executeStaggeredRefresh(true);
-        }
+  useEffect(() => {
+    if (lastRefreshRef.current === 0) {
+      const storedLastRefresh = sessionStorage.getItem(LAST_REFRESH_KEY);
+      lastRefreshRef.current = storedLastRefresh
+        ? Number.parseInt(storedLastRefresh, 10)
+        : Date.now();
+    }
 
-        // Set up interval timer
+    if (wasDiscarded) {
+      console.log(
+        `[SmartRefresh] Mount refresh needed (discarded: ${wasDiscarded})`
+      );
+      executeStaggeredRefresh(true);
+    }
+
+    // Set up interval timer
     const setupTimer = () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -126,7 +133,7 @@ export function useSmartRefresh(
       }
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [intervalMin, executeStaggeredRefresh]);
+  }, [intervalMin, executeStaggeredRefresh, wasDiscarded]);
 
   return { refresh: () => executeStaggeredRefresh(true) };
 }
