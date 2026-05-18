@@ -1,0 +1,133 @@
+.panel {
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.title {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--text-primary-90);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.warningBanner {
+  background: rgba(255, 217, 61, 0.08);
+  border: 1px solid rgba(255, 217, 61, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--yellow, #ffd93d);
+  line-height: 1.4;
+}
+
+.errorBanner {
+  background: rgba(255, 86, 86, 0.08);
+  border: 1px solid rgba(255, 86, 86, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--bear);
+  line-height: 1.4;
+}
+
+.controls {
+  margin-left: auto;
+}
+
+.actionBtn {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-primary-90);
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.actionBtn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-active);
+}
+
+.actionBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statLabel {
+  font-size: 10px;
+  color: var(--text-secondary-60);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.statValue {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-numeric);
+  color: var(--text-primary-90);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px solid var(--border-primary);
+  padding-top: 8px;
+}
+
+.footerText {
+  font-size: 10px;
+  color: var(--text-secondary-60);
+  font-family: var(--font-mono);
+}
+
+.footerError {
+  font-size: 10px;
+  color: var(--bear);
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .controls {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .actionBtn {
+    width: 100%;
+  }
+}
