@@ -31,6 +31,7 @@ const NAV_ITEMS = [
 ] as const;
 
 const NAV_TOOLS = [
+    { href: "/intelligence", label: "Intelligence", icon: <FaChartLine /> },
     { href: "/chat", label: "AI Insight", icon: <FaRobot /> },
     { href: "/settings", label: "Settings", icon: <FaCog /> },
 ] as const;
@@ -40,6 +41,7 @@ const PAGE_TITLES: Record<string, string> = {
     "/market-cap": "Market Cap",
     "/watchlist": "Watchlist",
     "/portfolio": "Portfolio",
+    "/intelligence": "Intelligence",
     "/chat": "AI Insight",
     "/settings": "Settings",
 };

@@ -57,6 +57,20 @@ describe("DashboardShell", () => {
         expect(screen.getByText("Portfolio")).toBeInTheDocument();
     });
 
+    it("renders Intelligence navigation and page title", () => {
+        vi.mocked(usePathname).mockReturnValue("/intelligence");
+
+        render(
+            <DashboardShell>
+                <div>Content</div>
+            </DashboardShell>
+        );
+
+        const intelligenceLink = screen.getByRole("link", { name: /Intelligence/ });
+        expect(intelligenceLink).toHaveAttribute("href", "/intelligence");
+        expect(screen.getByRole("heading", { name: "Intelligence" })).toBeInTheDocument();
+    });
+
     it("renders Sign in with Steam when not authenticated", () => {
         render(
             <DashboardShell>
