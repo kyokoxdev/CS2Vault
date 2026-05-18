@@ -20,7 +20,7 @@ const PUBLIC_PREFIXES = [
     "/test",            // Smoke test page
 ];
 
-const CRON_AUTHORIZED_PATHS = new Set(["/api/sync", "/api/market/market-cap-sync"]);
+const CRON_AUTHORIZED_PATHS = new Set(["/api/sync", "/api/market/market-cap-sync", "/api/intelligence/run"]);
 
 function isAuthorizedCronRequest(request: NextRequest): boolean {
     if (request.method !== "GET") {
@@ -37,7 +37,10 @@ function isAuthorizedCronRequest(request: NextRequest): boolean {
     }
 
     const authHeader = request.headers.get("authorization");
-    return authHeader === `Bearer ${cronSecret}`;
+    if (authHeader === `Bearer ${cronSecret}`) return true;
+
+    const cronHeader = request.headers.get("x-cron-secret");
+    return cronHeader === cronSecret;
 }
 
 export function proxy(request: NextRequest) {

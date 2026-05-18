@@ -10,7 +10,7 @@ type Cookies = {
     get: (name: string) => { value: string } | undefined;
 };
 
-function makeRequest(pathname: string, hasSession: boolean, init?: { method?: string; authHeader?: string }): NextRequest {
+function makeRequest(pathname: string, hasSession: boolean, init?: { method?: string; authHeader?: string; cronHeader?: string }): NextRequest {
     const nextUrl = new URL(`http://localhost${pathname}`);
     const cookies: Cookies = {
         get: (name: string) =>
@@ -26,6 +26,10 @@ function makeRequest(pathname: string, hasSession: boolean, init?: { method?: st
             get: (name: string) => {
                 if (name.toLowerCase() === "authorization") {
                     return init?.authHeader ?? null;
+                }
+
+                if (name.toLowerCase() === "x-cron-secret") {
+                    return init?.cronHeader ?? null;
                 }
 
                 return null;
@@ -109,6 +113,30 @@ describe("proxy", () => {
             makeRequest("/api/market/market-cap-sync", false, {
                 method: "GET",
                 authHeader: "Bearer test-secret",
+            })
+        );
+        if (!res) throw new Error("Expected middleware to return a Response");
+        expect(res.headers.get("x-middleware-next")).toBe("1");
+    });
+
+    it("allows Bearer cron-authenticated GET /api/intelligence/run without session", async () => {
+        process.env.CRON_SECRET = "test-secret";
+        const res = proxy(
+            makeRequest("/api/intelligence/run", false, {
+                method: "GET",
+                authHeader: "Bearer test-secret",
+            })
+        );
+        if (!res) throw new Error("Expected middleware to return a Response");
+        expect(res.headers.get("x-middleware-next")).toBe("1");
+    });
+
+    it("allows x-cron-secret GET /api/intelligence/run for cron-job.org without session", async () => {
+        process.env.CRON_SECRET = "test-secret";
+        const res = proxy(
+            makeRequest("/api/intelligence/run", false, {
+                method: "GET",
+                cronHeader: "test-secret",
             })
         );
         if (!res) throw new Error("Expected middleware to return a Response");
