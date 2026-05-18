@@ -1,0 +1,111 @@
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  transition: border-color var(--transition-fast);
+}
+
+.card:hover {
+  border-color: var(--border-active);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.itemName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary-90);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.badgeRow {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.metricRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.metricLabel {
+  font-size: 11px;
+  color: var(--text-secondary-60);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.metricValue {
+  font-size: 12px;
+  font-family: var(--font-numeric);
+  color: var(--text-primary-90);
+  font-weight: 500;
+}
+
+.positive {
+  color: var(--bull);
+}
+
+.negative {
+  color: var(--bear);
+}
+
+.reasonsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.reasonTag {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--surface-3);
+  border-radius: 4px;
+  color: var(--text-secondary-60);
+}
+
+.cardFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--border-primary);
+  padding-top: 8px;
+}
+
+.timestamp {
+  font-size: 10px;
+  color: var(--text-secondary-60);
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 480px) {
+  .cardHeader {
+    flex-direction: column;
+  }
+
+  .itemName {
+    max-width: 100%;
+  }
+}
