@@ -93,6 +93,7 @@ interface ProviderFetchOptions {
     queue?: ProviderRequestQueue;
     now?: Date;
     skipCache?: boolean;
+    timeoutMs?: number;
 }
 
 interface ScmConfigState {
@@ -136,6 +137,12 @@ function statusToFailureReason(status: number): ProviderFailureReason {
     if (status === 403) return "HTTP_403";
     if (status >= 500) return "HTTP_5XX";
     return "HTTP_ERROR";
+}
+
+function boundedTimeoutMs(requestedTimeoutMs: number | undefined, maxTimeoutMs: number): number {
+    if (requestedTimeoutMs === undefined) return maxTimeoutMs;
+    if (!Number.isFinite(requestedTimeoutMs)) return maxTimeoutMs;
+    return Math.min(Math.max(Math.floor(requestedTimeoutMs), 1), maxTimeoutMs);
 }
 
 function providerFailure(
@@ -315,6 +322,7 @@ export async function fetchScmPriceOverview(
 
     const requestQueue = options.queue ?? intelligenceScmQueue;
     const fetchImpl = options.fetchImpl ?? fetch;
+    const timeoutMs = boundedTimeoutMs(options.timeoutMs, SCM_TIMEOUT_MS);
     const url = new URL(SCM_PRICE_OVERVIEW_URL);
     url.searchParams.set("appid", CS2_APP_ID);
     url.searchParams.set("currency", USD_CURRENCY_ID);
@@ -323,7 +331,7 @@ export async function fetchScmPriceOverview(
     try {
         const response = await requestQueue.enqueue<ResponseLike>(() => fetchImpl(url.toString(), {
             headers: { "User-Agent": pickBrowserUserAgent() },
-            signal: AbortSignal.timeout(SCM_TIMEOUT_MS),
+            signal: AbortSignal.timeout(timeoutMs),
         }));
 
         if (!response.ok) {
@@ -403,9 +411,10 @@ export async function fetchCsfloatPriceList(
     }
 
     const fetchImpl = options.fetchImpl ?? fetch;
+    const timeoutMs = boundedTimeoutMs(options.timeoutMs, CSFLOAT_TIMEOUT_MS);
     try {
         const response = await fetchImpl(CSFLOAT_PRICE_LIST_URL, {
-            signal: AbortSignal.timeout(CSFLOAT_TIMEOUT_MS),
+            signal: AbortSignal.timeout(timeoutMs),
         });
 
         if (!response.ok) {

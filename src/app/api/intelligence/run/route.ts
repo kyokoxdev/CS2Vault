@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { runIntelligenceQueue } from "@/lib/market/intelligence/runner";
 import { prisma } from "@/lib/db";
 
+const DEFAULT_RUN_LIMIT = 10;
+const MIN_RUN_LIMIT = 1;
+const MAX_RUN_LIMIT = 10;
+const DEFAULT_BUDGET_MS = 28_000;
+const MIN_BUDGET_MS = 1_000;
+const MAX_BUDGET_MS = 28_000;
+const MIN_REMAINING_MS_TO_START_JOB = 12_000;
+
 function isCronAuthorized(request: NextRequest): boolean {
     const cronSecret = process.env.CRON_SECRET;
     if (!cronSecret) return false;
@@ -13,6 +21,15 @@ function isCronAuthorized(request: NextRequest): boolean {
     if (cronHeader === cronSecret) return true;
 
     return false;
+}
+
+function parseClampedInteger(value: string | null, fallback: number, min: number, max: number): number {
+    if (value === null) return fallback;
+
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed)) return fallback;
+
+    return Math.min(Math.max(parsed, min), max);
 }
 
 export async function GET(request: NextRequest) {
@@ -83,7 +100,14 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        const result = await runIntelligenceQueue();
+        const searchParams = new URL(request.url).searchParams;
+        const perRunCap = parseClampedInteger(searchParams.get("limit"), DEFAULT_RUN_LIMIT, MIN_RUN_LIMIT, MAX_RUN_LIMIT);
+        const budgetMs = parseClampedInteger(searchParams.get("budgetMs"), DEFAULT_BUDGET_MS, MIN_BUDGET_MS, MAX_BUDGET_MS);
+        const result = await runIntelligenceQueue({
+            perRunCap,
+            budgetMs,
+            minRemainingMsToStartJob: MIN_REMAINING_MS_TO_START_JOB,
+        });
         const refreshedConfig = await prisma.intelligenceConfig.findUnique({
             where: { id: "default" },
             select: {
@@ -111,8 +135,15 @@ export async function GET(request: NextRequest) {
             success: true,
             data: {
                 status: result.status,
+                reason: result.reason,
                 processed: result.processed,
                 skippedDueToBudget: result.skippedDueToBudget,
+                timeBudgetExceeded: result.timeBudgetExceeded,
+                budgetMs: result.budgetMs,
+                elapsedMs: result.elapsedMs,
+                remainingMs: result.remainingMs,
+                requestedLimit: result.requestedLimit,
+                effectiveLimit: result.effectiveLimit,
                 remainingDue,
                 oldestDueAgeMinutes,
                 circuitBreaker: {

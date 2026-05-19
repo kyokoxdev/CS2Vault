@@ -22,12 +22,15 @@ import {
 export interface IntelligenceRunnerOptions {
     now?: Date;
     perRunCap?: number;
+    budgetMs?: number;
+    minRemainingMsToStartJob?: number;
+    startedAtMs?: number;
     provider?: IntelligenceProvider;
     csfloatProvider?: CsfloatProvider;
 }
 
 export interface IntelligenceRunnerResult {
-    status: "success" | "skipped" | "partial" | "failed";
+    status: "success" | "skipped" | "partial" | "failed" | "time_budget_exhausted";
     reason?: string;
     claimed: number;
     processed: number;
@@ -37,6 +40,12 @@ export interface IntelligenceRunnerResult {
     staleLocksRecovered: number;
     backlogSuspended: number;
     circuitBreakerOpened: boolean;
+    timeBudgetExceeded: boolean;
+    budgetMs: number;
+    elapsedMs: number;
+    remainingMs: number;
+    requestedLimit: number;
+    effectiveLimit: number;
     summary?: QueueSummary;
 }
 
@@ -58,15 +67,24 @@ interface RequestBudgetState {
 
 type IntelligenceProvider = (
     marketHashName: string,
-    options?: { now?: Date; skipCache?: boolean }
+    options?: { now?: Date; skipCache?: boolean; timeoutMs?: number }
 ) => Promise<IntelligenceProviderResult<ScmNormalizedPayload>>;
 
 type CsfloatProvider = (
     marketHashName: string,
-    options?: { now?: Date; skipCache?: boolean }
+    options?: { now?: Date; skipCache?: boolean; timeoutMs?: number }
 ) => Promise<IntelligenceProviderResult<CsfloatPriceListEntry>>;
 
 const DEFAULT_PER_RUN_CAP = 10;
+const MAX_PER_RUN_CAP = 10;
+const DEFAULT_BUDGET_MS = 28_000;
+const DEFAULT_MIN_REMAINING_MS_TO_START_JOB = 12_000;
+const SCM_QUEUE_DELAY_RESERVE_MS = 10_000;
+const SCM_PROVIDER_MAX_TIMEOUT_MS = 15_000;
+const CSFLOAT_PROVIDER_MAX_TIMEOUT_MS = 15_000;
+const CSFLOAT_MIN_FETCH_RESERVE_MS = 500;
+const PROCESSING_RESPONSE_RESERVE_MS = 1_000;
+const MIN_USEFUL_PROVIDER_TIMEOUT_MS = 250;
 const SCM_MAX_PER_MINUTE = 19;
 const SCM_MAX_PER_DAY = 950;
 const CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3;
@@ -183,7 +201,28 @@ function shouldCountTowardCircuit(result: IntelligenceProviderResult<ScmNormaliz
     return result.failure ? CIRCUIT_BREAKER_REASONS.has(result.failure.reason) : false;
 }
 
-function skipped(reason: string): IntelligenceRunnerResult {
+function clampInteger(value: number, min: number, max: number): number {
+    if (!Number.isFinite(value)) return min;
+    return Math.min(Math.max(Math.floor(value), min), max);
+}
+
+function timingFields(startedAtMs: number, budgetMs: number) {
+    const elapsedMs = Math.max(0, Date.now() - startedAtMs);
+    const remainingMs = Math.max(0, budgetMs - elapsedMs);
+
+    return { elapsedMs, remainingMs };
+}
+
+function boundedProviderTimeoutMs(remainingMs: number, reserveMs: number, maxTimeoutMs: number): number {
+    const usefulTimeoutMs = Math.max(MIN_USEFUL_PROVIDER_TIMEOUT_MS, Math.floor(remainingMs - reserveMs));
+    return Math.min(usefulTimeoutMs, maxTimeoutMs);
+}
+
+function skipped(
+    reason: string,
+    timing: { startedAtMs: number; budgetMs: number; requestedLimit: number; effectiveLimit: number }
+): IntelligenceRunnerResult {
+    const { elapsedMs, remainingMs } = timingFields(timing.startedAtMs, timing.budgetMs);
     return {
         status: "skipped",
         reason,
@@ -195,12 +234,23 @@ function skipped(reason: string): IntelligenceRunnerResult {
         staleLocksRecovered: 0,
         backlogSuspended: 0,
         circuitBreakerOpened: false,
+        timeBudgetExceeded: false,
+        budgetMs: timing.budgetMs,
+        elapsedMs,
+        remainingMs,
+        requestedLimit: timing.requestedLimit,
+        effectiveLimit: timing.effectiveLimit,
     };
 }
 
 export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = {}): Promise<IntelligenceRunnerResult> {
     const now = options.now ?? new Date();
-    const perRunCap = Math.max(0, options.perRunCap ?? DEFAULT_PER_RUN_CAP);
+    const requestedLimit = Math.max(0, Math.floor(options.perRunCap ?? DEFAULT_PER_RUN_CAP));
+    const perRunCap = requestedLimit === 0 ? 0 : clampInteger(requestedLimit, 1, MAX_PER_RUN_CAP);
+    const budgetMs = Math.max(1, Math.floor(options.budgetMs ?? DEFAULT_BUDGET_MS));
+    const minRemainingMsToStartJob = Math.max(0, Math.floor(options.minRemainingMsToStartJob ?? DEFAULT_MIN_REMAINING_MS_TO_START_JOB));
+    const startedAtMs = options.startedAtMs ?? Date.now();
+    const timing = { startedAtMs, budgetMs, requestedLimit, effectiveLimit: perRunCap };
     const provider = options.provider ?? fetchScmPriceOverview;
     const csfloatProvider = options.csfloatProvider ?? fetchCsfloatPriceListEntry;
 
@@ -209,13 +259,13 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
         config = await readConfig();
     } catch (error) {
         console.error("[IntelligenceRunner] Failed to read config", error instanceof Error ? error.message : error);
-        return skipped("config_unavailable");
+        return skipped("config_unavailable", timing);
     }
 
-    if (!config) return skipped("config_unavailable");
-    if (!config.liveScmEnabled) return skipped("live_scm_disabled");
-    if (config.circuitBreakerUntil && config.circuitBreakerUntil.getTime() > now.getTime()) return skipped("circuit_breaker_open");
-    if (perRunCap === 0) return skipped("per_run_cap_zero");
+    if (!config) return skipped("config_unavailable", timing);
+    if (!config.liveScmEnabled) return skipped("live_scm_disabled", timing);
+    if (config.circuitBreakerUntil && config.circuitBreakerUntil.getTime() > now.getTime()) return skipped("circuit_breaker_open", timing);
+    if (perRunCap === 0) return skipped("per_run_cap_zero", timing);
 
     const staleLocksRecovered = await recoverStaleLocks(now);
     const backlogSuspended = await suspendHighSupplyBacklog(now);
@@ -227,8 +277,15 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
     let failed = 0;
     let skippedDueToBudget = 0;
     let circuitBreakerOpened = false;
+    let timeBudgetExceeded = false;
 
     for (const [index, dueItem] of dueItems.entries()) {
+        const remainingMs = timingFields(startedAtMs, budgetMs).remainingMs;
+        if (remainingMs <= minRemainingMsToStartJob) {
+            timeBudgetExceeded = true;
+            break;
+        }
+
         if (!hasBudget(config, now)) {
             skippedDueToBudget = dueItems.length - index;
             break;
@@ -240,42 +297,61 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
         claimed++;
         await incrementBudget(config, now);
 
-        const providerResult = await provider(claimedItem.item.marketHashName, { now, skipCache: true });
-        processed++;
+        let countedProcessed = false;
+        try {
+            const scmRemainingMs = timingFields(startedAtMs, budgetMs).remainingMs;
+            const scmTimeoutMs = boundedProviderTimeoutMs(
+                scmRemainingMs,
+                SCM_QUEUE_DELAY_RESERVE_MS + CSFLOAT_MIN_FETCH_RESERVE_MS + PROCESSING_RESPONSE_RESERVE_MS,
+                SCM_PROVIDER_MAX_TIMEOUT_MS
+            );
+            const providerResult = await provider(claimedItem.item.marketHashName, { now, skipCache: true, timeoutMs: scmTimeoutMs });
+            processed++;
+            countedProcessed = true;
 
-        if (providerResult.ok) {
-            const csfloatResult = await csfloatProvider(claimedItem.item.marketHashName, { now });
-            const processingResult = await processIntelligenceResult({
-                itemId: claimedItem.itemId,
-                marketHashName: claimedItem.item.marketHashName,
-                providerResult,
-                csfloatResult,
-                now,
-            });
+            if (providerResult.ok) {
+                const csfloatRemainingMs = timingFields(startedAtMs, budgetMs).remainingMs;
+                const csfloatTimeoutMs = boundedProviderTimeoutMs(csfloatRemainingMs, PROCESSING_RESPONSE_RESERVE_MS, CSFLOAT_PROVIDER_MAX_TIMEOUT_MS);
+                const csfloatResult = await csfloatProvider(claimedItem.item.marketHashName, { now, timeoutMs: csfloatTimeoutMs });
+                const processingResult = await processIntelligenceResult({
+                    itemId: claimedItem.itemId,
+                    marketHashName: claimedItem.item.marketHashName,
+                    providerResult,
+                    csfloatResult,
+                    now,
+                });
 
-            if (processingResult.status !== "success") {
-                failed++;
-                await releaseQueueItemRetry(claimedItem.id, claimedItem.attempts, processingResult.reason ?? "Intelligence processing failed", now);
+                if (processingResult.status !== "success") {
+                    failed++;
+                    await releaseQueueItemRetry(claimedItem.id, claimedItem.attempts, processingResult.reason ?? "Intelligence processing failed", now);
+                    continue;
+                }
+
+                succeeded++;
+                await releaseQueueItemSuccess(claimedItem.id, now);
+                await markProviderSuccess(config, now);
                 continue;
             }
 
-            succeeded++;
-            await releaseQueueItemSuccess(claimedItem.id, now);
-            await markProviderSuccess(config, now);
-            continue;
+            failed++;
+            const message = failureMessage(claimedItem, providerResult);
+            await releaseQueueItemRetry(claimedItem.id, claimedItem.attempts, message, now);
+            const opened = await markProviderFailure(config, message, shouldCountTowardCircuit(providerResult), now);
+            circuitBreakerOpened = circuitBreakerOpened || opened;
+            if (opened) break;
+        } catch (error) {
+            failed++;
+            if (!countedProcessed) processed++;
+            const message = error instanceof Error ? error.message : "Intelligence queue item failed";
+            await releaseQueueItemRetry(claimedItem.id, claimedItem.attempts, message, now);
         }
-
-        failed++;
-        const message = failureMessage(claimedItem, providerResult);
-        await releaseQueueItemRetry(claimedItem.id, claimedItem.attempts, message, now);
-        const opened = await markProviderFailure(config, message, shouldCountTowardCircuit(providerResult), now);
-        circuitBreakerOpened = circuitBreakerOpened || opened;
-        if (opened) break;
     }
 
     const summary = await getQueueSummary(now);
+    const { elapsedMs, remainingMs } = timingFields(startedAtMs, budgetMs);
     return {
-        status: failed > 0 ? (succeeded > 0 ? "partial" : "failed") : "success",
+        status: timeBudgetExceeded ? "time_budget_exhausted" : failed > 0 ? (succeeded > 0 ? "partial" : "failed") : "success",
+        reason: timeBudgetExceeded ? "time_budget_exhausted" : undefined,
         claimed,
         processed,
         succeeded,
@@ -284,6 +360,12 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
         staleLocksRecovered,
         backlogSuspended,
         circuitBreakerOpened,
+        timeBudgetExceeded,
+        budgetMs,
+        elapsedMs,
+        remainingMs,
+        requestedLimit,
+        effectiveLimit: perRunCap,
         summary,
     };
 }
