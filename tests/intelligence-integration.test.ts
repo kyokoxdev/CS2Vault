@@ -589,7 +589,7 @@ describe("intelligence fixture pipeline", () => {
         expect(run.processed).toBe(1);
         expect(run.skippedDueToBudget).toBe(0);
         expect(fetchScmPriceOverview).toHaveBeenCalledTimes(1);
-        expect(fetchCsfloatPriceListEntry).toHaveBeenCalledWith(FIXTURE_NAME, { now: RUN_AT });
+        expect(fetchCsfloatPriceListEntry).toHaveBeenCalledWith(FIXTURE_NAME, { now: RUN_AT, timeoutMs: 15_000 });
         expect(mockDb.signals).toHaveLength(1);
         expect(mockDb.observations.at(-1)?.listingCount).toBe(80);
         expect(mockDb.events).toHaveLength(1);

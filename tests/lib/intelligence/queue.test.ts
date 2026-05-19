@@ -337,8 +337,8 @@ describe("runIntelligenceQueue", () => {
 
         expect(result.backlogSuspended).toBe(0);
         expect(result.processed).toBe(1);
-        expect(provider).toHaveBeenCalledWith("Item 1", { now: NOW, skipCache: true });
-        expect(csfloatProvider).toHaveBeenCalledWith("Item 1", { now: NOW });
+        expect(provider).toHaveBeenCalledWith("Item 1", { now: NOW, skipCache: true, timeoutMs: 15_000 });
+        expect(csfloatProvider).toHaveBeenCalledWith("Item 1", { now: NOW, timeoutMs: expect.any(Number) });
         expect(mockDb.rows[0].lastFetchedAt).toEqual(NOW);
         expect(mockDb.rows[0].disabledReason).toBeNull();
     });
@@ -354,8 +354,8 @@ describe("runIntelligenceQueue", () => {
         expect(result.backlogSuspended).toBe(1);
         expect(mockDb.rows.find((row) => row.id === "liquid")?.disabledReason).toContain("backlog older than 24h");
         expect(provider).toHaveBeenCalledTimes(1);
-        expect(provider).toHaveBeenCalledWith("Item 2", { now: NOW, skipCache: true });
-        expect(csfloatProvider).toHaveBeenCalledWith("Item 2", { now: NOW });
+        expect(provider).toHaveBeenCalledWith("Item 2", { now: NOW, skipCache: true, timeoutMs: 15_000 });
+        expect(csfloatProvider).toHaveBeenCalledWith("Item 2", { now: NOW, timeoutMs: expect.any(Number) });
     });
 
     it("opens the circuit breaker after three consecutive provider bursts", async () => {
@@ -398,6 +398,97 @@ describe("runIntelligenceQueue", () => {
         expect(provider).not.toHaveBeenCalled();
         expect(csfloatProvider).not.toHaveBeenCalled();
         expect(processIntelligenceResult).not.toHaveBeenCalled();
+    });
+
+    it("stops before claiming rows when the safe time budget is exhausted", async () => {
+        addRow({ id: "too-late" });
+        const provider = vi.fn(async () => successResult());
+        const csfloatProvider = vi.fn(async () => csfloatSuccessResult());
+
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(NOW.getTime() + 16_001));
+        const result = await runIntelligenceQueue({
+            now: NOW,
+            perRunCap: 5,
+            budgetMs: 28_000,
+            startedAtMs: NOW.getTime(),
+            provider,
+            csfloatProvider,
+        });
+        vi.useRealTimers();
+
+        expect(result.status).toBe("time_budget_exhausted");
+        expect(result.reason).toBe("time_budget_exhausted");
+        expect(result.timeBudgetExceeded).toBe(true);
+        expect(result.claimed).toBe(0);
+        expect(result.processed).toBe(0);
+        expect(result.requestedLimit).toBe(5);
+        expect(result.effectiveLimit).toBe(5);
+        expect(provider).not.toHaveBeenCalled();
+        expect(csfloatProvider).not.toHaveBeenCalled();
+        expect(mockDb.rows[0].status).toBe("pending");
+        expect(mockDb.rows[0].lockedUntil).toBeNull();
+    });
+
+    it("processes another row when prior work is fast and enough budget remains", async () => {
+        addRow({ id: "first", priority: 2 });
+        addRow({ id: "second", priority: 1 });
+        const provider = vi.fn(async () => {
+            vi.setSystemTime(new Date(Date.now() + 1_000));
+            return successResult();
+        });
+        const csfloatProvider = vi.fn(async () => csfloatSuccessResult());
+
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
+        const result = await runIntelligenceQueue({
+            now: NOW,
+            perRunCap: 2,
+            budgetMs: 28_000,
+            provider,
+            csfloatProvider,
+        });
+        vi.useRealTimers();
+
+        expect(result.status).toBe("success");
+        expect(result.timeBudgetExceeded).toBe(false);
+        expect(result.claimed).toBe(2);
+        expect(result.processed).toBe(2);
+        expect(result.succeeded).toBe(2);
+        expect(result.elapsedMs).toBe(2_000);
+        expect(result.remainingMs).toBe(26_000);
+        expect(provider).toHaveBeenCalledTimes(2);
+        expect(csfloatProvider).toHaveBeenCalledTimes(2);
+        expect(mockDb.rows.find((row) => row.id === "first")?.lockedUntil).toBeNull();
+        expect(mockDb.rows.find((row) => row.id === "second")?.lockedUntil).toBeNull();
+    });
+
+    it("passes dynamic timeout budgets into SCM and CSFloat providers", async () => {
+        addRow({ id: "dynamic-timeouts" });
+        const provider = vi.fn(async () => {
+            vi.setSystemTime(new Date(NOW.getTime() + 27_200));
+            return successResult();
+        });
+        const csfloatProvider = vi.fn(async () => csfloatSuccessResult());
+
+        vi.useFakeTimers();
+        vi.setSystemTime(NOW);
+        const result = await runIntelligenceQueue({
+            now: NOW,
+            perRunCap: 1,
+            budgetMs: 28_000,
+            provider,
+            csfloatProvider,
+        });
+        vi.useRealTimers();
+
+        expect(result.processed).toBe(1);
+        expect(provider).toHaveBeenCalledWith("Item 1", { now: NOW, skipCache: true, timeoutMs: 15_000 });
+        expect(csfloatProvider).toHaveBeenCalledWith("Item 1", { now: NOW, timeoutMs: 250 });
+        expect(processIntelligenceResult).toHaveBeenCalledWith(expect.objectContaining({
+            itemId: "item-1",
+            csfloatResult: expect.objectContaining({ source: "csfloat" }),
+        }));
     });
 
     it("retries the queue row without provider circuit failure when processing fails", async () => {

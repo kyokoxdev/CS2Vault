@@ -641,6 +641,130 @@ describe("GET /api/intelligence/run", () => {
         expect(payload.data.remainingDue).toBe(13);
         expect(payload.data.oldestDueAgeMinutes).toBe(30);
         expect(runIntelligenceQueue).toHaveBeenCalledTimes(1);
+        expect(runIntelligenceQueue).toHaveBeenCalledWith({
+            perRunCap: 10,
+            budgetMs: 28_000,
+            minRemainingMsToStartJob: 12_000,
+        });
+    });
+
+    it("clamps run limit and budget query params to cron-safe maximums", async () => {
+        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+            liveScmEnabled: true,
+            circuitBreakerUntil: null,
+            lastRunAt: null,
+        } as never);
+        vi.mocked(runIntelligenceQueue).mockResolvedValueOnce({
+            status: "success",
+            claimed: 10,
+            processed: 10,
+            succeeded: 10,
+            failed: 0,
+            skippedDueToBudget: 0,
+            staleLocksRecovered: 0,
+            backlogSuspended: 0,
+            circuitBreakerOpened: false,
+            timeBudgetExceeded: false,
+            budgetMs: 28_000,
+            elapsedMs: 10_000,
+            remainingMs: 18_000,
+            requestedLimit: 10,
+            effectiveLimit: 10,
+            summary: { pending: 0, running: 0, backoff: 0, disabled: 0, oldestDueAt: null, oldestDueAgeMs: null },
+        } as never);
+
+        const request = new Request("http://localhost/api/intelligence/run?limit=999&budgetMs=999999", {
+            headers: { authorization: "Bearer test-secret" },
+        });
+        const response = await getRun(toNextRequest(request));
+
+        expect(response.status).toBe(200);
+        expect(runIntelligenceQueue).toHaveBeenCalledWith({
+            perRunCap: 10,
+            budgetMs: 28_000,
+            minRemainingMsToStartJob: 12_000,
+        });
+    });
+
+    it("falls back to safe run defaults for invalid query params", async () => {
+        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+            liveScmEnabled: true,
+            circuitBreakerUntil: null,
+            lastRunAt: null,
+        } as never);
+        vi.mocked(runIntelligenceQueue).mockResolvedValueOnce({
+            status: "success",
+            claimed: 0,
+            processed: 0,
+            succeeded: 0,
+            failed: 0,
+            skippedDueToBudget: 0,
+            staleLocksRecovered: 0,
+            backlogSuspended: 0,
+            circuitBreakerOpened: false,
+            timeBudgetExceeded: false,
+            budgetMs: 28_000,
+            elapsedMs: 0,
+            remainingMs: 28_000,
+            requestedLimit: 10,
+            effectiveLimit: 10,
+            summary: { pending: 0, running: 0, backoff: 0, disabled: 0, oldestDueAt: null, oldestDueAgeMs: null },
+        } as never);
+
+        const request = new Request("http://localhost/api/intelligence/run?limit=abc&budgetMs=abc", {
+            headers: { authorization: "Bearer test-secret" },
+        });
+        const response = await getRun(toNextRequest(request));
+
+        expect(response.status).toBe(200);
+        expect(runIntelligenceQueue).toHaveBeenCalledWith({
+            perRunCap: 10,
+            budgetMs: 28_000,
+            minRemainingMsToStartJob: 12_000,
+        });
+    });
+
+    it("returns time-budget runner status as successful partial data", async () => {
+        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+            liveScmEnabled: true,
+            circuitBreakerUntil: null,
+            lastRunAt: null,
+        } as never);
+        vi.mocked(runIntelligenceQueue).mockResolvedValueOnce({
+            status: "time_budget_exhausted",
+            reason: "time_budget_exhausted",
+            claimed: 1,
+            processed: 1,
+            succeeded: 1,
+            failed: 0,
+            skippedDueToBudget: 0,
+            staleLocksRecovered: 0,
+            backlogSuspended: 0,
+            circuitBreakerOpened: false,
+            timeBudgetExceeded: true,
+            budgetMs: 26_000,
+            elapsedMs: 25_500,
+            remainingMs: 500,
+            requestedLimit: 10,
+            effectiveLimit: 10,
+            summary: { pending: 4, running: 0, backoff: 1, disabled: 0, oldestDueAt: null, oldestDueAgeMs: null },
+        } as never);
+
+        const request = new Request("http://localhost/api/intelligence/run", {
+            headers: { authorization: "Bearer test-secret" },
+        });
+        const response = await getRun(toNextRequest(request));
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.success).toBe(true);
+        expect(payload.data.status).toBe("time_budget_exhausted");
+        expect(payload.data.reason).toBe("time_budget_exhausted");
+        expect(payload.data.timeBudgetExceeded).toBe(true);
+        expect(payload.data.budgetMs).toBe(26_000);
+        expect(payload.data.elapsedMs).toBe(25_500);
+        expect(payload.data.remainingMs).toBe(500);
+        expect(payload.data.remainingDue).toBe(5);
     });
 
     it("accepts x-cron-secret header", async () => {
