@@ -9,7 +9,12 @@ interface QueueStatusPanelProps {
   referenceTimeMs: number;
   actionPending: boolean;
   actionError: string | null;
+  seedPending: boolean;
+  seedError: string | null;
+  seedSummary: string | null;
+  canSeed: boolean;
   onToggleProcessing: () => void;
+  onSeedCatalog: () => void;
 }
 
 function formatRelativeTime(ts: string | null, referenceMs: number): string {
@@ -24,12 +29,24 @@ function formatRelativeTime(ts: string | null, referenceMs: number): string {
   return `${diffDays}d ago`;
 }
 
-export function QueueStatusPanel({ status, referenceTimeMs, actionPending, actionError, onToggleProcessing }: QueueStatusPanelProps) {
+export function QueueStatusPanel({
+  status,
+  referenceTimeMs,
+  actionPending,
+  actionError,
+  seedPending,
+  seedError,
+  seedSummary,
+  canSeed,
+  onToggleProcessing,
+  onSeedCatalog,
+}: QueueStatusPanelProps) {
   const isPaused = status.killSwitch;
   const isBackoff = status.circuitBreaker.active;
   const actionLabel = isPaused ? "Resume Queue" : "Pause Queue";
   const pendingLabel = isPaused ? "Resuming..." : "Pausing...";
   const ariaLabel = isPaused ? "Resume signal processing" : "Pause signal processing";
+  const seedDisabled = seedPending || actionPending || !canSeed;
 
   return (
     <div className={styles.panel} data-testid="queue-status-panel">
@@ -48,6 +65,16 @@ export function QueueStatusPanel({ status, referenceTimeMs, actionPending, actio
           <button
             type="button"
             className={styles.actionBtn}
+            onClick={onSeedCatalog}
+            disabled={seedDisabled}
+            aria-busy={seedPending}
+            aria-label="Seed intelligence queue"
+          >
+            {seedPending ? "Seeding..." : "Seed Queue"}
+          </button>
+          <button
+            type="button"
+            className={styles.actionBtn}
             onClick={onToggleProcessing}
             disabled={actionPending}
             aria-busy={actionPending}
@@ -57,6 +84,18 @@ export function QueueStatusPanel({ status, referenceTimeMs, actionPending, actio
           </button>
         </div>
       </div>
+
+      {seedSummary && (
+        <div className={styles.successBanner} data-testid="queue-seed-summary">
+          {seedSummary}
+        </div>
+      )}
+
+      {seedError && (
+        <div className={styles.errorBanner} data-testid="queue-seed-error">
+          {seedError}
+        </div>
+      )}
 
       {actionError && (
         <div className={styles.errorBanner} data-testid="queue-action-error">

@@ -76,6 +76,15 @@ const MOCK_STATUS = {
   },
 };
 
+const MOCK_EMPTY_QUEUE_STATUS = {
+  success: true,
+  data: {
+    ...MOCK_STATUS.data,
+    queue: { pending: 0, running: 0, backoff: 0, disabled: 0, oldestDueAt: null, oldestDueAgeMinutes: null },
+    remainingDue: 0,
+  },
+};
+
 const MOCK_PAUSED_STATUS = {
   success: true,
   data: {
@@ -138,6 +147,41 @@ function createStatusToggleFetchMock(initialStatus: unknown, toggledStatus: unkn
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve(initialStatus),
+      });
+    }
+
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ success: false, error: "Not found" }),
+    });
+  });
+}
+
+function createSeedFetchMock(seedResponses: unknown[], statusResponse: unknown = MOCK_EMPTY_QUEUE_STATUS) {
+  let seedIndex = 0;
+
+  return vi.fn((url: string, init?: RequestInit) => {
+    if (url.includes("/api/intelligence/seed") && init?.method === "POST") {
+      const response = seedResponses[Math.min(seedIndex, seedResponses.length - 1)];
+      seedIndex += 1;
+
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(response),
+      });
+    }
+
+    if (url.includes("/api/intelligence/signals")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(EMPTY_SIGNALS),
+      });
+    }
+
+    if (url.includes("/api/intelligence/status")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(statusResponse),
       });
     }
 
@@ -260,6 +304,192 @@ describe("IntelligenceDashboard", () => {
     expect(screen.getAllByText("5").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Running")).toBeInTheDocument();
     expect(screen.getAllByText("2").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders a disabled seed button while queue items are currently running", async () => {
+    const fetchMock = createFetchMock({
+      "/api/intelligence/signals": EMPTY_SIGNALS,
+      "/api/intelligence/status": MOCK_STATUS,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Seed intelligence queue" })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "Seed intelligence queue" })).toBeDisabled();
+  });
+
+  it("leaves the seed button enabled when items are pending but none are running", async () => {
+    const statusWithPendingOnly = {
+      success: true,
+      data: {
+        ...MOCK_STATUS.data,
+        queue: { ...MOCK_STATUS.data.queue, pending: 5, running: 0 },
+      },
+    };
+    
+    const fetchMock = createFetchMock({
+      "/api/intelligence/signals": EMPTY_SIGNALS,
+      "/api/intelligence/status": statusWithPendingOnly,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Seed intelligence queue" })).toBeEnabled();
+    });
+  });
+
+  it("seeds the catalog when the queue is empty and refreshes status", async () => {
+    const fetchMock = createSeedFetchMock([
+      {
+        success: true,
+        data: {
+          seeded: 10,
+          disabled: 1,
+          skipped: 2,
+          progress: { hasMore: false, nextCursor: null },
+        },
+      },
+    ]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Seed intelligence queue" })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Seed intelligence queue" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Seeded 10 entries. Disabled 1. Skipped 2.")).toBeInTheDocument();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/intelligence/seed", expect.objectContaining({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cap: 100 }),
+    }));
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("continues bounded seeding while more catalog entries are available", async () => {
+    const fetchMock = createSeedFetchMock([
+      {
+        success: true,
+        data: {
+          seeded: 100,
+          disabled: 0,
+          skipped: 0,
+          progress: { hasMore: true, nextCursor: 100 },
+        },
+      },
+      {
+        success: true,
+        data: {
+          seeded: 100,
+          disabled: 0,
+          skipped: 0,
+          progress: { hasMore: true, nextCursor: 200 },
+        },
+      },
+      {
+        success: true,
+        data: {
+          seeded: 100,
+          disabled: 0,
+          skipped: 0,
+          progress: { hasMore: true, nextCursor: 300 },
+        },
+      },
+    ]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Seed intelligence queue" })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Seed intelligence queue" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Seeded 300 entries. More entries are available; click again to continue.")).toBeInTheDocument();
+    });
+
+    const seedCalls = fetchMock.mock.calls.filter(([url]) => (url as string).includes("/api/intelligence/seed"));
+    expect(seedCalls).toHaveLength(3);
+    expect(seedCalls[1][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ cap: 100, cursor: 100 }) }));
+    expect(seedCalls[2][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ cap: 100, cursor: 200 }) }));
+  });
+
+  it("shows a seed error and re-enables the button when seeding fails", async () => {
+    const fetchMock = createSeedFetchMock([
+      { success: false, error: "Catalog seeding failed" },
+    ]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Seed intelligence queue" })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Seed intelligence queue" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("queue-seed-error")).toHaveTextContent("Catalog seeding failed");
+    });
+    expect(screen.getByRole("button", { name: "Seed intelligence queue" })).toBeEnabled();
+  });
+
+  it("does not start overlapping seed requests while a seed action is pending", async () => {
+    let resolveSeed: (value: unknown) => void = () => undefined;
+    const seedPromise = new Promise((resolve) => {
+      resolveSeed = resolve;
+    });
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url.includes("/api/intelligence/seed") && init?.method === "POST") {
+        return seedPromise;
+      }
+
+      if (url.includes("/api/intelligence/signals")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(EMPTY_SIGNALS) });
+      }
+
+      if (url.includes("/api/intelligence/status")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_EMPTY_QUEUE_STATUS) });
+      }
+
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: false, error: "Not found" }) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Seed intelligence queue" })).toBeEnabled();
+    });
+
+    const seedButton = screen.getByRole("button", { name: "Seed intelligence queue" });
+    fireEvent.click(seedButton);
+    fireEvent.click(seedButton);
+
+    const seedCalls = fetchMock.mock.calls.filter(([url]) => (url as string).includes("/api/intelligence/seed"));
+    expect(seedCalls).toHaveLength(1);
+
+    resolveSeed({
+      ok: true,
+      json: () => Promise.resolve({
+        success: true,
+        data: { seeded: 1, disabled: 0, skipped: 0, progress: { hasMore: false, nextCursor: null } },
+      }),
+    });
   });
 
   it("pauses queue processing from the status panel", async () => {

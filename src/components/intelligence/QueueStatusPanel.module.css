@@ -43,7 +43,21 @@
   line-height: 1.4;
 }
 
+.successBanner {
+  background: rgba(48, 209, 88, 0.08);
+  border: 1px solid rgba(48, 209, 88, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--bull);
+  line-height: 1.4;
+}
+
 .controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-left: auto;
 }
 
@@ -123,6 +137,7 @@
   }
 
   .controls {
+    flex-direction: column;
     width: 100%;
     margin-left: 0;
   }

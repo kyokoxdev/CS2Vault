@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 import { SummaryCards } from "./SummaryCards";
 import { SignalFilters } from "./SignalFilters";
@@ -14,6 +14,25 @@ const DEFAULT_FILTERS: Filters = {
   tier: "",
   freshness: "",
 };
+
+const SEED_BATCH_CAP = 100;
+const MAX_SEED_BATCHES_PER_CLICK = 3;
+
+interface SeedProgress {
+  hasMore: boolean;
+  nextCursor: number | null;
+}
+
+interface SeedResponse {
+  success: boolean;
+  data?: {
+    seeded: number;
+    disabled: number;
+    skipped: number;
+    progress: SeedProgress;
+  };
+  error?: string;
+}
 
 function buildSignalsUrl(filters: Filters): string {
   const params = new URLSearchParams();
@@ -32,9 +51,13 @@ export function IntelligenceDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [statusActionPending, setStatusActionPending] = useState(false);
   const [statusActionError, setStatusActionError] = useState<string | null>(null);
+  const [seedActionPending, setSeedActionPending] = useState(false);
+  const [seedActionError, setSeedActionError] = useState<string | null>(null);
+  const [seedActionSummary, setSeedActionSummary] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [referenceTimeMs] = useState(() => Date.now());
+  const seedInFlightRef = useRef(false);
 
   const fetchSignals = useCallback(async (currentFilters: Filters, cursor?: string) => {
     try {
@@ -140,9 +163,66 @@ export function IntelligenceDashboard() {
     }
   }, [status]);
 
+  const handleSeedCatalog = useCallback(async () => {
+    if (seedInFlightRef.current || !status || status.queue.running > 0) return;
+
+    seedInFlightRef.current = true;
+    setSeedActionPending(true);
+    setSeedActionError(null);
+    setSeedActionSummary(null);
+
+    try {
+      let cursor: number | null = null;
+      let hasMoreCatalogEntries = false;
+      let seeded = 0;
+      let disabled = 0;
+      let skipped = 0;
+
+      for (let batch = 0; batch < MAX_SEED_BATCHES_PER_CLICK; batch += 1) {
+        const body = cursor === null
+          ? { cap: SEED_BATCH_CAP }
+          : { cap: SEED_BATCH_CAP, cursor };
+        const res = await fetch("/api/intelligence/seed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json() as SeedResponse;
+
+        if (!data.success || !data.data) {
+          throw new Error(data.error ?? "Catalog seeding failed");
+        }
+
+        seeded += data.data.seeded;
+        disabled += data.data.disabled;
+        skipped += data.data.skipped;
+        hasMoreCatalogEntries = data.data.progress.hasMore;
+
+        if (!hasMoreCatalogEntries || typeof data.data.progress.nextCursor !== "number") {
+          break;
+        }
+
+        cursor = data.data.progress.nextCursor;
+      }
+
+      setSeedActionSummary(
+        hasMoreCatalogEntries
+          ? `Seeded ${seeded} entries. More entries are available; click again to continue.`
+          : `Seeded ${seeded} entries. Disabled ${disabled}. Skipped ${skipped}.`
+      );
+      await fetchStatus();
+    } catch (err) {
+      setSeedActionError(err instanceof Error ? err.message : "Catalog seeding failed");
+    } finally {
+      seedInFlightRef.current = false;
+      setSeedActionPending(false);
+    }
+  }, [fetchStatus, status]);
+
   const hasStaleSignals = signals.some(
     (s) => s.freshness === "stale" || s.freshness === "expired"
   );
+  const canSeed = status ? !seedActionPending && status.queue.running === 0 : false;
 
   if (loading) {
     return (
@@ -195,7 +275,12 @@ export function IntelligenceDashboard() {
           referenceTimeMs={referenceTimeMs}
           actionPending={statusActionPending}
           actionError={statusActionError}
+          seedPending={seedActionPending}
+          seedError={seedActionError}
+          seedSummary={seedActionSummary}
+          canSeed={canSeed}
           onToggleProcessing={handleToggleProcessing}
+          onSeedCatalog={handleSeedCatalog}
         />
       )}
 
