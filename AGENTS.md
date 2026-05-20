@@ -1,690 +1,264 @@
-# Agent Rules for CS2Vault Project
+# Agent Rules for CS2Vault
 
-> **MANDATORY**: Every AI agent working on this codebase MUST read this file in full at the start of every session before making any changes. No exceptions.
+Every AI agent must read this file in full before making changes in this repository. Confirm with a short `Understood` message, then follow these rules. They are mandatory and override lower-priority guidance.
 
----
+## Current Focus
 
-## ZERO-TOLERANCE COMPLIANCE RULES
+Last updated: 2026-05-20
 
-These rules override ALL other instructions. Violating any of these is a critical failure, even if the code changes are correct.
+- CS2Vault is a Next.js 16 / React 19 / strict TypeScript market-intelligence dashboard for Counter-Strike 2 items.
+- App Router lives in `src/app`; market logic in `src/lib/market`; intelligence in `src/lib/market/intelligence` plus `/app/intelligence`; charts in `src/components/charts`; tests in `tests` with Playwright e2e in `tests/e2e`.
+- Data stack: Prisma 7 generated client in `src/generated/prisma`, SQLite locally, Turso/libSQL in production, custom Turso migration push in `prisma/push-schema.ts`.
+- UI stack: CSS Modules, existing design tokens in `globals.css`, TradingView Lightweight Charts, `lightweight-charts-indicators`, `oakscriptjs`, NextAuth Steam auth, Google OAuth for AI provider access, Gemini/OpenAI chat.
+- Keep this section short. Update it only when architecture, stack, workflows, active priorities, or recurring hazards change. Never include secrets.
 
-### Rule 1: READ THIS FILE FIRST — EVERY SESSION, EVERY TIME
+## Zero-Tolerance Rules
 
-Before writing a single line of code or making any edit, you MUST:
-1. Read `AGENTS.md` in full at the start of the session
-2. Confirm to the user that you have read and understood the rules with a short "Understood" message
-3. Reference specific rules when making decisions (e.g. "Per AGENTS.md research rule, I'm waiting for the explore agent before editing")
+- Read this file before edits and reference it when it affects a decision.
+- Detect intent before acting. Ask one focused question if scope is ambiguous; otherwise confirm the scope and proceed.
+- Implement only what the user requested. Do not add adjacent fixes, speculative abstractions, or broad cleanup without approval.
+- Logic changes and architecture changes require background explore/research first. Wait for those agents before editing related files and do not duplicate their search manually.
+- For 3+ changed files, consult the Plan Agent before implementation. For cross-module work, delegate unless the fix is trivial and local.
+- Load relevant available skills before work. If a project-listed skill is unavailable, state that briefly and follow the closest compliant workflow manually.
+- For any git command, load `git-master` first and use `GIT_MASTER=1` with the command.
+- Always complete the Verification Checklist before handoff. Scale tests/build to the change: run relevant tests for behavior changes and `npm run build` only when runtime, config, dependency, database/generated-code, route/export, or verification needs require it.
+- Do not use `as any`, `@ts-ignore`, `@ts-expect-error`, empty catches, failing-test deletion, destructive git commands, commit amend, or force push unless explicitly authorized where applicable.
 
-If you cannot confirm you've read this file, STOP and read it. No exceptions.
+## Version Policy
 
-### Rule 2: RESEARCH BEFORE IMPLEMENTATION — NO SHORTCUTS
+- Bump `package.json` only for changes that affect the running app: features, fixes, UI/API behavior, database schema, or shipped runtime behavior.
+- Do not bump for `AGENTS.md`, README/docs-only edits, CI/tooling changes without runtime impact, comments, or rule files.
+- Before pushing app changes, use patch for fixes/UX improvements, minor for new capabilities, and major for breaking workflow or architecture changes.
 
-- **For logic changes or architectural updates**: You MUST wait for ALL background explore/research agents to complete before writing any code. Do NOT start editing files while agents are still running.
-- **Anti-duplication**: If you fire an explore or librarian agent for a search, you MUST NOT manually perform the same search yourself. Wait for their results.
-- **When in doubt**: Fire the explore agent. The cost of skipping research far exceeds the cost of waiting for it.
+## Project Snapshot
 
-### Rule 3: USE THE RIGHT WORKFLOW FOR THE TASK SCOPE
-
-- **Multi-file change (3+ files)**: Consult the Plan Agent FIRST. Do NOT start implementing without a plan.
-- **Multi-module / cross-cutting change**: DELEGATE to the appropriate category agent. Do NOT implement cross-cutting changes yourself unless it's a trivial local fix.
-- **Git operations**: ALWAYS load the `git-master` skill FIRST. Never run git commands without it.
-
-### Rule 4: NEVER SKIP VERIFICATION
-
-- After making changes, you MUST run `lsp_diagnostics` on all changed files in parallel
-- You MUST run the relevant test suite and confirm it passes
-- You MUST run the production build (`npm run build`) and confirm it succeeds
-- Delegated work ALWAYS requires V3 verification — read every touched file yourself, never trust subagent self-reports
-
-### Rule 5: DETECT USER INTENT BEFORE ACTING
-
-Before performing any task, you MUST:
-
-1. **Pause and analyze** what the user actually wants — not just what they literally said. Users often describe symptoms, not root causes. They may say "add X" when the real need is "solve problem Y". Ask yourself: "What outcome are they after? What didn't they say that they probably expect?"
-2. **If the intent is ambiguous**, ask ONE clarifying question before proceeding. Do not assume and do not implement multiple interpretations — clarify first.
-3. **If the intent is clear**, confirm your understanding briefly (one sentence) and then act. Do not re-confirm when the user's message confirms an intent you already verbalized this conversation.
-4. **Never substitute your own assumptions** for missing requirements. If the user didn't specify a design choice, ask — don't guess and ship.
-
-Example violations of this rule:
-- User says "add a button" → agent adds it without asking where, what it does, or how it should look
-- User says "fix the slow page" → agent adds a loading spinner instead of investigating why it's slow
-- User says "this feels off" → agent rewrites the whole component instead of asking what specifically feels wrong
-
-### Rule 6: DO NOT BUMP VERSION FOR NON-APP CHANGES
-
-Version bumps in `package.json` are reserved for changes that affect the **running application** — features, bug fixes, UI changes, API changes, database schema changes, etc.
-
-**Do NOT bump version for:**
-- Changes to `AGENTS.md` or other agent rule files
-- Changes to `.github/`, CI/CD config, or development tooling that doesn't affect the production build
-- Documentation-only changes (README, comments, etc.)
-- Changes to linting/formatting configs that don't affect runtime behavior
-
-**When in doubt**: Ask yourself "Does this change what the user sees or experiences in the deployed app?" If the answer is no, do not bump the version.
-
-### Rule 7: DO NOT MAKE SPECULATIVE CHANGES — ASK FIRST
-
-**When in doubt of the user's full intent, ask clarifying questions. Do NOT make speculations and do NOT implement changes the user did not explicitly ask for.**
-
-This rule prevents scope creep and unintended side effects:
-
-- **If a request is ambiguous** → Ask ONE specific question before proceeding
-- **If you're considering adding "bonus" functionality** → Don't. Only implement what was asked.
-- **If you think you know what the user "really wants"** → Confirm with the user first
-- **If you're tempted to "fix" adjacent issues** → Stop. Ask permission first.
-
-**Example violations:**
-- User: "Make the 7D chart stay active longer" → Agent adds Market Cap cleanup (user never mentioned Market Cap)
-- User: "Fix the login button color" → Agent refactors the entire auth flow
-- User: "Add a search endpoint" → Agent also adds search UI, filters, and sorting (not requested)
-
-**Correct behavior:**
-- Implement ONLY what was explicitly requested
-- If the scope seems incomplete or unclear → Ask: "Should I also handle X, or just Y?"
-- Wait for explicit confirmation before expanding scope
-
----
-
-## General Agent Behavior
-
-- Follow existing code patterns and conventions (see Coding Style below)
-- Run lint and type checks before committing
-- Keep commits atomic and focused
-- Never commit secrets or sensitive data
-
-### Research Before Implementation (MANDATORY)
-
-- **If the task is purely about local conventions or documentation** (like AGENTS.md, README, comments): proceed via direct code reading — no background explore agent needed.
-- **For logic changes or architectural updates**: you MUST wait for the background explore agent to provide full context before committing any changes. Never commit code you haven't thoroughly explored.
-- **DO NOT edit files while explore/librarian agents are still running.** Wait for their results, then synthesize, then plan, then implement.
-- **Anti-duplication rule**: If you fire an explore or librarian agent for a search, you MUST NOT manually perform the same search yourself. Use direct tools only for non-overlapping work.
-- When in doubt, fire the explore agent. The cost of skipping research far exceeds the cost of waiting for it.
-
-### Quick Start Commands
-
-Copy-paste ready commands for common tasks:
-
-```bash
-# Development
-npm run dev                    # Start development server on :3000
-npm run test:watch             # Run Vitest in watch mode
-npm install                    # Install dependencies (postinstall runs prisma generate)
-
-# Build & Deploy
-npm run build                  # Production build (includes Prisma generate + schema push)
-npm run db:push:turso         # Push schema to Turso and seed default settings
-
-# Quality Assurance
-npm run test                   # Run Vitest test suite
-npm run lint                   # Run ESLint
-npm run db:studio             # Open Prisma Studio for database inspection
-
-# Database (Local Development)
-npx prisma db push            # Push schema changes to local SQLite
-npx prisma migrate dev        # Create and apply a migration
-npx prisma generate           # Regenerate Prisma client (auto-runs on postinstall)
-npx tsx prisma/seed.ts        # Seed default settings manually
-```
-
-### Available Skills
-
-Sisyphus can load specialized skills for specific tasks. **Always check if a skill applies before starting work.**
-
-#### Built-in Skills
-
-| Skill | Use When | Trigger Phrases |
-|-------|----------|-----------------|
-| `git-master` | ANY git operation — commits, pushes, rebase, history search | "commit", "push", "rebase", "squash", "who wrote", "when was X added" |
-| `playwright` | Browser automation — testing, screenshots, web scraping, verification | "test in browser", "screenshot", "verify UI", "e2e test" |
-| `frontend-ui-ux` | UI/UX design without mockups — layout, styling, components | "design", "make it look better", "improve UI", "layout" |
-| `review-work` | Post-implementation review — QA, verification, audit | "review my work", "QA this", "verify implementation", "check my work" |
-| `ai-slop-remover` | Clean up AI-generated code smells in a single file | "clean up", "remove AI slop", "refactor this file" |
-
-#### Project Skills (Power Pack)
-
-| Skill | Use When | Trigger Phrases |
-|-------|----------|-----------------|
-| `agents-md-improver` | Auditing/updating AGENTS.md or CLAUDE.md files | "audit AGENTS.md", "improve project rules", "check CLAUDE.md" |
-| `agents-md-revise` | Capturing session learnings into project rules | "update AGENTS.md", "save to project memory", "remember this" |
-| `code-architect` | Architecture design for new features | "design feature", "architecture plan", "implementation blueprint" |
-| `code-explorer` | Understanding how existing features work | "how does X work", "explain this codebase", "trace execution" |
-| `code-review` | Reviewing PRs or pending changes | "review PR", "audit changes", "check before merge" |
-| `code-reviewer` | Reviewing specific files or functions | "review this file", "critique this function", "check for bugs" |
-| `feature-dev` | Methodical feature implementation (7-phase workflow) | "implement feature", "build new feature", "add functionality" |
-| `find-skills` | Discovering what skills are available | "what skills", "find skill for", "how do I do X" |
-| `frontend-design` | Building web components/pages with high design quality | "build component", "create page", "frontend implementation" |
-| `mcp-builder` | Creating MCP servers for external API integration | "build MCP", "create MCP server", "Model Context Protocol" |
-| `security-review` | Security audit of pending changes | "security review", "audit for vulnerabilities", "security check" |
-| `skill-creator` | Creating new skills or modifying existing ones | "create skill", "new skill", "modify skill" |
-
-**Skill Loading Protocol:**
-1. **Before ANY task**, check if a skill's domain overlaps with your work
-2. **When in doubt, load the skill** — cost of loading is near zero, cost of missing is high
-3. **Use `skill()` tool first**, then proceed with the task
-4. **Git operations** → ALWAYS load `git-master` first, no exceptions
-
----
-
-## Project Architecture
-
-Directory structure and key locations:
-
-```
+```text
 src/
-├── app/              # Next.js App Router (pages & API routes)
-│   ├── api/         # API route handlers
-│   ├── chat/        # Chat page
-│   ├── item/[id]/   # Item detail page
-│   ├── market-cap/  # Market cap page
-│   ├── portfolio/   # Portfolio page
-│   ├── settings/    # Settings page
-│   ├── startup/     # Landing page
-│   ├── watchlist/   # Watchlist page
-│   ├── error.tsx    # Global error boundary
-│   ├── globals.css  # Global styles & CSS variables
-│   ├── layout.tsx   # Root layout
-│   └── page.tsx     # Market overview (homepage)
-├── components/       # React components (CSS Modules required)
-│   ├── landing/     # Landing page components
-│   ├── layout/      # Layout components (DashboardShell)
-│   ├── market/      # Market-related (Watchlist, TopMovers, NewsFeed)
-│   ├── portfolio/   # Portfolio components
-│   ├── providers/   # React context providers
-│   └── ui/          # Reusable UI primitives (Badge, Card, DataTable, etc.)
-├── generated/        # Prisma client (auto-generated, DO NOT EDIT)
-├── hooks/           # Custom React hooks (usePriceRefreshInterval, etc.)
-├── lib/             # Utilities & business logic
-│   ├── ai/          # AI providers (Gemini, OpenAI)
-│   ├── auth/        # Authentication (Steam OpenID, Google OAuth)
-│   ├── candles/     # Candlestick data aggregation
-│   ├── market/      # Price fetching, sync, market cap logic
-│   ├── news/        # RSS feed aggregation
-│   └── db.ts        # Prisma client singleton
-└── types/           # Shared TypeScript types
+  app/                  App Router pages, layouts, route handlers
+    api/                auth, chat, groups, intelligence, inventory, market, portfolio, sync, settings, watchlist
+    chat/               AI chat page
+    intelligence/       signal/status dashboard
+    item/[id]/          item detail and charts
+    market-cap/         market-cap page
+    portfolio/          portfolio page
+    settings/           refresh controls and settings
+    watchlist/          watchlist page
+  components/
+    charts/             Lightweight Charts and indicator UI
+    chat/               chat experience
+    intelligence/       intelligence dashboard components
+    layout/             dashboard shell/navigation
+    landing/            public/startup visuals
+    market/             market tables, movers, watchlist, news
+    portfolio/          portfolio UI
+    providers/          client providers
+    ui/                 reusable primitives
+  hooks/                reusable React hooks
+  lib/
+    ai/                 Gemini/OpenAI providers and chat utilities
+    auth/               Steam OpenID, NextAuth, Google OAuth/token helpers
+    candles/            candlestick aggregation
+    indicators/         chart indicator calculation service
+    inventory/          inventory helpers
+    market/             price sync, market-cap, refresh, intelligence logic
+    news/               RSS aggregation
+    db.ts               Prisma singleton
+  generated/            Prisma client output; do not edit
+  types/                shared TypeScript types
 
-prisma/
-├── schema.prisma    # Database schema (Turso/SQLite)
-├── seed.ts         # Default settings seeder
-└── migrations/     # Database migrations
-
-tests/               # Vitest tests (mirrors src/ structure)
-├── components/      # Component tests
-├── lib/            # Utility tests
-└── *.test.ts       # Unit tests
+prisma/                 schema, migrations, seed, Turso push script
+tests/                  Vitest/RTL tests plus e2e specs under tests/e2e
+src/proxy.ts            auth and cron gate, including intelligence cron auth
+vercel.json             scheduled sync jobs
 ```
 
-**Key patterns:**
-- **Pages** in `src/app/**/page.tsx` use default exports (Next.js convention)
-- **Components** in `src/components/` use named exports only
-- **Tests** live in `tests/` mirroring the `src/` structure
-- **CSS Modules** are co-located: `Component.tsx` + `Component.module.css`
+Current behavior to preserve:
+- Market intelligence combines price sources, market-cap calculations, top movers, news, portfolio/watchlist state, intelligence signals, and AI chat insights.
+- Charts use TradingView Lightweight Charts with candle data from `src/lib/candles`; indicator logic stays in `src/lib/indicators`.
+- Chat renders markdown with `react-markdown`, `remark-gfm`, and sanitized HTML where markdown output can render HTML.
+- Cron jobs in `vercel.json`: `/api/sync` at `0 4 * * *` and `/api/market/market-cap-sync` at `0 8 * * *`.
 
----
+## Commands
 
-## Decision Trees
-
-Quick reference for common architectural decisions. Use these to avoid searching the codebase for placement and pattern choices.
-
-### Server Component vs Client Component
-
-```
-Needs browser APIs (localStorage, ResizeObserver, canvas)?         → Client Component ("use client")
-Needs React hooks (useState, useEffect, useCallback)?              → Client Component ("use client")
-Needs event handlers (onClick, onSubmit, onChange)?                → Client Component ("use client")
-Needs dynamic imports for client-only libraries (charts, tables)?  → Client Component ("use client")
-Otherwise (static content, server data fetch, no interactivity)?   → Server Component (default)
-```
-
-### Data Fetching: Where to Fetch?
-
-```
-Page initial data, no user interaction needed?                     → Fetch directly in Server Component
-Data changes based on user interaction (tabs, filters, toggles)?   → Client Component + API route + useEffect
-Real-time / polling data (prices, market data)?                    → Client Component + useEffect + setInterval
-Form submissions (POST/PUT/PATCH)?                                 → API route handler
-Cron/automated background sync?                                    → API route (called by Vercel Cron)
-```
-
-### New Feature: Where to Put Files?
-
-```
-New page (e.g., /chat, /market-cap)              → src/app/<route>/page.tsx
-New API endpoint (e.g., /api/alerts)             → src/app/api/<domain>/<action>/route.ts
-New reusable UI primitive (Badge, Card, Button)  → src/components/ui/<Component>.tsx + .module.css
-New page-specific component (WatchlistTable)     → src/components/<domain>/<Component>.tsx
-New shared utility function                      → src/lib/<domain>/<utility>.ts
-New custom React hook                            → src/hooks/use<Name>.ts
-New test for component or utility                → tests/<mirrors-src-path>/<name>.test.tsx
-New database model / schema change               → prisma/schema.prisma
-```
-
----
-
-## API Route Patterns
-
-All API routes MUST follow this response shape and structure:
-
-```typescript
-// src/app/api/example/route.ts
-import { NextResponse } from "next/server";
-
-export async function GET(request: Request) {
-  try {
-    const result = await fetchData();
-    return NextResponse.json({ success: true, data: result });
-  } catch (error) {
-    console.error("[ExampleRoute]", error);
-    return NextResponse.json(
-      { success: false, status: "error", error: "Human-readable message" },
-      { status: 500 }
-    );
-  }
-}
-```
-
-**Rules:**
-- Always wrap handler body in `try/catch`
-- Always use `NextResponse.json()` — never bare `Response`
-- Use appropriate HTTP status codes (`400` client error, `500` server error, `404` not found)
-- Log errors with bracketed context: `console.error("[RouteName]", error)`
-- Return `{ success: boolean, data?: T, error?: string }` shape consistently
-- Use `Cache-Control` headers for cacheable responses
-
----
-
-## Testing Patterns
-
-**Framework:** Vitest + React Testing Library + jsdom
-
-**Test file location:** `tests/` mirrors `src/` structure:
-- `src/components/ui/Badge.tsx` → `tests/components/Badge.test.tsx`
-- `src/lib/market/price-utils.ts` → `tests/lib/price-utils.test.tsx`
-- `src/components/charts/CandlestickChart.tsx` → `tests/components/CandlestickChart.component.test.tsx`
-
-**Component test pattern:**
-
-```typescript
-import { render, screen } from "@testing-library/react";
-import { Badge } from "@/components/ui/Badge";
-
-describe("Badge", () => {
-  it("renders with correct text", () => {
-    render(<Badge variant="bull">+5%</Badge>);
-    expect(screen.getByText("+5%")).toBeInTheDocument();
-  });
-});
-```
-
-**Testing rules:**
-- Use `getByRole` or `getByTestId` over `getByText` when possible
-- Add `data-testid` to elements that need reliable test selection
-- Mock API calls with `vi.fn()` and `vi.mock()`
-- Mock Next.js router with `useRouter` mock when needed
-- Group related tests in `describe` blocks
-- Name tests descriptively: `it("shows loading state when data is fetching")`
-
-**Mock pattern:**
-```typescript
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
-}));
-
-vi.mock("@/lib/db", () => ({
-  prisma: { item: { findMany: vi.fn() } },
-}));
-```
-
----
-
-## Quick Patterns
-
-### Creating a New Page Component
-
-```typescript
-// src/app/example/page.tsx
-export default function ExamplePage() {
-  return <div>Example</div>;
-}
-```
-
-### Creating a New Client Component
-
-```typescript
-"use client";
-
-import { useState } from "react";
-import styles from "./Example.module.css";
-
-interface ExampleProps {
-  title: string;
-}
-
-export function Example({ title }: ExampleProps) {
-  const [count, setCount] = useState(0);
-  return <div className={styles.container}>{title}</div>;
-}
-```
-
-### Creating a New API Route Handler
-
-```typescript
-// src/app/api/example/route.ts
-import { NextResponse } from "next/server";
-
-export async function GET() {
-  try {
-    return NextResponse.json({ success: true, data: [] });
-  } catch (error) {
-    console.error("[Example]", error);
-    return NextResponse.json(
-      { success: false, status: "error", error: "Request failed" },
-      { status: 500 }
-    );
-  }
-}
-```
-
-### Dynamic Import for Client-Only Component
-
-```typescript
-import dynamic from "next/dynamic";
-
-// Replace "CandlestickChart" with your actual component name
-const CandlestickChart = dynamic(
-  () => import("@/components/charts/CandlestickChart").then((m) => ({ default: m.CandlestickChart })),
-  { ssr: false }
-);
-```
-
-### Prisma Model / Migration
-
-```typescript
-// prisma/schema.prisma
-model NewModel {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
-
-  @@index([name])
-}
-```
-
-After editing: `npx prisma migrate dev --name add_new_model` then `npm run db:push:turso`
-
----
-
-## Environment Setup
-
-Required environment variables (copy `.env.example` to `.env.local`):
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Local dev | SQLite path (default: `file:./dev.db`) |
-| `TURSO_DATABASE_URL` | Vercel | Turso database URL (`libsql://...`) |
-| `TURSO_AUTH_TOKEN` | Vercel | Turso auth token |
-| `STEAM_API_KEY` | Yes | [Steam Web API key](https://steamcommunity.com/dev/apikey) |
-| `ALLOWED_STEAM_ID` | Yes | Your Steam64 ID for auth |
-| `NEXTAUTH_SECRET` | Yes | Generate with `openssl rand -hex 32` |
-| `NEXTAUTH_URL` | Yes | App URL (default: `http://localhost:3000`) |
-| `CRON_SECRET` | Vercel | Secret for Vercel Cron job auth |
-
-**Optional (for features):**
-- `CSFLOAT_API_KEY` — CSFloat price data
-- `PRICEMPIRE_API_KEY` — Pricempire price data  
-- `GEMINI_API_KEY` — Google Gemini AI chat
-- `OPENAI_API_KEY` — OpenAI GPT chat
-- `TOKEN_ENCRYPTION_KEY` — Encrypt stored tokens
-
-**Turso setup for Vercel:**
 ```bash
-# Install Turso CLI
-curl -sSfL https://get.tur.so/install.sh | bash
-
-# Create database
-turso db create cs2vault
-turso db show cs2vault --url
-turso db tokens create cs2vault
-
-# Push schema
-npm run db:push:turso
+npm run dev             # start local dev server
+npm run test            # Vitest suite
+npm run test:watch      # Vitest watch mode
+npm run lint            # ESLint
+npm run build           # prisma generate, Turso push when env exists, next build
+npm run db:push:turso   # push schema and seed Turso
+npm run db:seed         # Prisma seed command
+npm run db:migrate      # create/apply local migration
+npm run db:studio       # open Prisma Studio
+npx prisma db push      # push schema to local SQLite
+npx prisma generate     # regenerate Prisma client
+npx tsx prisma/seed.ts  # seed defaults manually
 ```
 
----
+## Skills And Delegation
 
-## Gotchas & Common Issues
+- Load only skills available in the current runtime. If a desired skill is unavailable, say so briefly and use the closest compliant manual workflow.
+- Use `git-master` for every git operation.
+- Use `playwright` or `webapp-testing` for browser automation, screenshots, UI verification, and e2e checks.
+- Use `frontend-ui-ux` or `frontend-design` for UI, layout, styling, and component design.
+- Use `review-work` after significant implementation, and `ai-slop-remover` only for targeted cleanup in a specific file.
+- Use task-specific skills only when the task directly matches them: `claude-api`, `mcp-builder`, `pdf`, `docx`, `pptx`, `xlsx`, `find-skills`, `plannotator-*`, or design/artifact skills.
+- For rules-file work, audit first, report proposed wording, and wait for approval before editing.
+- When delegating with `task`, always set `load_skills` and `run_in_background`; pass task-appropriate skills, or `[]` only when no available skill matches.
 
-1. **Prisma client import**: Always use `import { prisma } from "@/lib/db"`. Never import from `@prisma/client` directly — the client is generated to `src/generated/prisma/` and wrapped for adapter configuration.
+## Implementation Patterns
 
-2. **Turso vs SQLite**: Local development uses a SQLite file (`dev.db`); production uses Turso (libSQL). Both use the same Prisma schema. The `db.ts` file handles the adapter selection automatically.
+### Exports And Components
 
-3. **Default exports**: Only page components in `src/app/` may use default exports. All other components MUST use named exports. Default exports in components break the build.
+- Next.js page, layout, loading, and error segment files use framework-required default exports.
+- Components use mixed export styles. Follow the existing style in the folder/file and prefer named exports for reusable components unless surrounding code clearly uses default exports.
+- Do not perform export-style cleanup unless explicitly requested.
+- Default to Server Components. Add `"use client"` only for hooks, event handlers, browser APIs, local storage, timers, chart libraries, or other client-only behavior.
+- Use `next/dynamic` with `{ ssr: false }` for heavy client-only charts/tables when existing patterns do so.
 
-4. **Strict TypeScript**: The project has `"strict": true`. Never use `as any`, `@ts-ignore`, or `@ts-expect-error`. Fix the type properly or leave the code unchanged.
+### Placement
 
-5. **CSS Modules required**: Every component MUST have a corresponding `.module.css` file. No global CSS for component styles, no inline `style={{}}`, no Tailwind, no CSS-in-JS.
+- New App Router page: `src/app/<route>/page.tsx`.
+- New API endpoint: `src/app/api/<domain>/<action>/route.ts` or the closest existing route shape.
+- Reusable UI primitive: `src/components/ui`.
+- Domain component: matching folder under `src/components`.
+- Shared business logic: `src/lib/<domain>`.
+- Reusable stateful React logic: `src/hooks/use<Name>.ts`.
+- Shared TypeScript shapes: `src/types` when crossing module boundaries.
+- Tests: `tests/`, mirroring source areas where practical; e2e specs live in `tests/e2e`.
 
-6. **Database schema changes**: After ANY change to `prisma/schema.prisma`, you MUST run `npm run db:push:turso` to sync the production database. Skipping this will break production.
+### TypeScript And React
 
-7. **Component structure order**: Follow the exact order: `"use client"` (if needed) → imports → interfaces/types → component function → export. Never deviate.
+- Strict TypeScript is enabled. Avoid type suppression and keep types explicit at module boundaries.
+- Prefer `interface` for props/object shapes; use `type` for unions and utility types.
+- Use `@/` imports for source paths. Avoid relative imports that climb out of `src` unless matching an established exception such as reading package metadata.
+- Keep component order consistent: optional `"use client"`, imports, interfaces/types, constants, component, exports.
+- Group `useState` hooks near the top of client components.
+- Use `useCallback` for callbacks passed as props or used in effect dependencies when the file follows that pattern.
+- Add `type="button"` to non-submit buttons and accessible labels for icon-only or ambiguous controls.
 
-8. **Path aliases**: Always use `@/` imports (maps to `src/`). Never use relative paths that escape `src/` (e.g., no `../../../`).
+### Styling
 
-9. **Test location**: Tests live in `tests/` directory, not alongside source files. Mirror the `src/` structure (e.g., `src/components/ui/Badge.tsx` → `tests/components/Badge.test.tsx`).
+- Use CSS Modules for reusable presentation.
+- Do not introduce Tailwind, CSS-in-JS, or broad global CSS.
+- Prefer existing tokens from `globals.css`, especially `--surface-0`, `--bull`, `--bear`, and `--text-primary-90`.
+- Existing chart/animation code may use local inline or library-driven styles. Match the local pattern instead of broad restyling.
+- Use camelCase CSS module class names.
 
-10. **Git workflow**: Always load the `git-master` skill before any git operations. Never use plain git commands. Follow the commit message format with descriptive bodies.
+### API Routes
 
-11. **Chart indicators**: `lightweight-charts-indicators` requires `oakscriptjs` as peer dependency. Use `calculateIndicator(id, candles, inputs)` from `src/lib/indicators/indicator-service.ts`.
+- Wrap handlers in `try/catch` unless streaming lifecycle constraints require local error handling.
+- Use `NextResponse.json()` for normal JSON responses.
+- Bare `Response` is allowed for streaming, Server-Sent Events, and other narrow route behaviors that require Web Response APIs.
+- Use appropriate HTTP statuses: 400 client error, 401/403 auth failure, 404 not found, 500 server failure.
+- Log errors with bracketed context, for example `console.error("[RouteName]", error)`.
+- Normal JSON shape is `{ success: boolean, data?: T, error?: string }`; preserve route-specific established shapes where clients already depend on them.
+- Add `Cache-Control` headers for cacheable responses.
 
-12. **Markdown rendering**: AI chat uses `react-markdown` + `remark-gfm` for GitHub Flavored Markdown. Use `DOMPurify` to sanitize HTML output before rendering.
+### Services And Data Flow
 
-13. **Animation libraries**: `framer-motion` is used for page transitions and layout animations. `gsap` is available for complex scroll-triggered animations. Prefer framer-motion for React component animations.
+- Keep price-source, sync, market-cap, refresh, and intelligence behavior under `src/lib/market` and owned API routes.
+- Keep AI provider details under `src/lib/ai`; UI calls chat API routes rather than provider clients directly.
+- Keep Steam, NextAuth, Google OAuth, and token helpers under `src/lib/auth`.
+- Keep RSS aggregation under `src/lib/news`.
+- Server-rendered page data belongs in Server Components when no client interaction is needed.
+- Data that changes with tabs, filters, toggles, polling, or browser state belongs in Client Components plus API routes/hooks.
+- Open-tab refresh must respect saved refresh interval settings.
 
-14. **Design tokens**: Use OKX-inspired tokens from globals.css (`--surface-0`, `--bull`, `--bear`, `--text-primary-90`). Old tokens (`--bg-primary`, `--green`, `--red`) are deprecated but still present for backward compatibility.
+### Database
 
----
+- Import Prisma only through `import { prisma } from "@/lib/db"`.
+- Do not instantiate Prisma clients directly.
+- Do not edit `src/generated/prisma`.
+- `prisma.config.ts` owns the Prisma datasource URL; `prisma/schema.prisma` owns models and generated client output.
+- Local development uses SQLite; production uses Turso/libSQL through the same schema.
+- For schema changes, update `prisma/schema.prisma`, create/apply migrations as appropriate, regenerate Prisma, and run `npm run db:push:turso` when production schema sync is required.
+- `prisma/push-schema.ts` skips safely when Turso env vars are absent.
 
-## Coding Style (MANDATORY — CONSISTENCY)
+### Utilities And Errors
 
-Every agent MUST match the existing codebase conventions exactly. The project follows strict patterns — do not introduce alternative styles.
+- Use named exports for public utilities.
+- Follow the existing error strategy in the file. Prefer result objects for recoverable utility failures when surrounding code uses them.
+- Store reusable hooks in `src/hooks` with a `use` prefix.
+- Avoid new abstractions until there is real reuse or a clear simplification.
+- Client components should keep error state explicit, usually `string | null`, and render it with existing UI patterns.
+- Error boundaries live in route segment `error.tsx` files and should provide retry behavior where appropriate.
+- Never log bare errors without context.
 
-### TypeScript & React
+## Testing Rules
 
-- **Strict mode enabled** — `tsconfig.json` has `"strict": true`. No `as any`, no `@ts-ignore`, no `@ts-expect-error`. Fix the type properly or leave it alone.
-- **Path alias**: Use `@/` imports (maps to `src/`). Never use relative paths that escape the `src/` boundary (e.g. no `../../../`).
-- **Component files** (`.tsx`): One component per file. Named exports only — never `export default` for React components. The exception is page-level components in `src/app/` which use default exports (Next.js App Router convention).
-- **Component structure order**: See Gotcha #7.
-- **Types vs interfaces**: Use `interface` for React props and object shapes. Use `type` for unions, primitives, and utility types. Never use `I` prefix (e.g. write `PriceData`, not `IPriceData`).
-- **Props**: Always use `interface` for React props (not `type`). Co-locate in the same file, directly above the component.
-- **State hooks**: Group `useState` declarations together at the top of the component, before any `useCallback` or `useEffect`.
-- **Callbacks**: Use `useCallback` for all callback functions passed as props or used in effect dependencies. Include proper dependency arrays.
-- **Dynamic imports**: Use `next/dynamic` with `{ ssr: false }` for heavy client-only components (charts, data tables). Use the named-export pattern: `dynamic(() => import("@/components/X").then((m) => ({ default: m.ComponentName })), { ssr: false })`.
-- **Buttons**: Always include `type="button"` on `<button>` elements to prevent unintended form submission.
-- **Accessibility**: Use `aria-label` for icon-only buttons and interactive elements. Use `aria-hidden="true"` for decorative SVGs. Include meaningful labels.
-- **Constants**: Define file-level constants at the top (outside component). Use `UPPER_SNAKE_CASE` for true constants (e.g. `MAX_MESSAGE_LENGTH`, `CACHE_MAX_AGE_HOURS`). Use `camelCase` for configuration objects.
+- Framework: Vitest plus React Testing Library and jsdom; component setup is in `tests/setup-component.ts`.
+- Prefer `getByRole` or stable `data-testid` selectors over brittle text-only queries.
+- Mock API calls and Next.js navigation with `vi.fn()` / `vi.mock()`.
+- Name tests by behavior, for example `it("shows loading state while fetching")`.
+- Use TDD for non-trivial fixes when feasible: reproduce the behavior, implement the smallest fix, then make the suite green.
+- If a test is infeasible, explain why and run the closest relevant verification.
+- Playwright e2e specs are excluded from Vitest and live under `tests/e2e`.
 
-### CSS & Styling
+## Environment
 
-- **CSS Modules only** — every component has a corresponding `ComponentName.module.css`. No global CSS for component styles, no inline `style={{}}` for anything that belongs in a module, no CSS-in-JS libraries, no Tailwind.
-- **Class name convention**: `camelCase` in CSS modules. Reference as `styles.classNameName`.
-- **CSS custom properties**: Use the project's existing CSS variables (defined in global styles) for colors, spacing, and typography. Do not hardcode values that already exist as variables.
+Copy `.env.example` to `.env.local` for local development. Never commit secrets.
 
-### Server vs Client Components
+Required or deployment-critical:
+- `DATABASE_URL`: local SQLite path, normally `file:./dev.db`.
+- `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`: production Turso/libSQL access.
+- `CRON_SECRET`: authorizes scheduled sync and intelligence jobs.
+- `STEAM_API_KEY`, `ALLOWED_STEAM_ID`: Steam API and account allowlist.
+- `CSFLOAT_API_KEY`: CSFloat price data.
+- `NEXTAUTH_SECRET`, `NEXTAUTH_URL`: NextAuth configuration.
+- `TOKEN_ENCRYPTION_KEY`: encryption key for stored tokens.
 
-- **Default to Server Components** (no `"use client"`). Only add `"use client"` when the component needs React hooks, browser APIs, or event handlers.
-- **API routes**: See **API Route Patterns** section above for exact handler template and rules.
-- **Data fetching**: See **Decision Trees > Data Fetching** for where to fetch.
-- **Error boundaries**: Create `error.tsx` in route segments following Next.js convention. Log errors with `console.error`, provide retry functionality.
+Optional feature variables:
+- `PRICEMPIRE_API_KEY`: Pricempire price data.
+- `GEMINI_API_KEY`, `OPENAI_API_KEY`: AI chat providers.
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: Google OAuth for Gemini flow.
 
-### Utility & Service Patterns
+## Vercel And Cron
 
-- **Named exports**: Use `export function functionName()` for all public functions. Group related functions in the same file.
-- **Do not throw from utilities**: Return result objects with error information. Include `failureReason?: string` and `fallbackAvailable?: boolean` in return types rather than throwing exceptions.
-- **Custom hooks**: Store in `src/hooks/` directory. Name with `use` prefix (e.g. `usePriceRefreshInterval`, `useMediaQuery`). Extract reusable stateful logic into hooks.
+- `vercel.json` configures `/api/sync` at `0 4 * * *` and `/api/market/market-cap-sync` at `0 8 * * *`.
+- Cron-authenticated sync runs regular market sync and market-cap recalculation when stale.
+- `src/proxy.ts` authorizes protected routes and intelligence cron access.
+- Set `CRON_SECRET` in Vercel so cron requests are authorized.
+- Frequent open-tab refresh should stay client/settings-driven, not server-cron-driven.
+- Production build command is the repository `npm run build`: `prisma generate && npx tsx prisma/push-schema.ts && next build`.
 
-### Error Handling
+## Git Rules
 
-- **API routes**: Always wrap in `try/catch`. Error responses use `{ success: false, status: "error", error: "Human-readable message" }` with appropriate HTTP status codes.
-- **Client components**: Use `useState<string | null>` for error state. Display with the project's error UI pattern (see existing components).
-- **Logging**: Use `console.error("[ComponentOrModuleName]", error)` with a bracketed context prefix. Never bare `console.error(error)`.
+Load `git-master` before any git operation. No exceptions.
 
-### Database (Prisma)
+Use the platform-specific prefix for every git command:
+- PowerShell: `$env:GIT_MASTER=1; git status`
+- Windows CMD: `set GIT_MASTER=1 && git status`
+- macOS/Linux/Git Bash: `GIT_MASTER=1 git status`
 
-- **Schema changes**: After ANY change to `prisma/schema.prisma`, you MUST run `npm run db:push:turso` to sync the Turso database. This is non-negotiable — the production DB must stay in sync with the schema.
-- **Client import**: `import { prisma } from "@/lib/db"`. Never instantiate a new Prisma client.
-- **Model naming**: `PascalCase` for models in `schema.prisma`. Fields are `camelCase`. Always add `@@index` for foreign keys and frequently queried fields.
-- **IDs**: Use `@id @default(cuid())` for String IDs, `@id @default(autoincrement())` for Int IDs. Follow existing model patterns exactly.
+Commit workflow:
+- Gather status, diff, and recent log before committing.
+- Detect commit style from repository history.
+- Stage only relevant files.
+- Keep commits atomic and focused.
+- Do not commit secrets or local environment files.
+- Do not amend, rebase, force push, or run destructive git commands unless explicitly requested.
 
-### Import Order
+Commit message shape:
 
-Group imports in this order, separated by blank lines:
-1. React / Next.js core (`react`, `next/link`, `next/dynamic`, etc.)
-2. Third-party libraries (`next-auth`, etc.)
-3. Internal components (`@/components/...`)
-4. Internal types (`@/types/...`)
-5. Internal utilities (`@/lib/...`, `@/hooks/...`)
-6. CSS Module imports (`styles from "./..."`)
+```text
+type: concise subject under 72 characters
 
----
-
-## Git Operations (CRITICAL — NON-NEGOTIABLE)
-
-### ALWAYS Use git-master Skill
-
-**Rule**: For ANY git operation (commit, push, rebase, history search, etc.), the agent MUST:
-
-1. Load the `git-master` skill FIRST before any git commands
-2. Follow the skill's style detection protocol
-3. Use the appropriate `GIT_MASTER=1` prefix for ALL git commands (platform-specific syntax below)
-4. Create atomic commits as specified by the skill
-
-**Platform-Specific Git Command Syntax**:
-
-| Platform | Syntax Example |
-|----------|----------------|
-| macOS/Linux/Git Bash | `GIT_MASTER=1 git status` |
-| Windows CMD | `set GIT_MASTER=1 && git status` |
-| Windows PowerShell | `$env:GIT_MASTER=1; git status` or `cmd /c "set GIT_MASTER=1 && git status"` |
-
-**No Exceptions**:
-- Never skip the skill
-- Never use plain git commands without the skill loaded
-- Never assume commit style — always detect from repo history
-
-### Required Workflow for Commits
-
-```
-1. Load git-master skill
-2. Run parallel context gathering (git status, git log, git diff)
-3. Detect commit style from recent history
-4. Analyze files and create atomic commit plan
-5. Execute commits following dependency order
-6. Verify before push
-```
-
-### Commit Messages (CRITICAL — EXPLAIN THE CHANGE)
-
-Every commit message MUST include an **explanation** of what changed and why — not just a terse label. A reviewer reading the message should understand the intent without reading the diff.
-
-#### Structure
-
-```
-type: concise subject line (≤72 chars)
-
-Detailed body paragraph explaining what changed, why, and any
-non-obvious context. Mention the component/module affected, the
-problem being solved, and any tradeoffs or decisions made.
-```
-
-**The commit body MUST always be present**, UNLESS the change is small and fully self-explanatory from the subject line alone (e.g. `chore: bump version to 0.7.2`, `fix: correct typo in button label`). When in doubt, include the body.
-
-#### Examples
-
-**Good — with body** (the standard, expected format):
-```
-feat: replace Range card with ATH in Market Cap chart summary
-
-The Range card showed low-to-high which is redundant with the chart
-area. Replaced with All-Time High showing the peak value and its
-date, giving users a meaningful single-point stat instead of a range
-that requires mental comparison.
+Explain what changed, why, and any non-obvious tradeoffs or context.
 ```
 
-```
-fix: preload sold items alongside active portfolio on mount
+For docs-only `AGENTS.md` edits, use one atomic docs commit and do not create a version-bump commit.
 
-Previously sold items only loaded when the user clicked the Sold tab,
-causing a visible loading delay. Now both active and sold data fetch
-in parallel on page mount, so the Sold tab renders instantly.
-```
+## Verification Checklist
 
-```
-fix: show Back to Portfolio when navigating from portfolio
-
-The back button always read "Back to Market Overview" regardless of
-where the user came from. Now checks the ?from= query param and
-shows context-appropriate labels: "Back to Watchlist",
-"Back to Portfolio", or fallback "Back to Market Overview".
-```
-
-**Good — subject-only** (ONLY for trivial changes):
-- `chore: bump version to 0.7.2`
-- `fix: correct typo in button label`
-
-**Bad examples** (too vague, no body):
-- `fix: fetch logic` — what about it?
-- `feat: update card` — which card, what changed?
-- `refactor: cleanup` — cleanup what?
-- `fix: bug` — which bug?
-
-#### Subject line pattern
-
-`type: verb/describe what changed + where + why it matters`
-
-For `fix` commits: describe the **symptom** or **user-visible behavior** that was wrong.
-For `feat` commits: describe the **feature** and **where** it appears.
-For `refactor` commits: describe **what** was moved/extracted/renamed and **where**.
-For `chore` commits: describe **what** was done (version bump, config update, dependency change).
-
-### Version Bumping (CRITICAL — BEFORE PUSHING)
-
-**Rule**: Before pushing any commit(s), the agent MUST bump the version in `package.json` according to change scope. Be conservative — when in doubt, use a smaller bump.
-
-| Change Scope | Version Bump | Examples |
-|---|---|---|
-| **Small changes / UX improvements** | Patch (+0.0.1) | Bug fixes, error message improvements, UI tweaks, label changes, performance fixes, refactors with no API change |
-| **Bigger changes & new features** | Minor (+0.1.0) | New feature, new page, new API endpoint, new component, significant enhancement changing user workflows |
-| **Large overhauls, bundled features, structure changes** | Major (+1.0.0) | Architectural rewrites, breaking changes, multi-feature releases |
-
-#### Version Bump Decision Framework
-
-**Analyze user-facing impact, not code complexity:**
-
-```
-Does this add a NEW capability users didn't have before?     → Minor (+0.1.0)
-Does this change EXISTING user workflows or behavior?         → Major (+1.0.0)
-Does this improve/fix something users already use?            → Patch (+0.0.1)
-Unsure?                                                       → Patch (default)
-```
-
-**Common mistakes:** Better error messages, loading spinners, performance fixes, refactors, and accessibility improvements are PATCHES — they don't add new capabilities.
-
-**Workflow**:
-1. Finish all code changes and commit them
-2. Analyze each commit using the framework above
-3. Determine the highest scope among all unpushed commits
-4. Bump `version` in `package.json` accordingly
-5. Commit: `chore: bump version to X.Y.Z`
-6. Push everything
-
-**No Exceptions**:
-- Never push without bumping version
-- **When in doubt, prefer Patch over Minor**
-- Mixed scopes default to the highest scope among unpushed changes
-
-### Forbidden Actions
-
-- Single commit from multiple unrelated files
-- Semantic commits when repo uses plain style
-- Any git operation without skill loaded
-- Pushing without verification
-- Pushing without version bump
+Before handing off completed work:
+- Confirm user scope was followed exactly.
+- Confirm no unrelated files were edited.
+- Run `lsp_diagnostics` on changed supported source files.
+- Run relevant tests for new features, bug fixes, and behavior-affecting code changes.
+- Run `npm run build` when runtime behavior, build/config/dependencies, database/generated code, route/page/export boundaries, broad refactors, or verification needs require it.
+- For docs/rules-only changes, no app tests or build are required unless explicitly requested; report them as skipped because no runtime code changed.
+- For UI changes, use browser verification when relevant.
+- For database schema changes, confirm Prisma generation/migration and Turso sync requirements.
+- For delegated changes, personally inspect every touched file and do not trust subagent self-reports.
+- Report any skipped check with the reason.
