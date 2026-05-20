@@ -27,7 +27,7 @@ Before you begin, ensure you are familiar with our tech stack:
 Fork and clone the repository to your local machine:
 
 ```bash
-git clone https://github.com/<your-username>/CS2Vault.git
+git clone https://github.com/kyokoxdev/CS2Vault.git
 cd CS2Vault
 ```
 
@@ -104,7 +104,7 @@ Tests are highly encouraged for new features or bug fixes.
 
 ## Pull Request Process
 
-1. **Branch Naming**: Please create a branch with a clear name related to the issue or feature you are working on. e.g., `feature/add-market-chart` or `fix/nav-dropdown-bug`.
+1. **Branch Naming**: Please create a branch with a clear name related to the issue or feature you are working on. e.g., `feat/add-market-chart` or `fix/nav-dropdown-bug`.
 2. **Commit Messages**: Write clear, descriptive commit messages.
 3. **Tests**: Verify that existing tests pass, and add new ones if feasible.
 4. **Code Quality**: Run the linter (`npm run lint`) to maintain code consistency.
