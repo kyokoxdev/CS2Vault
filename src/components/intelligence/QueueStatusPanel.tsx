@@ -12,9 +12,14 @@ interface QueueStatusPanelProps {
   seedPending: boolean;
   seedError: string | null;
   seedSummary: string | null;
+  refreshPending: boolean;
+  refreshError: string | null;
+  refreshSummary: string | null;
   canSeed: boolean;
+  canRefreshStaleSignals: boolean;
   onToggleProcessing: () => void;
   onSeedCatalog: () => void;
+  onRefreshStaleSignals: () => void;
 }
 
 function formatRelativeTime(ts: string | null, referenceMs: number): string {
@@ -37,9 +42,14 @@ export function QueueStatusPanel({
   seedPending,
   seedError,
   seedSummary,
+  refreshPending,
+  refreshError,
+  refreshSummary,
   canSeed,
+  canRefreshStaleSignals,
   onToggleProcessing,
   onSeedCatalog,
+  onRefreshStaleSignals,
 }: QueueStatusPanelProps) {
   const isPaused = status.killSwitch;
   const isBackoff = status.circuitBreaker.active;
@@ -47,6 +57,7 @@ export function QueueStatusPanel({
   const pendingLabel = isPaused ? "Resuming..." : "Pausing...";
   const ariaLabel = isPaused ? "Resume signal processing" : "Pause signal processing";
   const seedDisabled = seedPending || actionPending || !canSeed;
+  const refreshDisabled = refreshPending || actionPending || !canRefreshStaleSignals;
 
   return (
     <div className={styles.panel} data-testid="queue-status-panel">
@@ -62,6 +73,16 @@ export function QueueStatusPanel({
           <Badge variant="success" size="sm">Active</Badge>
         )}
         <div className={styles.controls}>
+          <button
+            type="button"
+            className={styles.actionBtn}
+            onClick={onRefreshStaleSignals}
+            disabled={refreshDisabled}
+            aria-busy={refreshPending}
+            aria-label="Refresh stale signals"
+          >
+            {refreshPending ? "Refreshing..." : "Refresh stale signals"}
+          </button>
           <button
             type="button"
             className={styles.actionBtn}
@@ -91,9 +112,21 @@ export function QueueStatusPanel({
         </div>
       )}
 
+      {refreshSummary && (
+        <div className={styles.successBanner} data-testid="queue-refresh-summary">
+          {refreshSummary}
+        </div>
+      )}
+
       {seedError && (
         <div className={styles.errorBanner} data-testid="queue-seed-error">
           {seedError}
+        </div>
+      )}
+
+      {refreshError && (
+        <div className={styles.errorBanner} data-testid="queue-refresh-error">
+          {refreshError}
         </div>
       )}
 
