@@ -20,6 +20,7 @@ export interface IntelligenceQueueItemWithMarketHash {
 export interface DueQueueOptions {
     now?: Date;
     limit: number;
+    itemIds?: string[];
 }
 
 export interface ClaimQueueOptions {
@@ -36,12 +37,27 @@ export interface QueueSummary {
     oldestDueAgeMs: number | null;
 }
 
+export interface PromoteStaleSignalQueueItemsOptions {
+    now?: Date;
+    limit?: number;
+}
+
+export interface PromoteStaleSignalQueueItemsResult {
+    candidateSignals: number;
+    candidateQueueItems: number;
+    promoted: number;
+    itemIds: string[];
+}
+
 const DEFAULT_LOCK_MS = 5 * 60 * 1000;
 const SUCCESS_RESCHEDULE_MS = 6 * 60 * 60 * 1000;
 const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
 const BASE_BACKOFF_MS = 5 * 60 * 1000;
 const BACKLOG_SUSPEND_MS = 24 * 60 * 60 * 1000;
 const SUSPENDED_TIERS = ["high-supply", "liquid"];
+const SIGNAL_STALE_MS = 2 * 60 * 60 * 1000;
+const DEFAULT_PROMOTION_LIMIT = 10;
+const MAX_PROMOTION_LIMIT = 10;
 
 function queueSelect() {
     return {
@@ -74,6 +90,7 @@ export async function findDueQueueItems(options: DueQueueOptions): Promise<Intel
             status: { in: statusFilter },
             nextRunAt: { lte: now },
             OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }],
+            ...(options.itemIds !== undefined ? { itemId: { in: options.itemIds } } : {}),
         },
         select: queueSelect(),
         orderBy: [{ priority: "desc" }, { nextRunAt: "asc" }],
@@ -125,6 +142,72 @@ export async function recoverStaleLocks(now: Date = new Date()): Promise<number>
     });
 
     return count;
+}
+
+export async function promoteStaleSignalQueueItems(options: PromoteStaleSignalQueueItemsOptions = {}): Promise<PromoteStaleSignalQueueItemsResult> {
+    const now = options.now ?? new Date();
+    const requestedLimit = Math.floor(options.limit ?? DEFAULT_PROMOTION_LIMIT);
+    const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : DEFAULT_PROMOTION_LIMIT, 1), MAX_PROMOTION_LIMIT);
+    const staleCutoff = new Date(now.getTime() - SIGNAL_STALE_MS);
+
+    const candidateSignals = await prisma.intelligenceSignal.count({
+        where: {
+            status: "active",
+            lastSeenAt: { lt: staleCutoff },
+        },
+    });
+    if (candidateSignals === 0) {
+        return { candidateSignals: 0, candidateQueueItems: 0, promoted: 0, itemIds: [] };
+    }
+
+    const queueItems = await prisma.intelligenceQueueItem.findMany({
+        where: {
+            status: "pending",
+            nextRunAt: { gt: now },
+            OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }],
+            item: {
+                intelligenceSignals: {
+                    some: {
+                        status: "active",
+                        lastSeenAt: { lt: staleCutoff },
+                    },
+                },
+            },
+        },
+        select: { id: true, itemId: true },
+        orderBy: [{ priority: "desc" }, { nextRunAt: "asc" }],
+        take: limit,
+    });
+
+    const queueItemIds = queueItems.map((item) => item.id);
+    if (queueItemIds.length === 0) {
+        return {
+            candidateSignals,
+            candidateQueueItems: 0,
+            promoted: 0,
+            itemIds: [],
+        };
+    }
+
+    const { count } = await prisma.intelligenceQueueItem.updateMany({
+        where: {
+            id: { in: queueItemIds },
+            status: "pending",
+            nextRunAt: { gt: now },
+            OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }],
+        },
+        data: {
+            nextRunAt: now,
+            lockedUntil: null,
+        },
+    });
+
+    return {
+        candidateSignals,
+        candidateQueueItems: queueItems.length,
+        promoted: count,
+        itemIds: queueItems.map((item) => item.itemId),
+    };
 }
 
 export async function releaseQueueItemSuccess(

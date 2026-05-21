@@ -27,6 +27,7 @@ export interface IntelligenceRunnerOptions {
     startedAtMs?: number;
     provider?: IntelligenceProvider;
     csfloatProvider?: CsfloatProvider;
+    itemIds?: string[];
 }
 
 export interface IntelligenceRunnerResult {
@@ -269,7 +270,7 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
 
     const staleLocksRecovered = await recoverStaleLocks(now);
     const backlogSuspended = await suspendHighSupplyBacklog(now);
-    const dueItems = await findDueQueueItems({ now, limit: perRunCap });
+    const dueItems = await findDueQueueItems({ now, limit: perRunCap, itemIds: options.itemIds });
 
     let claimed = 0;
     let processed = 0;
