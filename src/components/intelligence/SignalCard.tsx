@@ -1,8 +1,14 @@
 "use client";
 
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+
 import { Badge } from "@/components/ui/Badge";
 import type { IntelligenceSignal } from "./types";
 import styles from "./SignalCard.module.css";
+
+const STEAM_MARKET_APP_ID = "730";
+const STEAM_MARKET_BASE_URL = `https://steamcommunity.com/market/listings/${STEAM_MARKET_APP_ID}`;
+const CSFLOAT_SEARCH_URL = "https://csfloat.com/search";
 
 interface SignalCardProps {
   signal: IntelligenceSignal;
@@ -12,6 +18,18 @@ interface SignalCardProps {
 function formatCents(cents: number | null): string {
   if (cents === null) return "—";
   return `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function encodeMarketHashName(marketHashName: string): string {
+  return encodeURIComponent(marketHashName).replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function buildSteamMarketUrl(marketHashName: string): string {
+  return `${STEAM_MARKET_BASE_URL}/${encodeMarketHashName(marketHashName)}`;
+}
+
+function buildCsfloatSearchUrl(marketHashName: string): string {
+  return `${CSFLOAT_SEARCH_URL}?market_hash_name=${encodeMarketHashName(marketHashName)}`;
 }
 
 function formatDeltaCents(delta: number | null, baseline: number | null): string | null {
@@ -73,7 +91,46 @@ function formatReason(reason: unknown): string {
 }
 
 export function SignalCard({ signal, referenceTimeMs }: SignalCardProps) {
+  const [isMarketplaceMenuOpen, setIsMarketplaceMenuOpen] = useState(false);
+  const menuId = useId();
+  const menuWrapperRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const deltaPct = formatDeltaCents(signal.deltaCents, signal.baselineCents);
+  const marketHashName = signal.marketHashName;
+  const hasMarketplaceLinks = marketHashName !== null;
+
+  const closeMarketplaceMenu = useCallback(() => {
+    setIsMarketplaceMenuOpen(false);
+  }, []);
+
+  const toggleMarketplaceMenu = useCallback(() => {
+    setIsMarketplaceMenuOpen((current) => !current);
+  }, []);
+
+  useEffect(() => {
+    if (!isMarketplaceMenuOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!menuWrapperRef.current?.contains(event.target as Node)) {
+        closeMarketplaceMenu();
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeMarketplaceMenu();
+        triggerRef.current?.focus();
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeMarketplaceMenu, isMarketplaceMenuOpen]);
 
   return (
     <div className={styles.card} data-testid="signal-card">
@@ -81,18 +138,62 @@ export function SignalCard({ signal, referenceTimeMs }: SignalCardProps) {
         <span className={styles.itemName} title={signal.marketHashName ?? undefined}>
           {signal.marketHashName ?? "Unknown Item"}
         </span>
-        <div className={styles.badgeRow}>
-          <Badge variant={getSignalTypeBadgeVariant(signal.signalType)} size="sm">
-            {signal.signalType.charAt(0).toUpperCase() + signal.signalType.slice(1).replace(/_/g, " ")}
-          </Badge>
-          {signal.tier && (
-            <Badge variant={signal.tier === "liquid" ? "success" : signal.tier === "low_supply_discontinued" ? "danger" : "neutral"} size="sm">
-              {signal.tier === "low_supply_discontinued" ? "Low-supply / discontinued" : signal.tier.charAt(0).toUpperCase() + signal.tier.slice(1)}
+        <div className={styles.headerActions}>
+          <div className={styles.badgeRow}>
+            <Badge variant={getSignalTypeBadgeVariant(signal.signalType)} size="sm">
+              {signal.signalType.charAt(0).toUpperCase() + signal.signalType.slice(1).replace(/_/g, " ")}
             </Badge>
+            {signal.tier && (
+              <Badge variant={signal.tier === "liquid" ? "success" : signal.tier === "low_supply_discontinued" ? "danger" : "neutral"} size="sm">
+                {signal.tier === "low_supply_discontinued" ? "Low-supply / discontinued" : signal.tier.charAt(0).toUpperCase() + signal.tier.slice(1)}
+              </Badge>
+            )}
+            <Badge variant={getFreshnessVariant(signal.freshness)} size="sm">
+              {signal.freshness}
+            </Badge>
+          </div>
+          {hasMarketplaceLinks && (
+            <div className={styles.marketplaceMenu} ref={menuWrapperRef}>
+              <button
+                ref={triggerRef}
+                type="button"
+                className={styles.marketplaceTrigger}
+                aria-label={`Open marketplace links for ${marketHashName}`}
+                aria-haspopup="menu"
+                aria-expanded={isMarketplaceMenuOpen}
+                aria-controls={menuId}
+                onClick={toggleMarketplaceMenu}
+              >
+                <span aria-hidden="true">...</span>
+              </button>
+              {isMarketplaceMenuOpen && (
+                <div id={menuId} className={styles.marketplaceDropdown} role="menu">
+                  <a
+                    className={styles.marketplaceItem}
+                    href={buildSteamMarketUrl(marketHashName)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    role="menuitem"
+                    aria-label={`Open ${marketHashName} on Steam Market`}
+                    onClick={closeMarketplaceMenu}
+                  >
+                    Steam Market
+                  </a>
+                  <a
+                    className={styles.marketplaceItem}
+                    href={buildCsfloatSearchUrl(marketHashName)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    role="menuitem"
+                    aria-label={`Open ${marketHashName} on CSFloat`}
+                    onClick={closeMarketplaceMenu}
+                  >
+                    CSFloat
+                  </a>
+                </div>
+              )}
+            </div>
           )}
-          <Badge variant={getFreshnessVariant(signal.freshness)} size="sm">
-            {signal.freshness}
-          </Badge>
         </div>
       </div>
 

@@ -267,6 +267,64 @@ describe("IntelligenceDashboard", () => {
     expect(dashValues.length).toBeGreaterThanOrEqual(4);
   });
 
+  it("opens marketplace links from signal cards", async () => {
+    const signalsWithComplexName = {
+      success: true,
+      data: {
+        ...MOCK_SIGNALS.data,
+        items: [{ ...MOCK_SIGNALS.data.items[0], marketHashName: "AK-47 | Redline (Field-Tested)" }],
+        meta: { ...MOCK_SIGNALS.data.meta, total: 1 },
+      },
+    };
+    const fetchMock = createFetchMock({
+      "/api/intelligence/signals": signalsWithComplexName,
+      "/api/intelligence/status": MOCK_STATUS,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText("AK-47 | Redline (Field-Tested)")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open marketplace links for AK-47 | Redline (Field-Tested)" }));
+
+    const steamLink = screen.getByRole("menuitem", { name: "Open AK-47 | Redline (Field-Tested) on Steam Market" });
+    const csfloatLink = screen.getByRole("menuitem", { name: "Open AK-47 | Redline (Field-Tested) on CSFloat" });
+
+    expect(steamLink).toHaveAttribute("href", "https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Redline%20%28Field-Tested%29");
+    expect(csfloatLink).toHaveAttribute("href", "https://csfloat.com/search?market_hash_name=AK-47%20%7C%20Redline%20%28Field-Tested%29");
+    expect(steamLink).toHaveAttribute("target", "_blank");
+    expect(csfloatLink).toHaveAttribute("target", "_blank");
+    expect(steamLink).toHaveAttribute("rel", "noopener noreferrer");
+    expect(csfloatLink).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("omits marketplace actions when a signal has no market hash name", async () => {
+    const signalsWithoutMarketName = {
+      success: true,
+      data: {
+        ...MOCK_SIGNALS.data,
+        items: [{ ...MOCK_SIGNALS.data.items[0], marketHashName: null }],
+        meta: { ...MOCK_SIGNALS.data.meta, total: 1 },
+      },
+    };
+    const fetchMock = createFetchMock({
+      "/api/intelligence/signals": signalsWithoutMarketName,
+      "/api/intelligence/status": MOCK_STATUS,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Unknown Item")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: /Open marketplace links/i })).not.toBeInTheDocument();
+  });
+
   it("renders summary cards with signal counts", async () => {
     const fetchMock = createFetchMock({
       "/api/intelligence/signals": MOCK_SIGNALS,
