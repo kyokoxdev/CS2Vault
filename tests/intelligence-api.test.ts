@@ -8,6 +8,7 @@ vi.mock("@/lib/db", () => ({
         },
         intelligenceQueueItem: {
             findMany: vi.fn(),
+            count: vi.fn(),
         },
         intelligenceConfig: {
             findUnique: vi.fn(),
@@ -35,18 +36,20 @@ vi.mock("@/lib/market/intelligence/catalog", () => ({
 
 vi.mock("@/lib/market/intelligence/queue", () => ({
     getQueueSummary: vi.fn(),
+    promoteStaleSignalQueueItems: vi.fn(),
 }));
 
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/guard";
 import { runIntelligenceQueue } from "@/lib/market/intelligence/runner";
 import { seedIntelligenceCatalog } from "@/lib/market/intelligence/catalog";
-import { getQueueSummary } from "@/lib/market/intelligence/queue";
+import { getQueueSummary, promoteStaleSignalQueueItems } from "@/lib/market/intelligence/queue";
 
 import { GET as getSignals } from "@/app/api/intelligence/signals/route";
 import { GET as getStatus } from "@/app/api/intelligence/status/route";
 import { POST as postSeed } from "@/app/api/intelligence/seed/route";
 import { GET as getRun } from "@/app/api/intelligence/run/route";
+import { POST as postRefresh } from "@/app/api/intelligence/refresh/route";
 
 function toNextRequest(request: Request): NextRequest {
     return request as unknown as NextRequest;
@@ -57,6 +60,7 @@ const originalCronSecret = process.env.CRON_SECRET;
 beforeEach(() => {
     vi.clearAllMocks();
     process.env.CRON_SECRET = "test-secret";
+    vi.mocked(prisma.intelligenceQueueItem.count).mockResolvedValue(0 as never);
 });
 
 afterEach(() => {
@@ -584,6 +588,278 @@ describe("POST /api/intelligence/seed", () => {
 
         expect(response.status).toBe(200);
         expect(seedIntelligenceCatalog).toHaveBeenCalledWith({ cursor: 100, cap: 5 });
+    });
+});
+
+describe("POST /api/intelligence/refresh", () => {
+    it("rejects unauthenticated requests with 401", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({
+            session: null,
+            error: new Response(JSON.stringify({ success: false, error: "Authentication required" }), {
+                status: 401,
+                headers: { "content-type": "application/json" },
+            }),
+        } as never);
+
+        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
+        const response = await postRefresh(toNextRequest(request));
+
+        expect(response.status).toBe(401);
+        expect(promoteStaleSignalQueueItems).not.toHaveBeenCalled();
+        expect(runIntelligenceQueue).not.toHaveBeenCalled();
+    });
+
+    it("returns paused status without promoting or running when kill switch is enabled", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
+        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+            liveScmEnabled: false,
+            circuitBreakerUntil: null,
+            lastRunAt: new Date("2026-01-01T10:00:00Z"),
+            requestBudget: {},
+        } as never);
+
+        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
+        const response = await postRefresh(toNextRequest(request));
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.success).toBe(true);
+        expect(payload.data.status).toBe("paused");
+        expect(payload.data.promoted).toBe(0);
+        expect(payload.data.killSwitch).toBe(true);
+        expect(promoteStaleSignalQueueItems).not.toHaveBeenCalled();
+        expect(runIntelligenceQueue).not.toHaveBeenCalled();
+    });
+
+    it("returns backoff status without promoting or running when circuit breaker is active", async () => {
+        const futureDate = new Date(Date.now() + 30 * 60 * 1000);
+        vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
+        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+            liveScmEnabled: true,
+            circuitBreakerUntil: futureDate,
+            lastRunAt: new Date("2026-01-01T10:00:00Z"),
+            requestBudget: {},
+        } as never);
+
+        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
+        const response = await postRefresh(toNextRequest(request));
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.success).toBe(true);
+        expect(payload.data.status).toBe("backoff");
+        expect(payload.data.promoted).toBe(0);
+        expect(payload.data.circuitBreaker.active).toBe(true);
+        expect(promoteStaleSignalQueueItems).not.toHaveBeenCalled();
+        expect(runIntelligenceQueue).not.toHaveBeenCalled();
+    });
+
+    it("returns running status without promoting or running when queue rows are already running", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
+        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+            liveScmEnabled: true,
+            circuitBreakerUntil: null,
+            lastRunAt: new Date("2026-01-01T10:00:00Z"),
+            requestBudget: {},
+        } as never);
+        vi.mocked(prisma.intelligenceQueueItem.count).mockResolvedValueOnce(1 as never);
+
+        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
+        const response = await postRefresh(toNextRequest(request));
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.success).toBe(true);
+        expect(payload.data.status).toBe("running");
+        expect(payload.data.reason).toBe("queue_items_running");
+        expect(prisma.intelligenceQueueItem.count).toHaveBeenCalledWith({
+            where: {
+                status: "running",
+                OR: [{ lockedUntil: null }, { lockedUntil: { gt: expect.any(Date) } }],
+            },
+        });
+        expect(promoteStaleSignalQueueItems).not.toHaveBeenCalled();
+        expect(runIntelligenceQueue).not.toHaveBeenCalled();
+    });
+
+    it("does not promote stale rows when the SCM budget is exhausted", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
+        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+            liveScmEnabled: true,
+            circuitBreakerUntil: null,
+            lastRunAt: new Date("2026-01-01T10:00:00Z"),
+            requestBudget: {
+                scmMinuteStartedAt: new Date().toISOString(),
+                scmMinuteCount: 19,
+                scmDayStartedAt: new Date().toISOString(),
+                scmDayCount: 100,
+            },
+        } as never);
+
+        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
+        const response = await postRefresh(toNextRequest(request));
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.success).toBe(true);
+        expect(payload.data.status).toBe("skipped");
+        expect(payload.data.reason).toBe("scm_budget_exhausted");
+        expect(promoteStaleSignalQueueItems).not.toHaveBeenCalled();
+        expect(runIntelligenceQueue).not.toHaveBeenCalled();
+    });
+
+    it("lets stale running locks fall through to runner recovery", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
+        vi.mocked(prisma.intelligenceConfig.findUnique)
+            .mockResolvedValueOnce({
+                liveScmEnabled: true,
+                circuitBreakerUntil: null,
+                lastRunAt: null,
+                requestBudget: {},
+            } as never)
+            .mockResolvedValueOnce({
+                circuitBreakerUntil: null,
+                lastRunAt: new Date("2026-01-01T12:00:00Z"),
+            } as never);
+        vi.mocked(prisma.intelligenceQueueItem.count).mockResolvedValueOnce(0 as never);
+        vi.mocked(promoteStaleSignalQueueItems).mockResolvedValueOnce({
+            candidateSignals: 1,
+            candidateQueueItems: 1,
+            promoted: 1,
+            itemIds: ["item-1"],
+        } as never);
+        vi.mocked(runIntelligenceQueue).mockResolvedValueOnce({
+            status: "success",
+            claimed: 1,
+            processed: 1,
+            succeeded: 1,
+            failed: 0,
+            skippedDueToBudget: 0,
+            staleLocksRecovered: 1,
+            backlogSuspended: 0,
+            circuitBreakerOpened: false,
+            timeBudgetExceeded: false,
+            budgetMs: 28_000,
+            elapsedMs: 10_000,
+            remainingMs: 18_000,
+            requestedLimit: 1,
+            effectiveLimit: 1,
+            summary: { pending: 0, running: 0, backoff: 0, disabled: 0, oldestDueAt: null, oldestDueAgeMs: null },
+        } as never);
+
+        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
+        const response = await postRefresh(toNextRequest(request));
+
+        expect(response.status).toBe(200);
+        expect(runIntelligenceQueue).toHaveBeenCalledWith(expect.objectContaining({ itemIds: ["item-1"] }));
+    });
+
+    it("promotes stale pending rows and runs only the promoted items with safe limits", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
+        vi.mocked(prisma.intelligenceConfig.findUnique)
+            .mockResolvedValueOnce({
+                liveScmEnabled: true,
+                circuitBreakerUntil: null,
+                lastRunAt: null,
+                requestBudget: {},
+            } as never)
+            .mockResolvedValueOnce({
+                circuitBreakerUntil: null,
+                lastRunAt: new Date("2026-01-01T12:00:00Z"),
+            } as never);
+        vi.mocked(promoteStaleSignalQueueItems).mockResolvedValueOnce({
+            candidateSignals: 2,
+            candidateQueueItems: 2,
+            promoted: 2,
+            itemIds: ["item-1", "item-2"],
+        } as never);
+        vi.mocked(runIntelligenceQueue).mockResolvedValueOnce({
+            status: "success",
+            claimed: 2,
+            processed: 2,
+            succeeded: 2,
+            failed: 0,
+            skippedDueToBudget: 0,
+            staleLocksRecovered: 0,
+            backlogSuspended: 0,
+            circuitBreakerOpened: false,
+            timeBudgetExceeded: false,
+            budgetMs: 28_000,
+            elapsedMs: 10_000,
+            remainingMs: 18_000,
+            requestedLimit: 2,
+            effectiveLimit: 2,
+            summary: { pending: 3, running: 0, backoff: 0, disabled: 1, oldestDueAt: new Date("2026-01-01T11:30:00Z"), oldestDueAgeMs: 30 * 60 * 1000 },
+        } as never);
+
+        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
+        const response = await postRefresh(toNextRequest(request));
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.success).toBe(true);
+        expect(payload.data.status).toBe("success");
+        expect(payload.data.promoted).toBe(2);
+        expect(payload.data.candidateSignals).toBe(2);
+        expect(payload.data.candidateQueueItems).toBe(2);
+        expect(payload.data.refreshedItemIds).toEqual(["item-1", "item-2"]);
+        expect(payload.data.processed).toBe(2);
+        expect(payload.data.remainingDue).toBe(3);
+        expect(payload.data.oldestDueAgeMinutes).toBe(30);
+        expect(promoteStaleSignalQueueItems).toHaveBeenCalledWith(expect.objectContaining({ limit: 10 }));
+        expect(runIntelligenceQueue).toHaveBeenCalledWith({
+            perRunCap: 2,
+            budgetMs: 28_000,
+            minRemainingMsToStartJob: 12_000,
+            itemIds: ["item-1", "item-2"],
+        });
+    });
+
+    it("does not run unrelated due backlog when no stale rows are promoted", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
+        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+            liveScmEnabled: true,
+            circuitBreakerUntil: null,
+            lastRunAt: new Date("2026-01-01T10:00:00Z"),
+            requestBudget: {},
+        } as never);
+        vi.mocked(promoteStaleSignalQueueItems).mockResolvedValueOnce({
+            candidateSignals: 0,
+            candidateQueueItems: 0,
+            promoted: 0,
+            itemIds: [],
+        } as never);
+
+        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
+        const response = await postRefresh(toNextRequest(request));
+        const payload = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(payload.data.status).toBe("skipped");
+        expect(payload.data.reason).toBe("no_stale_signal_queue_items");
+        expect(runIntelligenceQueue).not.toHaveBeenCalled();
+    });
+
+    it("returns 500 when config is missing", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
+        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce(null);
+
+        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
+        const response = await postRefresh(toNextRequest(request));
+
+        expect(response.status).toBe(500);
+        expect(promoteStaleSignalQueueItems).not.toHaveBeenCalled();
+        expect(runIntelligenceQueue).not.toHaveBeenCalled();
+    });
+
+    it("returns 500 on unexpected refresh errors", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
+        vi.mocked(prisma.intelligenceConfig.findUnique).mockRejectedValueOnce(new Error("DB connection lost"));
+
+        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
+        const response = await postRefresh(toNextRequest(request));
+
+        expect(response.status).toBe(500);
     });
 });
 
