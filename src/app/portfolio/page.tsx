@@ -1127,36 +1127,28 @@ export default function PortfolioPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <div>
-          <h3 className={styles.title}>Your Portfolio</h3>
-          <p className={styles.subtitle}>
-            Track your CS2 inventory value and profit/loss
-          </p>
+      {activeTab === "active" && (
+        <div className={styles.header}>
+          <div className={styles.headerActions}>
+            <button
+              type="button"
+              onClick={() => handleRefreshPrices()}
+              disabled={refreshingPrices}
+              className={styles.refreshButton}
+            >
+              {refreshingPrices ? "Refreshing..." : "Refresh Prices"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSync()}
+              disabled={syncing}
+              className={styles.syncButton}
+            >
+              {syncing ? "Syncing..." : "Sync from Steam"}
+            </button>
+          </div>
         </div>
-        <div className={styles.headerActions}>
-          {activeTab === "active" && (
-            <>
-              <button
-                type="button"
-                onClick={() => handleRefreshPrices()}
-                disabled={refreshingPrices}
-                className={styles.refreshButton}
-              >
-                {refreshingPrices ? "Refreshing..." : "Refresh Prices"}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSync()}
-                disabled={syncing}
-                className={styles.syncButton}
-              >
-                {syncing ? "Syncing..." : "Sync from Steam"}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      )}
 
       <div className={styles.tabBar} role="tablist">
         <button
