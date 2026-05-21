@@ -186,6 +186,13 @@
   margin: 0;
 }
 
+.headerSubtitle {
+  margin: 2px 0 0;
+  color: var(--text-secondary-60);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .headerTitleArea {
   display: flex;
   flex-direction: column;

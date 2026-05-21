@@ -36,14 +36,31 @@ const NAV_TOOLS = [
     { href: "/settings", label: "Settings", icon: <FaCog /> },
 ] as const;
 
-const PAGE_TITLES: Record<string, string> = {
-    "/": "Market Overview",
-    "/market-cap": "Market Cap",
-    "/watchlist": "Watchlist",
-    "/portfolio": "Portfolio",
-    "/intelligence": "Intelligence",
-    "/chat": "AI Insight",
-    "/settings": "Settings",
+interface PageHeaderContent {
+    title: string;
+    description?: string;
+}
+
+const PAGE_HEADERS: Record<string, PageHeaderContent> = {
+    "/": { title: "Market Overview" },
+    "/market-cap": { title: "Market Cap" },
+    "/watchlist": {
+        title: "Your Watchlist",
+        description: "Track CS2 item prices and market movements",
+    },
+    "/portfolio": {
+        title: "Your Portfolio",
+        description: "Track your CS2 inventory value and profit/loss",
+    },
+    "/intelligence": {
+        title: "Intelligence",
+        description: "Advisory signals only",
+    },
+    "/chat": {
+        title: "AI Insight",
+        description: "Chat with the CS2 Market AI Agent.",
+    },
+    "/settings": { title: "Settings" },
 };
 
 export default function DashboardShell({
@@ -60,7 +77,9 @@ export default function DashboardShell({
 
     if (pathname === "/startup") return <>{children}</>;
 
-    const pageTitle = contextTitle ?? PAGE_TITLES[pathname] ?? "CS2Vault";
+    const pageHeader = PAGE_HEADERS[pathname];
+    const pageTitle = contextTitle ?? pageHeader?.title ?? "CS2Vault";
+    const pageDescription = contextTitle ? undefined : pageHeader?.description;
     const isLoading = status === "loading";
     const isSignedIn = !!session?.user;
 
@@ -191,6 +210,9 @@ export default function DashboardShell({
                                 </Link>
                             )}
                             <h2>{pageTitle}</h2>
+                            {pageDescription && (
+                                <p className={styles.headerSubtitle}>{pageDescription}</p>
+                            )}
                         </div>
                     </header>
                 </FadeIn>

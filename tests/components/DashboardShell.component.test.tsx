@@ -28,6 +28,7 @@ vi.mock("react-icons/fa", () => ({
     FaSteam: () => <span data-testid="icon-steam">icon</span>,
     FaBars: () => <span data-testid="icon-bars">icon</span>,
     FaTimes: () => <span data-testid="icon-times">icon</span>,
+    FaArrowLeft: () => <span data-testid="icon-arrow-left">icon</span>,
 }));
 
 // Mock next/link
@@ -69,6 +70,49 @@ describe("DashboardShell", () => {
         const intelligenceLink = screen.getByRole("link", { name: /Intelligence/ });
         expect(intelligenceLink).toHaveAttribute("href", "/intelligence");
         expect(screen.getByRole("heading", { name: "Intelligence" })).toBeInTheDocument();
+    });
+
+    it("renders route descriptions in the shell header", () => {
+        vi.mocked(usePathname).mockReturnValue("/watchlist");
+
+        const { rerender } = render(
+            <DashboardShell>
+                <div>Content</div>
+            </DashboardShell>
+        );
+
+        expect(screen.getByRole("heading", { name: "Your Watchlist" })).toBeInTheDocument();
+        expect(screen.getByText("Track CS2 item prices and market movements")).toBeInTheDocument();
+
+        vi.mocked(usePathname).mockReturnValue("/portfolio");
+        rerender(
+            <DashboardShell>
+                <div>Content</div>
+            </DashboardShell>
+        );
+
+        expect(screen.getByRole("heading", { name: "Your Portfolio" })).toBeInTheDocument();
+        expect(screen.getByText("Track your CS2 inventory value and profit/loss")).toBeInTheDocument();
+
+        vi.mocked(usePathname).mockReturnValue("/intelligence");
+        rerender(
+            <DashboardShell>
+                <div>Content</div>
+            </DashboardShell>
+        );
+
+        expect(screen.getByRole("heading", { name: "Intelligence" })).toBeInTheDocument();
+        expect(screen.getByText("Advisory signals only")).toBeInTheDocument();
+
+        vi.mocked(usePathname).mockReturnValue("/chat");
+        rerender(
+            <DashboardShell>
+                <div>Content</div>
+            </DashboardShell>
+        );
+
+        expect(screen.getByRole("heading", { name: "AI Insight" })).toBeInTheDocument();
+        expect(screen.getByText("Chat with the CS2 Market AI Agent.")).toBeInTheDocument();
     });
 
     it("renders Sign in with Steam when not authenticated", () => {
