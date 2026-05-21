@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { FaRobot, FaTimes, FaPlus, FaArrowRight, FaStop } from "react-icons/fa";
+import { FaTimes, FaPlus, FaArrowRight, FaStop } from "react-icons/fa";
 import styles from "./AIChat.module.css";
 import type { ChatMessageData, AIProviderName } from "@/types";
 import { AI_MODELS } from "@/lib/ai/model-labels";
@@ -364,13 +364,6 @@ export default function AIChat() {
 
     return (
         <div className={styles.container}>
-            <div className={styles.header}>
-                <div className={styles.headerContent}>
-                    <div className={styles.headerIcon} aria-hidden="true"><FaRobot /></div>
-                    <div className={styles.headerTitle}>CS2Vault AI Agent</div>
-                </div>
-            </div>
-
             <div className={styles.tabBar} role="tablist" aria-label="Chat sessions">
                 <div className={styles.tabsScroll} ref={tabsContainerRef}>
                     {!sessionsLoading && sessions.map((s) => (
