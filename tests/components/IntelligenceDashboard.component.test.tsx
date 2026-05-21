@@ -192,6 +192,36 @@ function createSeedFetchMock(seedResponses: unknown[], statusResponse: unknown =
   });
 }
 
+function createRefreshFetchMock(refreshResponse: unknown, statusResponse: unknown = MOCK_EMPTY_QUEUE_STATUS, signalsResponse: unknown = MOCK_SIGNALS) {
+  return vi.fn((url: string, init?: RequestInit) => {
+    if (url.includes("/api/intelligence/refresh") && init?.method === "POST") {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(refreshResponse),
+      });
+    }
+
+    if (url.includes("/api/intelligence/signals")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(signalsResponse),
+      });
+    }
+
+    if (url.includes("/api/intelligence/status")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(statusResponse),
+      });
+    }
+
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ success: false, error: "Not found" }),
+    });
+  });
+}
+
 describe("IntelligenceDashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -547,6 +577,123 @@ describe("IntelligenceDashboard", () => {
         success: true,
         data: { seeded: 1, disabled: 0, skipped: 0, progress: { hasMore: false, nextCursor: null } },
       }),
+    });
+  });
+
+  it("refreshes stale signals and reloads status and signals", async () => {
+    const activeNoRunningStatus = {
+      success: true,
+      data: {
+        ...MOCK_STATUS.data,
+        queue: { ...MOCK_STATUS.data.queue, running: 0 },
+      },
+    };
+    const fetchMock = createRefreshFetchMock({
+      success: true,
+      data: {
+        status: "success",
+        promoted: 2,
+        candidateSignals: 2,
+        candidateQueueItems: 2,
+        refreshedItemIds: ["item-1", "item-2"],
+        processed: 2,
+        claimed: 2,
+        succeeded: 2,
+        failed: 0,
+        skippedDueToBudget: 0,
+        remainingDue: 0,
+        oldestDueAgeMinutes: null,
+        circuitBreaker: { active: false, until: null },
+        killSwitch: false,
+        lastRunAt: "2026-05-17T12:00:00Z",
+        nextRecommendedPingAt: "2026-05-17T12:30:00Z",
+      },
+    }, activeNoRunningStatus);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Refresh stale signals" })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh stale signals" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("queue-refresh-summary")).toHaveTextContent("Promoted 2 stale signal rows. Processed 2.");
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/intelligence/refresh", expect.objectContaining({ method: "POST" }));
+    const signalCalls = fetchMock.mock.calls.filter(([url]) => (url as string).includes("/api/intelligence/signals"));
+    const statusCalls = fetchMock.mock.calls.filter(([url]) => (url as string).includes("/api/intelligence/status"));
+    expect(signalCalls).toHaveLength(2);
+    expect(statusCalls).toHaveLength(2);
+  });
+
+  it("shows a refresh error and re-enables the button when refresh fails", async () => {
+    const activeNoRunningStatus = {
+      success: true,
+      data: {
+        ...MOCK_STATUS.data,
+        queue: { ...MOCK_STATUS.data.queue, running: 0 },
+      },
+    };
+    const fetchMock = createRefreshFetchMock({ success: false, error: "Intelligence refresh failed" }, activeNoRunningStatus);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Refresh stale signals" })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh stale signals" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("queue-refresh-error")).toHaveTextContent("Intelligence refresh failed");
+    });
+    expect(screen.getByRole("button", { name: "Refresh stale signals" })).toBeEnabled();
+  });
+
+  it("disables stale refresh while queue items are running", async () => {
+    const fetchMock = createFetchMock({
+      "/api/intelligence/signals": MOCK_SIGNALS,
+      "/api/intelligence/status": MOCK_STATUS,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Refresh stale signals" })).toBeDisabled();
+    });
+  });
+
+  it("disables stale refresh when queue processing is paused or in backoff", async () => {
+    const pausedFetchMock = createFetchMock({
+      "/api/intelligence/signals": MOCK_SIGNALS,
+      "/api/intelligence/status": MOCK_PAUSED_STATUS,
+    });
+    vi.stubGlobal("fetch", pausedFetchMock);
+
+    const { unmount } = render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Refresh stale signals" })).toBeDisabled();
+    });
+
+    unmount();
+
+    const backoffFetchMock = createFetchMock({
+      "/api/intelligence/signals": MOCK_SIGNALS,
+      "/api/intelligence/status": MOCK_BACKOFF_STATUS,
+    });
+    vi.stubGlobal("fetch", backoffFetchMock);
+
+    render(<IntelligenceDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Refresh stale signals" })).toBeDisabled();
     });
   });
 

@@ -6,7 +6,7 @@ import { SummaryCards } from "./SummaryCards";
 import { SignalFilters } from "./SignalFilters";
 import { SignalCard } from "./SignalCard";
 import { QueueStatusPanel } from "./QueueStatusPanel";
-import type { IntelligenceSignal, IntelligenceStatus, SignalFilters as Filters } from "./types";
+import type { IntelligenceRefreshResponse, IntelligenceSignal, IntelligenceStatus, SignalFilters as Filters } from "./types";
 import styles from "./IntelligenceDashboard.module.css";
 
 const DEFAULT_FILTERS: Filters = {
@@ -54,6 +54,9 @@ export function IntelligenceDashboard() {
   const [seedActionPending, setSeedActionPending] = useState(false);
   const [seedActionError, setSeedActionError] = useState<string | null>(null);
   const [seedActionSummary, setSeedActionSummary] = useState<string | null>(null);
+  const [refreshActionPending, setRefreshActionPending] = useState(false);
+  const [refreshActionError, setRefreshActionError] = useState<string | null>(null);
+  const [refreshActionSummary, setRefreshActionSummary] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [referenceTimeMs] = useState(() => Date.now());
@@ -219,10 +222,39 @@ export function IntelligenceDashboard() {
     }
   }, [fetchStatus, status]);
 
+  const handleRefreshStaleSignals = useCallback(async () => {
+    if (refreshActionPending) return;
+
+    setRefreshActionPending(true);
+    setRefreshActionError(null);
+    setRefreshActionSummary(null);
+
+    try {
+      const res = await fetch("/api/intelligence/refresh", { method: "POST" });
+      const data = await res.json() as IntelligenceRefreshResponse;
+
+      if (!data.success || !data.data) {
+        throw new Error(data.error ?? "Intelligence refresh failed");
+      }
+
+      setRefreshActionSummary(
+        `Promoted ${data.data.promoted} stale signal rows. Processed ${data.data.processed}.`
+      );
+      await loadAll(filters);
+    } catch (err) {
+      setRefreshActionError(err instanceof Error ? err.message : "Intelligence refresh failed");
+    } finally {
+      setRefreshActionPending(false);
+    }
+  }, [filters, loadAll, refreshActionPending]);
+
   const hasStaleSignals = signals.some(
     (s) => s.freshness === "stale" || s.freshness === "expired"
   );
   const canSeed = status ? !seedActionPending && status.queue.running === 0 : false;
+  const canRefreshStaleSignals = status
+    ? hasStaleSignals && !status.killSwitch && !status.circuitBreaker.active && status.queue.running === 0
+    : false;
 
   if (loading) {
     return (
@@ -278,9 +310,14 @@ export function IntelligenceDashboard() {
           seedPending={seedActionPending}
           seedError={seedActionError}
           seedSummary={seedActionSummary}
+          refreshPending={refreshActionPending}
+          refreshError={refreshActionError}
+          refreshSummary={refreshActionSummary}
           canSeed={canSeed}
+          canRefreshStaleSignals={canRefreshStaleSignals}
           onToggleProcessing={handleToggleProcessing}
           onSeedCatalog={handleSeedCatalog}
+          onRefreshStaleSignals={handleRefreshStaleSignals}
         />
       )}
 

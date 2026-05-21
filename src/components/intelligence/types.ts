@@ -68,6 +68,34 @@ export interface IntelligenceStatusResponse {
   error?: string;
 }
 
+export interface IntelligenceRefreshResponse {
+  success: boolean;
+  data?: {
+    status: string;
+    reason?: string;
+    promoted: number;
+    candidateSignals: number;
+    candidateQueueItems: number;
+    refreshedItemIds: string[];
+    processed: number;
+    claimed: number;
+    succeeded: number;
+    failed: number;
+    skippedDueToBudget: number;
+    timeBudgetExceeded?: boolean;
+    remainingDue: number;
+    oldestDueAgeMinutes: number | null;
+    circuitBreaker: {
+      active: boolean;
+      until: string | null;
+    };
+    killSwitch: boolean;
+    lastRunAt: string | null;
+    nextRecommendedPingAt: string | null;
+  };
+  error?: string;
+}
+
 export interface SignalFilters {
   signalType: string;
   tier: string;
