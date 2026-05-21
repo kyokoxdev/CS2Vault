@@ -6,27 +6,6 @@
   gap: 20px;
 }
 
-.header {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.pageTitle {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary-90);
-  margin: 0;
-}
-
-.advisory {
-  font-size: 11px;
-  color: var(--text-secondary-60);
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
 .errorBanner {
   display: flex;
   align-items: center;
@@ -178,12 +157,5 @@
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@media (max-width: 768px) {
-  .header {
-    flex-direction: column;
-    gap: 4px;
   }
 }

@@ -267,7 +267,8 @@ describe("IntelligenceDashboard", () => {
     expect(screen.getByText("Price Spike")).toBeInTheDocument();
     expect(screen.getByText("volume_increase")).toBeInTheDocument();
     expect(screen.getByText("volume_3x_average")).toBeInTheDocument();
-    expect(screen.getAllByText("Advisory signals only").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Advisory signals only")).not.toBeInTheDocument();
+    expect(screen.getByText("Active anomaly signals")).toBeInTheDocument();
   });
 
   it("renders SCM and CSFloat market data rows with values and placeholders", async () => {
@@ -1020,7 +1021,8 @@ describe("IntelligenceDashboard", () => {
       expect(screen.getByText("AK-47 | Redline")).toBeInTheDocument();
     });
 
-    expect(screen.getAllByText("Advisory signals only").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Advisory signals only")).not.toBeInTheDocument();
+    expect(screen.getByText("Active anomaly signals")).toBeInTheDocument();
     expect(screen.queryByText(/buy/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/sell/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/invest/i)).not.toBeInTheDocument();

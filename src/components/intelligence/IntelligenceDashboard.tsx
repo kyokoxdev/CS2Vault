@@ -259,10 +259,6 @@ export function IntelligenceDashboard() {
   if (loading) {
     return (
       <div className={styles.container} data-testid="intelligence-dashboard">
-        <div className={styles.header}>
-          <h1 className={styles.pageTitle}>Intelligence</h1>
-          <span className={styles.advisory}>Advisory signals only</span>
-        </div>
         <div className={styles.skeletonRow}>
           {Array.from({ length: 4 }, (_, i) => (
             <div key={i} className={styles.skeleton} />
@@ -279,11 +275,6 @@ export function IntelligenceDashboard() {
 
   return (
     <div className={styles.container} data-testid="intelligence-dashboard">
-      <div className={styles.header}>
-        <h1 className={styles.pageTitle}>Intelligence</h1>
-        <span className={styles.advisory}>Advisory signals only</span>
-      </div>
-
       {error && (
         <div className={styles.errorBanner} data-testid="error-banner">
           <span className={styles.errorMessage}>{error}</span>

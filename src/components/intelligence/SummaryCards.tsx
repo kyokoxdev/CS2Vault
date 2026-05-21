@@ -20,7 +20,7 @@ export function SummaryCards({ signals, status }: SummaryCardsProps) {
         <div className={styles.cardContent}>
           <div className={styles.label}>Signals Detected</div>
           <div className={styles.value}>{totalSignals}</div>
-          <div className={styles.subtext}>Advisory signals only</div>
+          <div className={styles.subtext}>Active anomaly signals</div>
         </div>
       </Card>
 
