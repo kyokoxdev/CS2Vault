@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runIntelligenceQueue } from "@/lib/market/intelligence/runner";
 import { prisma } from "@/lib/db";
+import { buildScmBudgetSummary, SCM_CRON_PER_RUN_CAP } from "@/lib/market/intelligence/budget";
 
-const DEFAULT_RUN_LIMIT = 10;
+const DEFAULT_RUN_LIMIT = SCM_CRON_PER_RUN_CAP;
 const MIN_RUN_LIMIT = 1;
-const MAX_RUN_LIMIT = 10;
+const MAX_RUN_LIMIT = SCM_CRON_PER_RUN_CAP;
 const DEFAULT_BUDGET_MS = 28_000;
 const MIN_BUDGET_MS = 1_000;
 const MAX_BUDGET_MS = 28_000;
 const MIN_REMAINING_MS_TO_START_JOB = 12_000;
+
+const EMPTY_LANES = {
+    scmHot: { candidates: 0, claimed: 0, processed: 0, succeeded: 0, failed: 0, skippedDueToBudget: 0, itemIds: [] as string[] },
+    scmDiscovery: { candidates: 0, claimed: 0, processed: 0, succeeded: 0, failed: 0, skippedDueToBudget: 0, itemIds: [] as string[] },
+    csfloatScout: { candidates: 0, processed: 0, failed: 0, itemIds: [] as string[] },
+};
 
 function isCronAuthorized(request: NextRequest): boolean {
     const cronSecret = process.env.CRON_SECRET;
@@ -47,6 +54,7 @@ export async function GET(request: NextRequest) {
                 liveScmEnabled: true,
                 circuitBreakerUntil: true,
                 lastRunAt: true,
+                requestBudget: true,
             },
         });
 
@@ -66,6 +74,11 @@ export async function GET(request: NextRequest) {
                     status: "paused",
                     processed: 0,
                     skippedDueToBudget: 0,
+                    scmValidatedCount: 0,
+                    csfloatCandidateCount: 0,
+                    stalePromotionCount: 0,
+                    stalePromotedItemIds: [],
+                    lanes: EMPTY_LANES,
                     remainingDue: 0,
                     oldestDueAgeMinutes: null,
                     circuitBreaker: {
@@ -75,6 +88,7 @@ export async function GET(request: NextRequest) {
                     killSwitch: true,
                     lastRunAt: config.lastRunAt?.toISOString() ?? null,
                     nextRecommendedPingAt: null,
+                    scmBudget: buildScmBudgetSummary(config.requestBudget, now),
                 },
             });
         }
@@ -87,6 +101,11 @@ export async function GET(request: NextRequest) {
                     status: "backoff",
                     processed: 0,
                     skippedDueToBudget: 0,
+                    scmValidatedCount: 0,
+                    csfloatCandidateCount: 0,
+                    stalePromotionCount: 0,
+                    stalePromotedItemIds: [],
+                    lanes: EMPTY_LANES,
                     remainingDue: 0,
                     oldestDueAgeMinutes: null,
                     circuitBreaker: {
@@ -96,6 +115,7 @@ export async function GET(request: NextRequest) {
                     killSwitch: false,
                     lastRunAt: config.lastRunAt?.toISOString() ?? null,
                     nextRecommendedPingAt: config.circuitBreakerUntil!.toISOString(),
+                    scmBudget: buildScmBudgetSummary(config.requestBudget, now),
                 },
             });
         }
@@ -113,6 +133,7 @@ export async function GET(request: NextRequest) {
             select: {
                 circuitBreakerUntil: true,
                 lastRunAt: true,
+                requestBudget: true,
             },
         });
 
@@ -138,6 +159,11 @@ export async function GET(request: NextRequest) {
                 reason: result.reason,
                 processed: result.processed,
                 skippedDueToBudget: result.skippedDueToBudget,
+                scmValidatedCount: result.scmValidatedCount,
+                csfloatCandidateCount: result.csfloatCandidateCount,
+                stalePromotionCount: result.stalePromotionCount,
+                stalePromotedItemIds: result.stalePromotedItemIds,
+                lanes: result.lanes,
                 timeBudgetExceeded: result.timeBudgetExceeded,
                 budgetMs: result.budgetMs,
                 elapsedMs: result.elapsedMs,
@@ -153,6 +179,9 @@ export async function GET(request: NextRequest) {
                 killSwitch: false,
                 lastRunAt: refreshedConfig?.lastRunAt?.toISOString() ?? now.toISOString(),
                 nextRecommendedPingAt,
+                scmBudget: refreshedConfig?.requestBudget !== undefined
+                    ? buildScmBudgetSummary(refreshedConfig.requestBudget, now)
+                    : result.scmBudget ?? buildScmBudgetSummary(config.requestBudget, now),
             },
         });
     } catch (error) {

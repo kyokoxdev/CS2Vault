@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
+import { buildScmBudgetSummary } from "@/lib/market/intelligence/budget";
 import { getQueueSummary } from "@/lib/market/intelligence/queue";
 
 type IntelligenceStatusConfig = {
@@ -61,6 +62,7 @@ function buildStatusPayload(config: IntelligenceStatusConfig | null, queueSummar
             lastRunAt: null,
             nextRecommendedPingAt: null,
             lastError: null,
+            scmBudget: buildScmBudgetSummary({}, now),
         };
     }
 
@@ -98,6 +100,7 @@ function buildStatusPayload(config: IntelligenceStatusConfig | null, queueSummar
         lastRunAt: config.lastRunAt?.toISOString() ?? null,
         nextRecommendedPingAt,
         lastError: config.lastError,
+        scmBudget: buildScmBudgetSummary(config.requestBudget, now),
     };
 }
 

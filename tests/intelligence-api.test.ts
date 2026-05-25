@@ -806,7 +806,7 @@ describe("POST /api/intelligence/refresh", () => {
         expect(payload.data.processed).toBe(2);
         expect(payload.data.remainingDue).toBe(3);
         expect(payload.data.oldestDueAgeMinutes).toBe(30);
-        expect(promoteStaleSignalQueueItems).toHaveBeenCalledWith(expect.objectContaining({ limit: 10 }));
+        expect(promoteStaleSignalQueueItems).toHaveBeenCalledWith(expect.objectContaining({ limit: 3 }));
         expect(runIntelligenceQueue).toHaveBeenCalledWith({
             perRunCap: 2,
             budgetMs: 28_000,
@@ -918,7 +918,7 @@ describe("GET /api/intelligence/run", () => {
         expect(payload.data.oldestDueAgeMinutes).toBe(30);
         expect(runIntelligenceQueue).toHaveBeenCalledTimes(1);
         expect(runIntelligenceQueue).toHaveBeenCalledWith({
-            perRunCap: 10,
+            perRunCap: 3,
             budgetMs: 28_000,
             minRemainingMsToStartJob: 12_000,
         });
@@ -956,7 +956,7 @@ describe("GET /api/intelligence/run", () => {
 
         expect(response.status).toBe(200);
         expect(runIntelligenceQueue).toHaveBeenCalledWith({
-            perRunCap: 10,
+            perRunCap: 3,
             budgetMs: 28_000,
             minRemainingMsToStartJob: 12_000,
         });
@@ -994,7 +994,7 @@ describe("GET /api/intelligence/run", () => {
 
         expect(response.status).toBe(200);
         expect(runIntelligenceQueue).toHaveBeenCalledWith({
-            perRunCap: 10,
+            perRunCap: 3,
             budgetMs: 28_000,
             minRemainingMsToStartJob: 12_000,
         });

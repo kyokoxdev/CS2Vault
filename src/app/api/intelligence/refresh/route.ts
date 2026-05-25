@@ -2,23 +2,20 @@ import { NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
+import { buildScmBudgetSummary, hasScmBudget, SCM_CRON_PER_RUN_CAP } from "@/lib/market/intelligence/budget";
 import { promoteStaleSignalQueueItems } from "@/lib/market/intelligence/queue";
 import { runIntelligenceQueue } from "@/lib/market/intelligence/runner";
 
-const DEFAULT_RUN_LIMIT = 10;
+const DEFAULT_RUN_LIMIT = SCM_CRON_PER_RUN_CAP;
 const DEFAULT_BUDGET_MS = 28_000;
 const MIN_REMAINING_MS_TO_START_JOB = 12_000;
-const SCM_MAX_PER_MINUTE = 19;
-const SCM_MAX_PER_DAY = 950;
-
-interface RequestBudgetState {
-    scmMinuteStartedAt: string;
-    scmMinuteCount: number;
-    scmDayStartedAt: string;
-    scmDayCount: number;
-}
-
 let refreshInFlight = false;
+
+const EMPTY_LANES = {
+    scmHot: { candidates: 0, claimed: 0, processed: 0, succeeded: 0, failed: 0, skippedDueToBudget: 0, itemIds: [] as string[] },
+    scmDiscovery: { candidates: 0, claimed: 0, processed: 0, succeeded: 0, failed: 0, skippedDueToBudget: 0, itemIds: [] as string[] },
+    csfloatScout: { candidates: 0, processed: 0, failed: 0, itemIds: [] as string[] },
+};
 
 function oldestDueAgeMinutes(summary: { oldestDueAgeMs?: number | null } | undefined): number | null {
     if (summary?.oldestDueAgeMs === null || summary?.oldestDueAgeMs === undefined) return null;
@@ -31,51 +28,6 @@ function nextRecommendedPingAt(summary: { oldestDueAt?: Date | null } | undefine
     }
 
     return new Date(now.getTime() + 30 * 60 * 1000).toISOString();
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function numberValue(value: unknown): number | null {
-    return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function stringValue(value: unknown): string | null {
-    return typeof value === "string" ? value : null;
-}
-
-function defaultBudget(now: Date): RequestBudgetState {
-    return {
-        scmMinuteStartedAt: now.toISOString(),
-        scmMinuteCount: 0,
-        scmDayStartedAt: now.toISOString(),
-        scmDayCount: 0,
-    };
-}
-
-function normalizeBudget(value: unknown, now: Date): RequestBudgetState {
-    if (!isRecord(value)) return defaultBudget(now);
-
-    const fallback = defaultBudget(now);
-    const minuteStartedAt = stringValue(value.scmMinuteStartedAt) ?? fallback.scmMinuteStartedAt;
-    const dayStartedAt = stringValue(value.scmDayStartedAt) ?? fallback.scmDayStartedAt;
-    const minuteStart = new Date(minuteStartedAt);
-    const dayStart = new Date(dayStartedAt);
-    const minuteFresh = Number.isFinite(minuteStart.getTime()) && now.getTime() - minuteStart.getTime() < 60_000;
-    const dayFresh = Number.isFinite(dayStart.getTime()) && now.toISOString().slice(0, 10) === dayStart.toISOString().slice(0, 10);
-
-    return {
-        scmMinuteStartedAt: minuteFresh ? minuteStartedAt : now.toISOString(),
-        scmMinuteCount: minuteFresh ? numberValue(value.scmMinuteCount) ?? 0 : 0,
-        scmDayStartedAt: dayFresh ? dayStartedAt : now.toISOString(),
-        scmDayCount: dayFresh ? numberValue(value.scmDayCount) ?? 0 : 0,
-    };
-}
-
-function hasScmBudget(requestBudget: unknown, now: Date): boolean {
-    const budget = normalizeBudget(requestBudget, now);
-    return budget.scmMinuteCount < SCM_MAX_PER_MINUTE && budget.scmDayCount < SCM_MAX_PER_DAY;
 }
 
 export async function POST() {
@@ -100,14 +52,20 @@ export async function POST() {
                     succeeded: 0,
                     failed: 0,
                     skippedDueToBudget: 0,
+                    scmValidatedCount: 0,
+                    csfloatCandidateCount: 0,
+                    stalePromotionCount: 0,
+                    stalePromotedItemIds: [],
+                    lanes: EMPTY_LANES,
                     remainingDue: 0,
                     oldestDueAgeMinutes: null,
                     circuitBreaker: { active: false, until: null },
                     killSwitch: false,
-                    lastRunAt: null,
-                    nextRecommendedPingAt: null,
-                },
-            });
+                        lastRunAt: null,
+                        nextRecommendedPingAt: null,
+                        scmBudget: buildScmBudgetSummary({}, new Date()),
+                    },
+                });
         }
 
         refreshInFlight = true;
@@ -146,12 +104,18 @@ export async function POST() {
                         succeeded: 0,
                         failed: 0,
                         skippedDueToBudget: 0,
+                        scmValidatedCount: 0,
+                        csfloatCandidateCount: 0,
+                        stalePromotionCount: 0,
+                        stalePromotedItemIds: [],
+                        lanes: EMPTY_LANES,
                         remainingDue: 0,
                         oldestDueAgeMinutes: null,
                         circuitBreaker: { active: false, until: null },
                         killSwitch: true,
                         lastRunAt: config.lastRunAt?.toISOString() ?? null,
                         nextRecommendedPingAt: null,
+                        scmBudget: buildScmBudgetSummary(config.requestBudget, now),
                     },
                 });
             }
@@ -171,12 +135,18 @@ export async function POST() {
                         succeeded: 0,
                         failed: 0,
                         skippedDueToBudget: 0,
+                        scmValidatedCount: 0,
+                        csfloatCandidateCount: 0,
+                        stalePromotionCount: 0,
+                        stalePromotedItemIds: [],
+                        lanes: EMPTY_LANES,
                         remainingDue: 0,
                         oldestDueAgeMinutes: null,
                         circuitBreaker: { active: true, until: config.circuitBreakerUntil!.toISOString() },
                         killSwitch: false,
                         lastRunAt: config.lastRunAt?.toISOString() ?? null,
                         nextRecommendedPingAt: config.circuitBreakerUntil!.toISOString(),
+                        scmBudget: buildScmBudgetSummary(config.requestBudget, now),
                     },
                 });
             }
@@ -202,12 +172,18 @@ export async function POST() {
                         succeeded: 0,
                         failed: 0,
                         skippedDueToBudget: 0,
+                        scmValidatedCount: 0,
+                        csfloatCandidateCount: 0,
+                        stalePromotionCount: 0,
+                        stalePromotedItemIds: [],
+                        lanes: EMPTY_LANES,
                         remainingDue: 0,
                         oldestDueAgeMinutes: null,
                         circuitBreaker: { active: false, until: null },
                         killSwitch: false,
                         lastRunAt: config.lastRunAt?.toISOString() ?? null,
                         nextRecommendedPingAt: null,
+                        scmBudget: buildScmBudgetSummary(config.requestBudget, now),
                     },
                 });
             }
@@ -227,12 +203,18 @@ export async function POST() {
                         succeeded: 0,
                         failed: 0,
                         skippedDueToBudget: 0,
+                        scmValidatedCount: 0,
+                        csfloatCandidateCount: 0,
+                        stalePromotionCount: 0,
+                        stalePromotedItemIds: [],
+                        lanes: EMPTY_LANES,
                         remainingDue: 0,
                         oldestDueAgeMinutes: null,
                         circuitBreaker: { active: false, until: null },
                         killSwitch: false,
                         lastRunAt: config.lastRunAt?.toISOString() ?? null,
                         nextRecommendedPingAt: null,
+                        scmBudget: buildScmBudgetSummary(config.requestBudget, now),
                     },
                 });
             }
@@ -254,12 +236,18 @@ export async function POST() {
                         succeeded: 0,
                         failed: 0,
                         skippedDueToBudget: 0,
+                        scmValidatedCount: 0,
+                        csfloatCandidateCount: 0,
+                        stalePromotionCount: 0,
+                        stalePromotedItemIds: [],
+                        lanes: EMPTY_LANES,
                         remainingDue: 0,
                         oldestDueAgeMinutes: null,
                         circuitBreaker: { active: false, until: null },
                         killSwitch: false,
                         lastRunAt: config.lastRunAt?.toISOString() ?? null,
                         nextRecommendedPingAt: null,
+                        scmBudget: buildScmBudgetSummary(config.requestBudget, now),
                     },
                 });
             }
@@ -275,6 +263,7 @@ export async function POST() {
                 select: {
                     circuitBreakerUntil: true,
                     lastRunAt: true,
+                    requestBudget: true,
                 },
             });
             const remainingDue = (result.summary?.pending ?? 0) + (result.summary?.backoff ?? 0);
@@ -294,6 +283,11 @@ export async function POST() {
                     succeeded: result.succeeded,
                     failed: result.failed,
                     skippedDueToBudget: result.skippedDueToBudget,
+                    scmValidatedCount: result.scmValidatedCount,
+                    csfloatCandidateCount: result.csfloatCandidateCount,
+                    stalePromotionCount: result.stalePromotionCount,
+                    stalePromotedItemIds: result.stalePromotedItemIds,
+                    lanes: result.lanes,
                     timeBudgetExceeded: result.timeBudgetExceeded,
                     budgetMs: result.budgetMs,
                     elapsedMs: result.elapsedMs,
@@ -309,6 +303,9 @@ export async function POST() {
                     killSwitch: false,
                     lastRunAt: refreshedConfig?.lastRunAt?.toISOString() ?? now.toISOString(),
                     nextRecommendedPingAt: nextRecommendedPingAt(result.summary, now),
+                    scmBudget: refreshedConfig?.requestBudget !== undefined
+                        ? buildScmBudgetSummary(refreshedConfig.requestBudget, now)
+                        : result.scmBudget ?? buildScmBudgetSummary(config.requestBudget, now),
                 },
             });
         } finally {
