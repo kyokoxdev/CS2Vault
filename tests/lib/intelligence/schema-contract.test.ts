@@ -31,15 +31,20 @@ describe("Intelligence Prisma schema contract", () => {
                 lastRunAt: null,
                 lastError: null,
                 requestBudget: {
-                    scm: { perMinute: 19, perDay: 950 },
-                    csfloat: { perMinute: 4 },
+                    scmMinuteStartedAt: TEST_DATE.toISOString(),
+                    scmMinuteCount: 0,
+                    scmDayStartedAt: TEST_DATE.toISOString(),
+                    scmDayCount: 0,
                 },
             },
             update: {
                 lastRunAt: TEST_DATE,
                 lastError: null,
                 requestBudget: {
-                    scm: { remainingToday: 949 },
+                    scmMinuteStartedAt: TEST_DATE.toISOString(),
+                    scmMinuteCount: 3,
+                    scmDayStartedAt: TEST_DATE.toISOString(),
+                    scmDayCount: 42,
                 },
             },
         });
@@ -51,9 +56,12 @@ describe("Intelligence Prisma schema contract", () => {
                     liveScmEnabled: false,
                     circuitBreakerUntil: null,
                     consecutiveProviderFailures: 0,
-                    requestBudget: expect.objectContaining({ scm: expect.objectContaining({ perDay: 950 }) }),
+                    requestBudget: expect.objectContaining({ scmMinuteCount: 0, scmDayCount: 0 }),
                 }),
-                update: expect.objectContaining({ lastRunAt: TEST_DATE }),
+                update: expect.objectContaining({
+                    lastRunAt: TEST_DATE,
+                    requestBudget: expect.objectContaining({ scmMinuteCount: 3, scmDayCount: 42 }),
+                }),
             })
         );
     });
@@ -65,7 +73,7 @@ describe("Intelligence Prisma schema contract", () => {
                 itemId: "item-1",
                 nextRunAt: TEST_DATE,
                 priority: 10,
-                tier: "high-volume",
+                tier: "standard",
                 attempts: 0,
                 lastError: null,
                 lockedUntil: null,
@@ -76,7 +84,7 @@ describe("Intelligence Prisma schema contract", () => {
             update: {
                 nextRunAt: TEST_DATE,
                 priority: 10,
-                tier: "high-volume",
+                tier: "standard",
                 status: "pending",
                 disabledReason: null,
             },
@@ -101,7 +109,7 @@ describe("Intelligence Prisma schema contract", () => {
                 create: expect.objectContaining({
                     nextRunAt: TEST_DATE,
                     priority: 10,
-                    tier: "high-volume",
+                    tier: "standard",
                     attempts: 0,
                     lastError: null,
                     lockedUntil: null,
