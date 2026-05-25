@@ -73,6 +73,16 @@ const MOCK_STATUS = {
     lastRunAt: "2026-05-17T11:30:00Z",
     nextRecommendedPingAt: "2026-05-17T12:00:00Z",
     lastError: null,
+    scmBudget: {
+      minuteCount: 1,
+      dayCount: 100,
+      hardDailyCap: 950,
+      cronPerRunCap: 3,
+      cronDailyBudget: 864,
+      reserveDailyBudget: 86,
+      remainingHardBudget: 850,
+      remainingCronBudget: 764,
+    },
   },
 };
 
@@ -373,6 +383,7 @@ describe("IntelligenceDashboard", () => {
     expect(screen.getByText("High Confidence")).toBeInTheDocument();
     expect(screen.getAllByText("1").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Stale / Backlog")).toBeInTheDocument();
+    expect(screen.getByText("5 due · SCM 100/950")).toBeInTheDocument();
   });
 
   it("renders queue status panel with active state", async () => {
@@ -393,6 +404,13 @@ describe("IntelligenceDashboard", () => {
     expect(screen.getAllByText("5").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Running")).toBeInTheDocument();
     expect(screen.getAllByText("2").length).toBeGreaterThanOrEqual(1);
+
+    expect(screen.getByText("SCM Today")).toBeInTheDocument();
+    expect(screen.getByText("100 / 950")).toBeInTheDocument();
+    expect(screen.getByText("5m Cron Cap")).toBeInTheDocument();
+    expect(screen.getByText("3 / run")).toBeInTheDocument();
+    expect(screen.getByText("Daily Reserve")).toBeInTheDocument();
+    expect(screen.getByText("86 / 86")).toBeInTheDocument();
   });
 
   it("renders a disabled seed button while queue items are currently running", async () => {
@@ -608,6 +626,11 @@ describe("IntelligenceDashboard", () => {
         killSwitch: false,
         lastRunAt: "2026-05-17T12:00:00Z",
         nextRecommendedPingAt: "2026-05-17T12:30:00Z",
+        lanes: {
+          scmHot: { candidates: 1, claimed: 1, processed: 1, succeeded: 1, failed: 0, skippedDueToBudget: 0, itemIds: [] },
+          scmDiscovery: { candidates: 1, claimed: 1, processed: 1, succeeded: 1, failed: 0, skippedDueToBudget: 0, itemIds: [] },
+          csfloatScout: { candidates: 0, processed: 0, failed: 0, itemIds: [] },
+        },
       },
     }, activeNoRunningStatus);
     vi.stubGlobal("fetch", fetchMock);
@@ -621,7 +644,7 @@ describe("IntelligenceDashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh stale signals" }));
 
     await waitFor(() => {
-      expect(screen.getByTestId("queue-refresh-summary")).toHaveTextContent("Promoted 2 stale signal rows. Processed 2.");
+      expect(screen.getByTestId("queue-refresh-summary")).toHaveTextContent("Promoted 2 stale signal rows. Processed 2. (Hot: 1, Discovery: 1, Scout: 0)");
     });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/intelligence/refresh", expect.objectContaining({ method: "POST" }));

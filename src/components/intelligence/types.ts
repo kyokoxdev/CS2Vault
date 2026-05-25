@@ -60,6 +60,39 @@ export interface IntelligenceStatus {
   lastRunAt: string | null;
   nextRecommendedPingAt: string | null;
   lastError: string | null;
+  scmBudget: ScmBudgetSummary;
+}
+
+export interface ScmBudgetSummary {
+  minuteCount: number;
+  dayCount: number;
+  hardDailyCap: number;
+  cronPerRunCap: number;
+  cronDailyBudget: number;
+  reserveDailyBudget: number;
+  remainingHardBudget: number;
+  remainingCronBudget: number;
+}
+
+export interface IntelligenceLaneResult {
+  candidates: number;
+  claimed: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  skippedDueToBudget: number;
+  itemIds: string[];
+}
+
+export interface IntelligenceLaneResults {
+  scmHot: IntelligenceLaneResult;
+  scmDiscovery: IntelligenceLaneResult;
+  csfloatScout: {
+    candidates: number;
+    processed: number;
+    failed: number;
+    itemIds: string[];
+  };
 }
 
 export interface IntelligenceStatusResponse {
@@ -82,6 +115,11 @@ export interface IntelligenceRefreshResponse {
     succeeded: number;
     failed: number;
     skippedDueToBudget: number;
+    scmValidatedCount?: number;
+    csfloatCandidateCount?: number;
+    stalePromotionCount?: number;
+    stalePromotedItemIds?: string[];
+    lanes?: IntelligenceLaneResults;
     timeBudgetExceeded?: boolean;
     remainingDue: number;
     oldestDueAgeMinutes: number | null;
@@ -92,6 +130,7 @@ export interface IntelligenceRefreshResponse {
     killSwitch: boolean;
     lastRunAt: string | null;
     nextRecommendedPingAt: string | null;
+    scmBudget: ScmBudgetSummary;
   };
   error?: string;
 }

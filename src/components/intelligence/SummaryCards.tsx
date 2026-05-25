@@ -52,7 +52,7 @@ export function SummaryCards({ signals, status }: SummaryCardsProps) {
               {status.killSwitch ? "Paused" : status.circuitBreaker.active ? "Backoff" : "Active"}
             </div>
             <div className={styles.subtext}>
-              {status.remainingDue} due · {status.queue.running} running
+              {status.remainingDue} due · SCM {status.scmBudget.dayCount}/{status.scmBudget.hardDailyCap}
             </div>
           </div>
         </Card>

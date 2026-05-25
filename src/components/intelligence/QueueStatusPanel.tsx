@@ -169,6 +169,18 @@ export function QueueStatusPanel({
           <span className={styles.statLabel}>Remaining Due</span>
           <span className={styles.statValue}>{status.remainingDue}</span>
         </div>
+        <div className={styles.stat}>
+          <span className={styles.statLabel}>SCM Today</span>
+          <span className={styles.statValue}>{status.scmBudget.dayCount} / {status.scmBudget.hardDailyCap}</span>
+        </div>
+        <div className={styles.stat}>
+          <span className={styles.statLabel}>5m Cron Cap</span>
+          <span className={styles.statValue}>{status.scmBudget.cronPerRunCap} / run</span>
+        </div>
+        <div className={styles.stat}>
+          <span className={styles.statLabel}>Daily Reserve</span>
+          <span className={styles.statValue}>{Math.max(0, status.scmBudget.remainingHardBudget - status.scmBudget.remainingCronBudget)} / {status.scmBudget.reserveDailyBudget}</span>
+        </div>
         {status.queue.oldestDueAgeMinutes !== null && (
           <div className={styles.stat}>
             <span className={styles.statLabel}>Oldest Due</span>

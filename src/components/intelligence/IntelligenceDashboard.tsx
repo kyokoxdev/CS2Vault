@@ -237,9 +237,13 @@ export function IntelligenceDashboard() {
         throw new Error(data.error ?? "Intelligence refresh failed");
       }
 
-      setRefreshActionSummary(
-        `Promoted ${data.data.promoted} stale signal rows. Processed ${data.data.processed}.`
-      );
+      let summary = `Promoted ${data.data.promoted} stale signal rows. Processed ${data.data.processed}.`;
+      if (data.data.lanes) {
+        const { scmHot, scmDiscovery, csfloatScout } = data.data.lanes;
+        summary += ` (Hot: ${scmHot.processed}, Discovery: ${scmDiscovery.processed}, Scout: ${csfloatScout.processed})`;
+      }
+      
+      setRefreshActionSummary(summary);
       await loadAll(filters);
     } catch (err) {
       setRefreshActionError(err instanceof Error ? err.message : "Intelligence refresh failed");
