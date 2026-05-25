@@ -1,4 +1,4 @@
-import { ApiRequestQueue } from "@/lib/api-queue";
+import { ApiRequestQueue, csfloatQueue } from "@/lib/api-queue";
 import { prisma } from "@/lib/db";
 import { parseSteamPrice } from "@/lib/market/steam";
 import { readProviderCache, writeProviderCache, type ProviderJsonObject, type ProviderJsonValue } from "@/lib/market/intelligence/cache";
@@ -25,7 +25,7 @@ export const intelligenceScmQueue = new ApiRequestQueue({
     queueName: "intelligence-scm",
     useGlobalRateLimit: true,
     minDelayMs: randomScmDelayMs(),
-    maxRetries: 1,
+    maxRetries: 0,
     maxDailyRequests: SCM_MAX_DAILY_REQUESTS,
 });
 
@@ -413,9 +413,10 @@ export async function fetchCsfloatPriceList(
     const fetchImpl = options.fetchImpl ?? fetch;
     const timeoutMs = boundedTimeoutMs(options.timeoutMs, CSFLOAT_TIMEOUT_MS);
     try {
-        const response = await fetchImpl(CSFLOAT_PRICE_LIST_URL, {
+        const requestQueue = options.queue ?? csfloatQueue;
+        const response = await requestQueue.enqueue<ResponseLike>(() => fetchImpl(CSFLOAT_PRICE_LIST_URL, {
             signal: AbortSignal.timeout(timeoutMs),
-        });
+        }));
 
         if (!response.ok) {
             const reason = statusToFailureReason(response.status);

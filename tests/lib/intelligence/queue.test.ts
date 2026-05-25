@@ -16,6 +16,16 @@ const mockDb = vi.hoisted(() => {
         status: string;
     }
 
+    interface ItemRow {
+        id: string;
+        marketHashName: string;
+        name: string;
+        category: string;
+        type: string | null;
+        isWatched: boolean;
+        isActive: boolean;
+    }
+
     interface SignalRow {
         id: string;
         itemId: string;
@@ -36,6 +46,7 @@ const mockDb = vi.hoisted(() => {
     }
 
     const rows: QueueRow[] = [];
+    const items: ItemRow[] = [];
     const signals: SignalRow[] = [];
     const config: ConfigRow = {
         id: "default",
@@ -89,6 +100,7 @@ const mockDb = vi.hoisted(() => {
                 continue;
             }
             if (key === "priority" && typeof value === "number") row.priority = value;
+            if (key === "tier" && typeof value === "string") row.tier = value;
             if (key === "status" && typeof value === "string") row.status = value;
             if (key === "lastError" && (typeof value === "string" || value === null)) row.lastError = value;
             if (key === "disabledReason" && (typeof value === "string" || value === null)) row.disabledReason = value;
@@ -111,8 +123,22 @@ const mockDb = vi.hoisted(() => {
 
     return {
         rows,
+        items,
         signals,
         config,
+        item: {
+            upsert: vi.fn(async ({ where, create, update }: { where: { marketHashName: string }; create: Omit<ItemRow, "id">; update: Partial<ItemRow> }) => {
+                const existing = items.find((item) => item.marketHashName === where.marketHashName);
+                if (existing) {
+                    Object.assign(existing, update);
+                    return { ...existing };
+                }
+
+                const item = { id: `item-${items.length + 1}`, ...create };
+                items.push(item);
+                return { ...item };
+            }),
+        },
         intelligenceSignal: {
             count: vi.fn(async ({ where }: { where: Record<string, unknown> }) => signals.filter((signal) => {
                 if (where.status !== undefined && signal.status !== where.status) return false;
@@ -204,10 +230,36 @@ const mockDb = vi.hoisted(() => {
                 return row ? { nextRunAt: row.nextRunAt } : null;
             }),
             count: vi.fn(async ({ where }: { where: { status: string } }) => rows.filter((row) => row.status === where.status).length),
+            upsert: vi.fn(async ({ where, create, update }: { where: { itemId: string }; create: Record<string, unknown>; update: Record<string, unknown> }) => {
+                const row = rows.find((candidate) => candidate.itemId === where.itemId);
+                if (row) {
+                    applyData(row, update);
+                    return toRecord(row);
+                }
+
+                const item = items.find((candidate) => candidate.id === create.itemId);
+                const nextRow: QueueRow = {
+                    id: `queue-${rows.length + 1}`,
+                    itemId: String(create.itemId),
+                    marketHashName: item?.marketHashName ?? String(create.itemId),
+                    nextRunAt: create.nextRunAt instanceof Date ? create.nextRunAt : new Date("2026-05-15T12:00:00.000Z"),
+                    priority: typeof create.priority === "number" ? create.priority : 0,
+                    tier: typeof create.tier === "string" ? create.tier : "standard",
+                    attempts: typeof create.attempts === "number" ? create.attempts : 0,
+                    lastError: typeof create.lastError === "string" || create.lastError === null ? create.lastError : null,
+                    lockedUntil: create.lockedUntil instanceof Date || create.lockedUntil === null ? create.lockedUntil : null,
+                    lastFetchedAt: create.lastFetchedAt instanceof Date || create.lastFetchedAt === null ? create.lastFetchedAt : null,
+                    disabledReason: typeof create.disabledReason === "string" || create.disabledReason === null ? create.disabledReason : null,
+                    status: typeof create.status === "string" ? create.status : "pending",
+                };
+                rows.push(nextRow);
+                return toRecord(nextRow);
+            }),
             updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
                 const matched = rows.filter((row) => {
                     if (typeof where.id === "string" && row.id !== where.id) return false;
                     if (where.id && typeof where.id === "object" && "in" in where.id && !(where.id as { in: string[] }).in.includes(row.id)) return false;
+                    if (typeof where.itemId === "string" && row.itemId !== where.itemId) return false;
                     if (!statusIn(row.status, where.status)) return false;
                     if (!tierAllowed(row.tier, where.tier)) return false;
                     if (where.nextRunAt && "gt" in (where.nextRunAt as Record<string, unknown>) && row.nextRunAt.getTime() <= (where.nextRunAt as { gt: Date }).gt.getTime()) return false;
@@ -238,6 +290,7 @@ const mockDb = vi.hoisted(() => {
 
 vi.mock("@/lib/db", () => ({
     prisma: {
+        item: mockDb.item,
         intelligenceSignal: mockDb.intelligenceSignal,
         intelligenceQueueItem: mockDb.intelligenceQueueItem,
         intelligenceConfig: mockDb.intelligenceConfig,
@@ -252,7 +305,7 @@ import { prisma } from "@/lib/db";
 import { processIntelligenceResult } from "@/lib/market/intelligence/processor";
 import { claimQueueItem, promoteStaleSignalQueueItems, recoverStaleLocks, releaseQueueItemRetry } from "@/lib/market/intelligence/queue";
 import { runIntelligenceQueue } from "@/lib/market/intelligence/runner";
-import type { CsfloatPriceListEntry, IntelligenceProviderResult, ScmNormalizedPayload } from "@/lib/market/intelligence/providers";
+import type { CsfloatPriceListEntry, CsfloatPriceListNormalizedPayload, IntelligenceProviderResult, ScmNormalizedPayload } from "@/lib/market/intelligence/providers";
 
 const NOW = new Date("2026-05-15T12:00:00.000Z");
 
@@ -272,6 +325,15 @@ function addRow(overrides: Partial<(typeof mockDb.rows)[number]> = {}) {
         disabledReason: null,
         status: "pending",
         ...overrides,
+    });
+    mockDb.items.push({
+        id: overrides.itemId ?? `item-${index}`,
+        marketHashName: overrides.marketHashName ?? `Item ${index}`,
+        name: overrides.marketHashName ?? `Item ${index}`,
+        category: "weapon",
+        type: null,
+        isWatched: false,
+        isActive: true,
     });
 }
 
@@ -315,6 +377,20 @@ function csfloatSuccessResult(): IntelligenceProviderResult<CsfloatPriceListEntr
     };
 }
 
+function csfloatScoutResult(): IntelligenceProviderResult<CsfloatPriceListNormalizedPayload> {
+    return {
+        ok: true,
+        source: "csfloat",
+        cacheHit: { hit: true, fetchedAt: NOW },
+        normalized: {
+            entries: [
+                { marketHashName: "Scout Thin", quantity: 4, minPriceCents: 250 },
+                { marketHashName: "Scout Liquid", quantity: 100, minPriceCents: 120 },
+            ],
+        },
+    };
+}
+
 function failureResult(reason: "HTTP_429" | "HTTP_403" | "HTTP_5XX" | "TIMEOUT"): IntelligenceProviderResult<ScmNormalizedPayload> {
     return {
         ok: false,
@@ -332,6 +408,7 @@ function failureResult(reason: "HTTP_429" | "HTTP_403" | "HTTP_5XX" | "TIMEOUT")
 beforeEach(() => {
     vi.clearAllMocks();
     mockDb.rows.length = 0;
+    mockDb.items.length = 0;
     mockDb.signals.length = 0;
     mockDb.config.liveScmEnabled = true;
     mockDb.config.circuitBreakerUntil = null;
@@ -499,6 +576,54 @@ describe("runIntelligenceQueue", () => {
         expect(mockDb.rows.find((row) => row.id === "three")?.lastFetchedAt).toBeNull();
     });
 
+    it("caps the default runner limit at the 5-minute cron SCM budget", async () => {
+        addRow({ id: "one", priority: 5 });
+        addRow({ id: "two", priority: 4 });
+        addRow({ id: "three", priority: 3 });
+        addRow({ id: "four", priority: 2 });
+        const provider = vi.fn(async () => successResult());
+        const csfloatProvider = vi.fn(async () => csfloatSuccessResult());
+        const csfloatScoutProvider = vi.fn(async () => csfloatScoutResult());
+
+        const result = await runIntelligenceQueue({ now: NOW, provider, csfloatProvider, csfloatScoutProvider });
+
+        expect(result.requestedLimit).toBe(3);
+        expect(result.effectiveLimit).toBe(3);
+        expect(result.claimed).toBe(3);
+        expect(provider).toHaveBeenCalledTimes(3);
+        expect(mockDb.config.requestBudget).toEqual(expect.objectContaining({ scmMinuteCount: 3, scmDayCount: 3 }));
+    });
+
+    it("queues CSFloat scout candidates for future SCM validation without consuming SCM budget", async () => {
+        const provider = vi.fn(async () => successResult());
+        const csfloatProvider = vi.fn(async () => csfloatSuccessResult());
+        const csfloatScoutProvider = vi.fn(async () => csfloatScoutResult());
+
+        const result = await runIntelligenceQueue({ now: NOW, perRunCap: 3, provider, csfloatProvider, csfloatScoutProvider });
+
+        expect(result.claimed).toBe(0);
+        expect(result.csfloatCandidateCount).toBe(1);
+        expect(result.lanes.csfloatScout).toEqual(expect.objectContaining({ candidates: 1, processed: 1, failed: 0 }));
+        expect(result.lanes.csfloatScout.itemIds).toEqual(["Scout Thin"]);
+        expect(mockDb.config.requestBudget).toEqual({});
+        expect(provider).not.toHaveBeenCalled();
+        expect(prisma.item.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { marketHashName: "Scout Thin" } }));
+        expect(prisma.intelligenceQueueItem.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { itemId: "item-1" } }));
+        expect(mockDb.rows).toHaveLength(1);
+        expect(mockDb.rows[0]).toEqual(expect.objectContaining({
+            marketHashName: "Scout Thin",
+            nextRunAt: NOW,
+            priority: 196,
+            tier: "low_supply_discontinued",
+            attempts: 0,
+            lastError: null,
+            lockedUntil: null,
+            lastFetchedAt: null,
+            disabledReason: null,
+            status: "pending",
+        }));
+    });
+
     it("filters due queue rows to explicit item IDs", async () => {
         addRow({ id: "unrelated", itemId: "unrelated", marketHashName: "Unrelated Item", priority: 10 });
         addRow({ id: "target", itemId: "target", marketHashName: "Target Item", priority: 1 });
@@ -615,7 +740,7 @@ describe("runIntelligenceQueue", () => {
         expect(result.claimed).toBe(0);
         expect(result.processed).toBe(0);
         expect(result.requestedLimit).toBe(5);
-        expect(result.effectiveLimit).toBe(5);
+        expect(result.effectiveLimit).toBe(3);
         expect(provider).not.toHaveBeenCalled();
         expect(csfloatProvider).not.toHaveBeenCalled();
         expect(mockDb.rows[0].status).toBe("pending");

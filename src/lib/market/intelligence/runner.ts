@@ -1,23 +1,29 @@
 import { prisma } from "@/lib/db";
+import { classifyCatalogEntry } from "@/lib/market/intelligence/catalog";
 import {
     claimQueueItem,
     findDueQueueItems,
     getQueueSummary,
+    promoteDueActiveSignalQueueItems,
     recoverStaleLocks,
     releaseQueueItemRetry,
     releaseQueueItemSuccess,
+    rescheduleMsForQueueItem,
     suspendHighSupplyBacklog,
     type IntelligenceQueueItemWithMarketHash,
     type QueueSummary,
 } from "@/lib/market/intelligence/queue";
 import { processIntelligenceResult } from "@/lib/market/intelligence/processor";
 import {
+    fetchCsfloatPriceList,
     fetchCsfloatPriceListEntry,
     fetchScmPriceOverview,
     type CsfloatPriceListEntry,
+    type CsfloatPriceListNormalizedPayload,
     type IntelligenceProviderResult,
     type ScmNormalizedPayload,
 } from "@/lib/market/intelligence/providers";
+import { buildScmBudgetSummary, hasScmBudget, normalizeScmBudget, SCM_CRON_PER_RUN_CAP, type ScmBudgetState, type ScmBudgetSummary } from "@/lib/market/intelligence/budget";
 
 export interface IntelligenceRunnerOptions {
     now?: Date;
@@ -27,7 +33,24 @@ export interface IntelligenceRunnerOptions {
     startedAtMs?: number;
     provider?: IntelligenceProvider;
     csfloatProvider?: CsfloatProvider;
+    csfloatScoutProvider?: CsfloatScoutProvider;
     itemIds?: string[];
+}
+
+export interface IntelligenceLaneResult {
+    candidates: number;
+    claimed: number;
+    processed: number;
+    succeeded: number;
+    failed: number;
+    skippedDueToBudget: number;
+    itemIds: string[];
+}
+
+export interface IntelligenceLaneResults {
+    scmHot: IntelligenceLaneResult;
+    scmDiscovery: IntelligenceLaneResult;
+    csfloatScout: { candidates: number; processed: number; failed: number; itemIds: string[] };
 }
 
 export interface IntelligenceRunnerResult {
@@ -40,6 +63,14 @@ export interface IntelligenceRunnerResult {
     skippedDueToBudget: number;
     staleLocksRecovered: number;
     backlogSuspended: number;
+    autoPromoted: number;
+    autoPromotedItemIds: string[];
+    stalePromotionCount: number;
+    stalePromotedItemIds: string[];
+    scmValidatedCount: number;
+    csfloatCandidateCount: number;
+    lanes: IntelligenceLaneResults;
+    scmBudget: ScmBudgetSummary;
     circuitBreakerOpened: boolean;
     timeBudgetExceeded: boolean;
     budgetMs: number;
@@ -58,14 +89,6 @@ interface IntelligenceConfigState {
     requestBudget: unknown;
 }
 
-interface RequestBudgetState {
-    [key: string]: string | number;
-    scmMinuteStartedAt: string;
-    scmMinuteCount: number;
-    scmDayStartedAt: string;
-    scmDayCount: number;
-}
-
 type IntelligenceProvider = (
     marketHashName: string,
     options?: { now?: Date; skipCache?: boolean; timeoutMs?: number }
@@ -76,71 +99,101 @@ type CsfloatProvider = (
     options?: { now?: Date; skipCache?: boolean; timeoutMs?: number }
 ) => Promise<IntelligenceProviderResult<CsfloatPriceListEntry>>;
 
-const DEFAULT_PER_RUN_CAP = 10;
-const MAX_PER_RUN_CAP = 10;
+type CsfloatScoutProvider = (
+    options?: { now?: Date; skipCache?: boolean; timeoutMs?: number }
+) => Promise<IntelligenceProviderResult<CsfloatPriceListNormalizedPayload>>;
+
+const DEFAULT_PER_RUN_CAP = SCM_CRON_PER_RUN_CAP;
+const MAX_PER_RUN_CAP = SCM_CRON_PER_RUN_CAP;
 const DEFAULT_BUDGET_MS = 28_000;
 const DEFAULT_MIN_REMAINING_MS_TO_START_JOB = 12_000;
 const SCM_QUEUE_DELAY_RESERVE_MS = 10_000;
 const SCM_PROVIDER_MAX_TIMEOUT_MS = 15_000;
 const CSFLOAT_PROVIDER_MAX_TIMEOUT_MS = 15_000;
+const CSFLOAT_SCOUT_MAX_TIMEOUT_MS = 5_000;
 const CSFLOAT_MIN_FETCH_RESERVE_MS = 500;
 const PROCESSING_RESPONSE_RESERVE_MS = 1_000;
 const MIN_USEFUL_PROVIDER_TIMEOUT_MS = 250;
-const SCM_MAX_PER_MINUTE = 19;
-const SCM_MAX_PER_DAY = 950;
 const CIRCUIT_BREAKER_FAILURE_THRESHOLD = 3;
 const CIRCUIT_BREAKER_MS = 30 * 60 * 1000;
 
 const CIRCUIT_BREAKER_REASONS = new Set(["HTTP_429", "HTTP_403", "HTTP_5XX", "TIMEOUT", "MALFORMED_JSON", "MALFORMED_PAYLOAD", "PROVIDER_UNSUCCESSFUL"]);
 
-function defaultBudget(now: Date): RequestBudgetState {
-    return {
-        scmMinuteStartedAt: now.toISOString(),
-        scmMinuteCount: 0,
-        scmDayStartedAt: now.toISOString(),
-        scmDayCount: 0,
-    };
-}
+async function enqueueCsfloatScoutCandidates(entries: CsfloatPriceListEntry[], now: Date): Promise<string[]> {
+    const enqueuedMarketHashNames: string[] = [];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+    for (const entry of entries) {
+        const marketHashName = entry.marketHashName.trim();
+        const classification = classifyCatalogEntry({
+            marketHashName,
+            quantity: entry.quantity,
+            minPriceCents: entry.minPriceCents,
+        });
 
-function numberValue(value: unknown): number | null {
-    return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
+        if (classification.disabledReason) continue;
 
-function stringValue(value: unknown): string | null {
-    return typeof value === "string" ? value : null;
-}
+        const item = await prisma.item.upsert({
+            where: { marketHashName },
+            create: {
+                marketHashName,
+                name: marketHashName,
+                category: classification.category,
+                type: classification.type,
+                isWatched: false,
+                isActive: true,
+            },
+            update: {},
+        });
 
-function normalizeBudget(value: unknown, now: Date): RequestBudgetState {
-    if (!isRecord(value)) return defaultBudget(now);
+        await prisma.intelligenceQueueItem.upsert({
+            where: { itemId: item.id },
+            create: {
+                itemId: item.id,
+                nextRunAt: now,
+                priority: classification.priority,
+                tier: classification.tier,
+                attempts: 0,
+                lastError: null,
+                lockedUntil: null,
+                lastFetchedAt: null,
+                disabledReason: null,
+                status: "pending",
+            },
+            update: {
+                priority: classification.priority,
+                tier: classification.tier,
+                disabledReason: null,
+                lastError: null,
+            },
+        });
 
-    const fallback = defaultBudget(now);
-    const minuteStartedAt = stringValue(value.scmMinuteStartedAt) ?? fallback.scmMinuteStartedAt;
-    const dayStartedAt = stringValue(value.scmDayStartedAt) ?? fallback.scmDayStartedAt;
-    const minuteStart = new Date(minuteStartedAt);
-    const dayStart = new Date(dayStartedAt);
-    const minuteFresh = Number.isFinite(minuteStart.getTime()) && now.getTime() - minuteStart.getTime() < 60_000;
-    const dayFresh = Number.isFinite(dayStart.getTime()) && now.toISOString().slice(0, 10) === dayStart.toISOString().slice(0, 10);
+        await prisma.intelligenceQueueItem.updateMany({
+            where: {
+                itemId: item.id,
+                status: { in: ["pending", "disabled"] },
+                OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }],
+            },
+            data: {
+                nextRunAt: now,
+                priority: classification.priority,
+                tier: classification.tier,
+                attempts: 0,
+                lastError: null,
+                lockedUntil: null,
+                disabledReason: null,
+                status: "pending",
+            },
+        });
 
-    return {
-        scmMinuteStartedAt: minuteFresh ? minuteStartedAt : now.toISOString(),
-        scmMinuteCount: minuteFresh ? numberValue(value.scmMinuteCount) ?? 0 : 0,
-        scmDayStartedAt: dayFresh ? dayStartedAt : now.toISOString(),
-        scmDayCount: dayFresh ? numberValue(value.scmDayCount) ?? 0 : 0,
-    };
-}
+        enqueuedMarketHashNames.push(marketHashName);
+    }
 
-function hasBudget(config: IntelligenceConfigState, now: Date): boolean {
-    const budget = normalizeBudget(config.requestBudget, now);
-    return budget.scmMinuteCount < SCM_MAX_PER_MINUTE && budget.scmDayCount < SCM_MAX_PER_DAY;
+    return enqueuedMarketHashNames;
 }
 
 async function incrementBudget(config: IntelligenceConfigState, now: Date): Promise<void> {
-    const budget = normalizeBudget(config.requestBudget, now);
-    const nextBudget: RequestBudgetState = {
+    const budget = normalizeScmBudget(config.requestBudget, now);
+    const nextBudget: ScmBudgetState = {
         ...budget,
         scmMinuteCount: budget.scmMinuteCount + 1,
         scmDayCount: budget.scmDayCount + 1,
@@ -219,9 +272,21 @@ function boundedProviderTimeoutMs(remainingMs: number, reserveMs: number, maxTim
     return Math.min(usefulTimeoutMs, maxTimeoutMs);
 }
 
+function emptyLaneResult(): IntelligenceLaneResult {
+    return { candidates: 0, claimed: 0, processed: 0, succeeded: 0, failed: 0, skippedDueToBudget: 0, itemIds: [] };
+}
+
+function emptyLaneResults(): IntelligenceLaneResults {
+    return {
+        scmHot: emptyLaneResult(),
+        scmDiscovery: emptyLaneResult(),
+        csfloatScout: { candidates: 0, processed: 0, failed: 0, itemIds: [] },
+    };
+}
+
 function skipped(
     reason: string,
-    timing: { startedAtMs: number; budgetMs: number; requestedLimit: number; effectiveLimit: number }
+    timing: { startedAtMs: number; budgetMs: number; requestedLimit: number; effectiveLimit: number; scmBudget?: ScmBudgetSummary }
 ): IntelligenceRunnerResult {
     const { elapsedMs, remainingMs } = timingFields(timing.startedAtMs, timing.budgetMs);
     return {
@@ -234,6 +299,14 @@ function skipped(
         skippedDueToBudget: 0,
         staleLocksRecovered: 0,
         backlogSuspended: 0,
+        autoPromoted: 0,
+        autoPromotedItemIds: [],
+        stalePromotionCount: 0,
+        stalePromotedItemIds: [],
+        scmValidatedCount: 0,
+        csfloatCandidateCount: 0,
+        lanes: emptyLaneResults(),
+        scmBudget: timing.scmBudget ?? buildScmBudgetSummary({}, new Date()),
         circuitBreakerOpened: false,
         timeBudgetExceeded: false,
         budgetMs: timing.budgetMs,
@@ -251,9 +324,11 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
     const budgetMs = Math.max(1, Math.floor(options.budgetMs ?? DEFAULT_BUDGET_MS));
     const minRemainingMsToStartJob = Math.max(0, Math.floor(options.minRemainingMsToStartJob ?? DEFAULT_MIN_REMAINING_MS_TO_START_JOB));
     const startedAtMs = options.startedAtMs ?? Date.now();
-    const timing = { startedAtMs, budgetMs, requestedLimit, effectiveLimit: perRunCap };
+    let currentScmBudget = buildScmBudgetSummary({}, now);
+    const timing = { startedAtMs, budgetMs, requestedLimit, effectiveLimit: perRunCap, scmBudget: currentScmBudget };
     const provider = options.provider ?? fetchScmPriceOverview;
     const csfloatProvider = options.csfloatProvider ?? fetchCsfloatPriceListEntry;
+    const csfloatScoutProvider = options.csfloatScoutProvider ?? fetchCsfloatPriceList;
 
     let config: IntelligenceConfigState | null;
     try {
@@ -264,19 +339,55 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
     }
 
     if (!config) return skipped("config_unavailable", timing);
+    currentScmBudget = buildScmBudgetSummary(config.requestBudget, now);
+    timing.scmBudget = currentScmBudget;
     if (!config.liveScmEnabled) return skipped("live_scm_disabled", timing);
     if (config.circuitBreakerUntil && config.circuitBreakerUntil.getTime() > now.getTime()) return skipped("circuit_breaker_open", timing);
     if (perRunCap === 0) return skipped("per_run_cap_zero", timing);
 
     const staleLocksRecovered = await recoverStaleLocks(now);
     const backlogSuspended = await suspendHighSupplyBacklog(now);
+    const autoPromotion = options.itemIds === undefined
+        ? await promoteDueActiveSignalQueueItems({ now, limit: perRunCap })
+        : { promoted: 0, itemIds: [] };
     const dueItems = await findDueQueueItems({ now, limit: perRunCap, itemIds: options.itemIds });
+    const autoPromotedItemIdSet = new Set(autoPromotion.itemIds);
+    const lanes = emptyLaneResults();
+    const hotDueItems = dueItems.filter((item) => autoPromotedItemIdSet.has(item.itemId));
+    const discoveryDueItems = dueItems.filter((item) => !autoPromotedItemIdSet.has(item.itemId));
+    lanes.scmHot.candidates = hotDueItems.length;
+    lanes.scmHot.itemIds = hotDueItems.map((item) => item.itemId);
+    lanes.scmDiscovery.candidates = discoveryDueItems.length;
+    lanes.scmDiscovery.itemIds = discoveryDueItems.map((item) => item.itemId);
+
+    const scoutRemainingMs = timingFields(startedAtMs, budgetMs).remainingMs;
+    if (scoutRemainingMs > minRemainingMsToStartJob + CSFLOAT_MIN_FETCH_RESERVE_MS) {
+        const scoutTimeoutMs = boundedProviderTimeoutMs(scoutRemainingMs, PROCESSING_RESPONSE_RESERVE_MS, CSFLOAT_SCOUT_MAX_TIMEOUT_MS);
+        lanes.csfloatScout.processed = 1;
+        try {
+            const scoutResult = await csfloatScoutProvider({ now, timeoutMs: scoutTimeoutMs });
+            if (scoutResult.ok && scoutResult.normalized) {
+                const candidates = scoutResult.normalized.entries
+                    .filter((entry) => entry.quantity > 0 && entry.quantity <= 10 && entry.minPriceCents > 0)
+                    .slice(0, perRunCap);
+                const enqueuedMarketHashNames = await enqueueCsfloatScoutCandidates(candidates, now);
+                lanes.csfloatScout.candidates = candidates.length;
+                lanes.csfloatScout.itemIds = enqueuedMarketHashNames;
+            } else {
+                lanes.csfloatScout.failed = 1;
+            }
+        } catch (error) {
+            console.error("[IntelligenceRunner] CSFloat scout lane failed", error instanceof Error ? error.message : error);
+            lanes.csfloatScout.failed = 1;
+        }
+    }
 
     let claimed = 0;
     let processed = 0;
     let succeeded = 0;
     let failed = 0;
     let skippedDueToBudget = 0;
+    let scmValidatedCount = 0;
     let circuitBreakerOpened = false;
     let timeBudgetExceeded = false;
 
@@ -287,16 +398,21 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
             break;
         }
 
-        if (!hasBudget(config, now)) {
+        if (!hasScmBudget(config.requestBudget, now)) {
             skippedDueToBudget = dueItems.length - index;
+            const budgetLane = autoPromotedItemIdSet.has(dueItem.itemId) ? lanes.scmHot : lanes.scmDiscovery;
+            budgetLane.skippedDueToBudget = skippedDueToBudget;
             break;
         }
 
+        const lane = autoPromotedItemIdSet.has(dueItem.itemId) ? lanes.scmHot : lanes.scmDiscovery;
         const claimedItem = await claimQueueItem(dueItem, { now });
         if (!claimedItem) continue;
 
         claimed++;
+        lane.claimed++;
         await incrementBudget(config, now);
+        currentScmBudget = buildScmBudgetSummary(config.requestBudget, now);
 
         let countedProcessed = false;
         try {
@@ -308,9 +424,11 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
             );
             const providerResult = await provider(claimedItem.item.marketHashName, { now, skipCache: true, timeoutMs: scmTimeoutMs });
             processed++;
+            lane.processed++;
             countedProcessed = true;
 
             if (providerResult.ok) {
+                scmValidatedCount++;
                 const csfloatRemainingMs = timingFields(startedAtMs, budgetMs).remainingMs;
                 const csfloatTimeoutMs = boundedProviderTimeoutMs(csfloatRemainingMs, PROCESSING_RESPONSE_RESERVE_MS, CSFLOAT_PROVIDER_MAX_TIMEOUT_MS);
                 const csfloatResult = await csfloatProvider(claimedItem.item.marketHashName, { now, timeoutMs: csfloatTimeoutMs });
@@ -324,17 +442,20 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
 
                 if (processingResult.status !== "success") {
                     failed++;
+                    lane.failed++;
                     await releaseQueueItemRetry(claimedItem.id, claimedItem.attempts, processingResult.reason ?? "Intelligence processing failed", now);
                     continue;
                 }
 
                 succeeded++;
-                await releaseQueueItemSuccess(claimedItem.id, now);
+                lane.succeeded++;
+                await releaseQueueItemSuccess(claimedItem.id, now, rescheduleMsForQueueItem(claimedItem, processingResult.scoring));
                 await markProviderSuccess(config, now);
                 continue;
             }
 
             failed++;
+            lane.failed++;
             const message = failureMessage(claimedItem, providerResult);
             await releaseQueueItemRetry(claimedItem.id, claimedItem.attempts, message, now);
             const opened = await markProviderFailure(config, message, shouldCountTowardCircuit(providerResult), now);
@@ -342,7 +463,11 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
             if (opened) break;
         } catch (error) {
             failed++;
-            if (!countedProcessed) processed++;
+            lane.failed++;
+            if (!countedProcessed) {
+                processed++;
+                lane.processed++;
+            }
             const message = error instanceof Error ? error.message : "Intelligence queue item failed";
             await releaseQueueItemRetry(claimedItem.id, claimedItem.attempts, message, now);
         }
@@ -360,6 +485,14 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
         skippedDueToBudget,
         staleLocksRecovered,
         backlogSuspended,
+        autoPromoted: autoPromotion.promoted,
+        autoPromotedItemIds: autoPromotion.itemIds,
+        stalePromotionCount: autoPromotion.promoted,
+        stalePromotedItemIds: autoPromotion.itemIds,
+        scmValidatedCount,
+        csfloatCandidateCount: lanes.csfloatScout.candidates,
+        lanes,
+        scmBudget: currentScmBudget,
         circuitBreakerOpened,
         timeBudgetExceeded,
         budgetMs,

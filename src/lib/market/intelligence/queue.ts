@@ -49,15 +49,28 @@ export interface PromoteStaleSignalQueueItemsResult {
     itemIds: string[];
 }
 
+export interface PromoteDueActiveSignalQueueItemsOptions {
+    now?: Date;
+    limit?: number;
+}
+
 const DEFAULT_LOCK_MS = 5 * 60 * 1000;
 const SUCCESS_RESCHEDULE_MS = 6 * 60 * 60 * 1000;
+const ACTIVE_SIGNAL_HIGH_CONFIDENCE_RESCHEDULE_MS = 5 * 60 * 1000;
+const ACTIVE_SIGNAL_MEDIUM_CONFIDENCE_RESCHEDULE_MS = 15 * 60 * 1000;
+const ACTIVE_SIGNAL_RESCHEDULE_MS = 30 * 60 * 1000;
+const LOW_SUPPLY_RESCHEDULE_MS = 60 * 60 * 1000;
+const LIQUID_RESCHEDULE_MS = 2 * 60 * 60 * 1000;
 const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
 const BASE_BACKOFF_MS = 5 * 60 * 1000;
 const BACKLOG_SUSPEND_MS = 24 * 60 * 60 * 1000;
-const SUSPENDED_TIERS = ["high-supply", "liquid"];
+const SUSPENDED_TIERS = ["liquid"];
 const SIGNAL_STALE_MS = 2 * 60 * 60 * 1000;
+const ACTIVE_SIGNAL_VALIDATION_DUE_MS = 30 * 60 * 1000;
 const DEFAULT_PROMOTION_LIMIT = 10;
 const MAX_PROMOTION_LIMIT = 10;
+const DEFAULT_AUTO_PROMOTION_LIMIT = 1;
+const MAX_AUTO_PROMOTION_LIMIT = 3;
 
 function queueSelect() {
     return {
@@ -210,6 +223,83 @@ export async function promoteStaleSignalQueueItems(options: PromoteStaleSignalQu
     };
 }
 
+export async function promoteDueActiveSignalQueueItems(options: PromoteDueActiveSignalQueueItemsOptions = {}): Promise<PromoteStaleSignalQueueItemsResult> {
+    const now = options.now ?? new Date();
+    const requestedLimit = Math.floor(options.limit ?? DEFAULT_AUTO_PROMOTION_LIMIT);
+    const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : DEFAULT_AUTO_PROMOTION_LIMIT, 1), MAX_AUTO_PROMOTION_LIMIT);
+    const staleCutoff = new Date(now.getTime() - ACTIVE_SIGNAL_VALIDATION_DUE_MS);
+
+    const candidateSignals = await prisma.intelligenceSignal.count({
+        where: {
+            status: "active",
+            signalType: { not: "neutral" },
+            lastSeenAt: { lt: staleCutoff },
+        },
+    });
+    if (candidateSignals === 0) {
+        return { candidateSignals: 0, candidateQueueItems: 0, promoted: 0, itemIds: [] };
+    }
+
+    const queueItems = await prisma.intelligenceQueueItem.findMany({
+        where: {
+            status: "pending",
+            nextRunAt: { gt: now },
+            OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }],
+            item: {
+                intelligenceSignals: {
+                    some: {
+                        status: "active",
+                        signalType: { not: "neutral" },
+                        lastSeenAt: { lt: staleCutoff },
+                    },
+                },
+            },
+        },
+        select: { id: true, itemId: true },
+        orderBy: [{ priority: "desc" }, { nextRunAt: "asc" }],
+        take: limit,
+    });
+
+    const queueItemIds = queueItems.map((item) => item.id);
+    if (queueItemIds.length === 0) {
+        return { candidateSignals, candidateQueueItems: 0, promoted: 0, itemIds: [] };
+    }
+
+    const { count } = await prisma.intelligenceQueueItem.updateMany({
+        where: {
+            id: { in: queueItemIds },
+            status: "pending",
+            nextRunAt: { gt: now },
+            OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }],
+        },
+        data: {
+            nextRunAt: now,
+            lockedUntil: null,
+        },
+    });
+
+    return {
+        candidateSignals,
+        candidateQueueItems: queueItems.length,
+        promoted: count,
+        itemIds: queueItems.map((item) => item.itemId),
+    };
+}
+
+export function rescheduleMsForQueueItem(
+    item: Pick<IntelligenceQueueItemWithMarketHash, "tier">,
+    scoring?: { signalType: string; confidence?: number } | null
+): number {
+    if (scoring && scoring.signalType !== "neutral") {
+        if (typeof scoring.confidence === "number" && scoring.confidence >= 75) return ACTIVE_SIGNAL_HIGH_CONFIDENCE_RESCHEDULE_MS;
+        if (typeof scoring.confidence === "number" && scoring.confidence >= 50) return ACTIVE_SIGNAL_MEDIUM_CONFIDENCE_RESCHEDULE_MS;
+        return ACTIVE_SIGNAL_RESCHEDULE_MS;
+    }
+    if (item.tier === "low_supply_discontinued") return LOW_SUPPLY_RESCHEDULE_MS;
+    if (item.tier === "liquid") return LIQUID_RESCHEDULE_MS;
+    return SUCCESS_RESCHEDULE_MS;
+}
+
 export async function releaseQueueItemSuccess(
     id: string,
     now: Date = new Date(),
@@ -286,7 +376,7 @@ export async function suspendHighSupplyBacklog(now: Date = new Date()): Promise<
             priority: -100,
             nextRunAt: new Date(now.getTime() + BACKLOG_SUSPEND_MS),
             lockedUntil: null,
-            disabledReason: "suspended: backlog older than 24h; high-supply/liquid tier deferred",
+            disabledReason: "suspended: backlog older than 24h; liquid tier deferred",
             lastError: "High-supply backlog suspension active",
         },
     });
