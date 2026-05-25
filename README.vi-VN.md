@@ -126,7 +126,7 @@ Mở [http://localhost:3000](http://localhost:3000).
 
 ### Mô hình làm mới dữ liệu
 
-- **Đồng bộ máy chủ nền**: Vercel Hobby cron bị giới hạn ở tác vụ `GET /api/sync` hàng ngày được cấu hình trong `vercel.json`.
+- **Đồng bộ máy chủ nền**: `vercel.json` lên lịch đồng bộ thị trường hằng ngày, đồng bộ vốn hóa thị trường hằng ngày và kiểm tra `GET /api/intelligence/run` mỗi 5 phút với tối đa 3 xác thực SCM mỗi lần chạy.
 - **Làm mới khi mở tab**: ứng dụng sử dụng cài đặt `priceRefreshIntervalMin` đã lưu để làm mới dữ liệu thị trường trên trang chủ, danh sách theo dõi và danh mục khi trình duyệt mở.
 - **Làm mới vốn hóa thị trường thủ công**: Cài đặt hiện có hành động `Làm mới vốn hóa thị trường` giúp tính toán lại có trọng số mới ngay lập tức.
 
@@ -187,9 +187,9 @@ npm run db:push:turso
 <details>
 <summary><strong>4. Cron và hành vi làm mới</strong></summary>
 
-`vercel.json` cấu hình cron job chạy `GET /api/sync` một lần mỗi ngày (`0 0 * * *`). Khi nhận được yêu cầu được xác thực cron, endpoint này chạy cả quy trình đồng bộ thông thường và tính toán lại vốn hóa thị trường (khi dữ liệu cũ). Đặt `CRON_SECRET` trong Vercel để yêu cầu cron được xác thực.
+`vercel.json` cấu hình cron hằng ngày cho `GET /api/sync` (`0 4 * * *`), hằng ngày cho `GET /api/market/market-cap-sync` (`0 8 * * *`) và mỗi 5 phút cho `GET /api/intelligence/run` (`*/5 * * * *`). Với yêu cầu được xác thực cron, intelligence runner giữ SCM ở mức 3 xác thực mỗi lần chạy và áp dụng giới hạn an toàn 19/phút và 950/ngày. Đặt `CRON_SECRET` trong Vercel để yêu cầu cron được xác thực.
 
-Đối với triển khai Vercel Hobby, cron hàng ngày này là trình lên lịch phía máy chủ duy nhất. Để nhận các bản cập nhật thường xuyên hơn, hãy đặt `Khoảng thời gian làm mới trình duyệt (phút)` trong Cài đặt (ví dụ `15`). Các phiên đang mở sẽ làm mới dữ liệu thị trường phía máy khách mỗi 15 phút và bạn có thể sử dụng trang Cài đặt để buộc làm mới vốn hóa thị trường theo yêu cầu.
+Nếu gói Vercel của bạn không hỗ trợ cron 5 phút, hãy gọi `/api/intelligence/run` từ bộ lập lịch bên ngoài với cùng `CRON_SECRET`. Các phiên đang mở vẫn làm mới dữ liệu thị trường phía máy khách qua `Khoảng thời gian làm mới trình duyệt (phút)`, và bạn có thể dùng trang Cài đặt để buộc làm mới vốn hóa thị trường theo yêu cầu.
 
 </details>
 

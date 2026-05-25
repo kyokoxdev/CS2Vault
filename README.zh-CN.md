@@ -126,7 +126,7 @@ npm run dev
 
 ### 数据刷新机制
 
-- **服务器后台同步**: Vercel Hobby 的 cron 任务限制为每天一次 `GET /api/sync`，在 `vercel.json` 中配置。
+- **服务器后台同步**: `vercel.json` 会调度每日市场同步、每日市值同步，以及每 5 分钟一次的 `GET /api/intelligence/run` 检查；每次最多执行 3 次 SCM 验证。
 - **开标签页刷新**: 应用使用保存的 `priceRefreshIntervalMin` 设置，在浏览器打开时刷新首页、关注列表和投资组合的市场数据。
 - **手动刷新市值**: 设置页面现在包含 `刷新市值` 操作，可立即强制重新计算。
 
@@ -187,9 +187,9 @@ npm run db:push:turso
 <details>
 <summary><strong>4. Cron 任务和刷新行为</strong></summary>
 
-`vercel.json` 配置了每天执行一次 `GET /api/sync` 的 cron 任务（`0 0 * * *`）。在 cron 认证请求时，此端点会运行常规同步流程和市值重新计算（当数据过期时）。在 Vercel 中设置 `CRON_SECRET` 以确保 cron 请求被授权。
+`vercel.json` 配置了每日 `GET /api/sync`（`0 4 * * *`）、每日 `GET /api/market/market-cap-sync`（`0 8 * * *`），以及每 5 分钟一次的 `GET /api/intelligence/run`（`*/5 * * * *`）cron 任务。收到 cron 认证请求时，情报 runner 每次最多执行 3 次 SCM 验证，并执行 19/分钟和 950/天的安全上限。在 Vercel 中设置 `CRON_SECRET` 以确保 cron 请求被授权。
 
-对于 Vercel Hobby 部署，此每日 cron 任务是唯一的服务端调度器。要获取更频繁的更新，请在设置中配置 `浏览器刷新间隔（分钟）`（例如 `15`）。打开的会话将每 15 分钟在客户端刷新市场数据，你也可以使用设置页面按需强制刷新市值。
+如果你的 Vercel 方案不支持 5 分钟 cron，请使用外部调度器携带同一个 `CRON_SECRET` 调用 `/api/intelligence/run`。打开的会话仍会通过 `浏览器刷新间隔（分钟）` 在客户端刷新市场数据，你也可以使用设置页面按需强制刷新市值。
 
 </details>
 

@@ -126,7 +126,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### Refresh Model
 
-- **Server background sync:** Vercel Hobby cron is limited to the daily `GET /api/sync` job configured in `vercel.json`.
+- **Server background sync:** `vercel.json` schedules daily market sync, daily market-cap sync, and 5-minute `GET /api/intelligence/run` checks capped at 3 SCM validations per run.
 - **Open-tab refresh:** the app now uses the saved `priceRefreshIntervalMin` setting to refresh homepage, watchlist, and portfolio market data while the browser is open.
 - **Manual market-cap refresh:** Settings now includes a `Refresh Market Cap` action that forces a new weighted calculation immediately.
 
@@ -187,9 +187,9 @@ npm run db:push:turso
 <details>
 <summary><strong>4. Cron and refresh behavior</strong></summary>
 
-The `vercel.json` configures a cron job that hits `GET /api/sync` once per day (`0 0 * * *`). On cron-authenticated requests, this endpoint runs both the regular sync pipeline and market-cap recalculation (when stale). Set `CRON_SECRET` in Vercel so the cron request is authorized.
+The `vercel.json` configures daily `GET /api/sync` (`0 4 * * *`), daily `GET /api/market/market-cap-sync` (`0 8 * * *`), and 5-minute `GET /api/intelligence/run` (`*/5 * * * *`) cron jobs. On cron-authenticated requests, the intelligence runner keeps SCM usage to 3 validations per run while enforcing the 19/minute and 950/day safety caps. Set `CRON_SECRET` in Vercel so cron requests are authorized.
 
-For Vercel Hobby deployments, this daily cron remains the only server-side scheduler. To get more frequent updates, set `Browser Refresh Interval (Minutes)` in Settings (for example `15`). Open sessions will then refresh market data client-side every 15 minutes, and you can use the Settings page to force a market-cap refresh on demand.
+If your Vercel plan does not support 5-minute cron, run `/api/intelligence/run` from an external scheduler with the same `CRON_SECRET`. Open sessions still refresh market data client-side through `Browser Refresh Interval (Minutes)`, and Settings can force a market-cap refresh on demand.
 
 </details>
 
