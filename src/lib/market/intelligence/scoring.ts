@@ -1,8 +1,13 @@
 const ACCUMULATION_VOLUME_MULTIPLIER = 2.5;
+const SCM_NATIVE_ACCUMULATION_VOLUME_MULTIPLIER = 2;
 const ACCUMULATION_MAX_PRICE_DELTA = 0.05;
+const SCM_NATIVE_ACCUMULATION_MAX_PRICE_DELTA = 0.04;
 const PUMP_PRICE_MULTIPLIER = 1.2;
+const SCM_NATIVE_PUMP_PRICE_MULTIPLIER = 1.12;
+const SCM_NATIVE_PUMP_VOLUME_MULTIPLIER = 1.5;
 const CSFLOAT_FLOOR_DIVERGENCE_MULTIPLIER = 1.12;
 const DUMP_PEAK_MULTIPLIER = 0.85;
+const SCM_NATIVE_DUMP_PEAK_MULTIPLIER = 0.88;
 const OUTLIER_STDDEV_MULTIPLIER = 3;
 const OUTLIER_WINDOW_SIZE = 12;
 const MIN_BASELINE_STDDEV_RATIO = 0.01;
@@ -231,6 +236,12 @@ function hasGate(metrics: IntelligenceScoringMetrics, minimumHours: number, mini
         && metrics.movingAvgVolume > 0;
 }
 
+function hasShortManipulationGate(metrics: IntelligenceScoringMetrics, minimumHours = 0.5, minimumSamples = 6): boolean {
+    return metrics.historyHours >= minimumHours
+        && metrics.filteredSampleCount >= minimumSamples
+        && metrics.movingAvgVolume > 0;
+}
+
 function evaluateAccumulation(metrics: IntelligenceScoringMetrics): CandidateSignal | null {
     if (!hasGate(metrics, 24, 12)) return null;
     if (metrics.currentVolume === null || metrics.movingAvgPriceCents === null || metrics.currentPriceCents === null) return null;
@@ -250,6 +261,22 @@ function evaluateAccumulation(metrics: IntelligenceScoringMetrics): CandidateSig
     };
 }
 
+function evaluateScmNativeAccumulation(metrics: IntelligenceScoringMetrics): CandidateSignal | null {
+    if (!hasShortManipulationGate(metrics)) return null;
+    if (metrics.currentVolume === null || metrics.movingAvgPriceCents === null || metrics.currentPriceCents === null) return null;
+    const volumeRatio = metrics.currentVolume / metrics.movingAvgVolume;
+    const priceDelta = Math.abs(metrics.currentPriceCents - metrics.movingAvgPriceCents) / metrics.movingAvgPriceCents;
+    if (volumeRatio <= SCM_NATIVE_ACCUMULATION_VOLUME_MULTIPLIER || priceDelta >= SCM_NATIVE_ACCUMULATION_MAX_PRICE_DELTA) return null;
+
+    return {
+        signalType: "accumulation",
+        strength: clamp((volumeRatio - SCM_NATIVE_ACCUMULATION_VOLUME_MULTIPLIER) / SCM_NATIVE_ACCUMULATION_VOLUME_MULTIPLIER, 0, 0.8),
+        reasons: [
+            { code: "scm-native-accumulation-volume-squeeze", label: `SCM volume is ${volumeRatio.toFixed(2)}x baseline while price stayed within 4%`, signalType: "accumulation" },
+        ],
+    };
+}
+
 function evaluatePump(metrics: IntelligenceScoringMetrics): CandidateSignal | null {
     if (!hasGate(metrics, 7 * 24, 24)) return null;
     if (metrics.currentPriceCents === null || metrics.movingAvgPrice7dCents === null) return null;
@@ -262,6 +289,23 @@ function evaluatePump(metrics: IntelligenceScoringMetrics): CandidateSignal | nu
         reasons: [
             { code: "pump-price-breakout", label: `Current price is ${(priceRatio * 100).toFixed(1)}% of the 7d moving average`, signalType: "pump" },
             { code: "pump-volume-trend-up", label: "Recent volume trend is upward", signalType: "pump" },
+        ],
+    };
+}
+
+function evaluateScmNativePump(metrics: IntelligenceScoringMetrics): CandidateSignal | null {
+    if (!hasShortManipulationGate(metrics, 1, 6)) return null;
+    if (metrics.currentPriceCents === null || metrics.movingAvgPriceCents === null || metrics.currentVolume === null) return null;
+    const priceRatio = metrics.currentPriceCents / metrics.movingAvgPriceCents;
+    const volumeRatio = metrics.currentVolume / metrics.movingAvgVolume;
+    if (priceRatio <= SCM_NATIVE_PUMP_PRICE_MULTIPLIER || volumeRatio <= SCM_NATIVE_PUMP_VOLUME_MULTIPLIER) return null;
+
+    return {
+        signalType: "pump",
+        strength: clamp((priceRatio - SCM_NATIVE_PUMP_PRICE_MULTIPLIER) / 0.2, 0, 0.85),
+        reasons: [
+            { code: "scm-native-pump-breakout", label: `SCM price is ${(priceRatio * 100).toFixed(1)}% of short-window baseline`, signalType: "pump" },
+            { code: "scm-native-pump-volume-confirmed", label: `SCM volume is ${volumeRatio.toFixed(2)}x short-window baseline`, signalType: "pump" },
         ],
     };
 }
@@ -283,6 +327,22 @@ function evaluatePumpPressureProxy(metrics: IntelligenceScoringMetrics, options:
         reasons: [
             { code: "pump-pressure-csfloat-floor-divergence", label: `CSFloat floor is ${(floorRatio * 100).toFixed(1)}% of the SCM reference price`, signalType: "pump" },
             { code: "pump-pressure-low-confidence-proxy", label: "CSFloat floor pressure created a low-confidence pump proxy", signalType: "pump" },
+        ],
+    };
+}
+
+function evaluateScmNativeDump(metrics: IntelligenceScoringMetrics): CandidateSignal | null {
+    if (!hasShortManipulationGate(metrics, 1, 6)) return null;
+    if (metrics.currentPriceCents === null || metrics.peakPrice24hCents === null || metrics.currentVolume === null) return null;
+    const peakRatio = metrics.currentPriceCents / metrics.peakPrice24hCents;
+    const volumeRatio = metrics.currentVolume / metrics.movingAvgVolume;
+    if (peakRatio >= SCM_NATIVE_DUMP_PEAK_MULTIPLIER || volumeRatio <= 1.2) return null;
+
+    return {
+        signalType: "dump",
+        strength: clamp((SCM_NATIVE_DUMP_PEAK_MULTIPLIER - peakRatio) / 0.2, 0, 0.85),
+        reasons: [
+            { code: "scm-native-dump-reversal", label: `SCM price reversed to ${(peakRatio * 100).toFixed(1)}% of the recent peak with elevated volume`, signalType: "dump" },
         ],
     };
 }
@@ -324,6 +384,11 @@ function validationConfidenceAdjustment(
     }
 
     const floorDelta = Math.abs(floor - currentPriceCents) / currentPriceCents;
+    if (signal !== "neutral" && quantity > 0 && quantity < 10 && floor >= currentPriceCents * 1.05) {
+        reasons.push({ code: "csfloat-scout-supply-thin", label: "CSFloat supply is thin while floor remains above SCM reference", signalType: signal });
+        return adjustment + 5;
+    }
+
     if (quantity >= 10 && floorDelta <= 0.1) {
         reasons.push({ code: "csfloat-validation-confirmed", label: "CSFloat supply and floor price confirm the signal", signalType: signal });
         return adjustment + 10;
@@ -352,6 +417,18 @@ function confidenceForSignal(candidate: CandidateSignal, freshness: Intelligence
         + validationConfidenceAdjustment(candidate.signalType, metrics.currentPriceCents, options, reasons)
     );
     return { signalType: candidate.signalType, confidence, reasons };
+}
+
+function strongestCandidatePerSignalType(candidates: CandidateSignal[]): CandidateSignal[] {
+    const byType = new Map<Exclude<IntelligenceSignalType, "neutral">, CandidateSignal>();
+    for (const candidate of candidates) {
+        const existing = byType.get(candidate.signalType);
+        if (!existing || candidate.strength > existing.strength) {
+            byType.set(candidate.signalType, candidate);
+        }
+    }
+
+    return [...byType.values()].sort((a, b) => signalPriority[b.signalType] - signalPriority[a.signalType]);
 }
 
 function buildNeutralResult(freshness: IntelligenceFreshness, metrics: IntelligenceScoringMetrics, options: IntelligenceScoringOptions, reasons: IntelligenceSignalReason[]): IntelligenceScoringResult {
@@ -402,9 +479,14 @@ export function scoreMarketIntelligence(
         return buildNeutralResult(freshness, metrics, options, gateReasons);
     }
 
-    const candidates = [evaluateAccumulation(metrics), evaluatePump(metrics), evaluateDump(metrics)]
-        .filter((candidate): candidate is CandidateSignal => candidate !== null)
-        .sort((a, b) => signalPriority[b.signalType] - signalPriority[a.signalType]);
+    const candidates = strongestCandidatePerSignalType([
+        evaluateScmNativeAccumulation(metrics),
+        evaluateScmNativePump(metrics),
+        evaluateScmNativeDump(metrics),
+        evaluateAccumulation(metrics),
+        evaluatePump(metrics),
+        evaluateDump(metrics),
+    ].filter((candidate): candidate is CandidateSignal => candidate !== null));
 
     if (candidates.length === 0) {
         const proxyCandidate = evaluatePumpPressureProxy(metrics, options);

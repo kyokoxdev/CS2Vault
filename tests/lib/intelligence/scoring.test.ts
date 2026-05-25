@@ -87,8 +87,7 @@ describe("scoreMarketIntelligence", () => {
         expect(result.signalType).toBe("accumulation");
         expect(result.confidence).toBeGreaterThan(60);
         expect(result.reasons.map((reason) => reason.code)).toEqual(expect.arrayContaining([
-            "accumulation-volume-spike",
-            "accumulation-price-stable",
+            "scm-native-accumulation-volume-squeeze",
             "csfloat-validation-confirmed",
         ]));
     });
@@ -112,8 +111,8 @@ describe("scoreMarketIntelligence", () => {
         expect(result.signalType).toBe("pump");
         expect(result.confidence).toBeGreaterThan(55);
         expect(result.reasons.map((reason) => reason.code)).toEqual(expect.arrayContaining([
-            "pump-price-breakout",
-            "pump-volume-trend-up",
+            "scm-native-pump-breakout",
+            "scm-native-pump-volume-confirmed",
         ]));
     });
 
@@ -176,8 +175,8 @@ describe("scoreMarketIntelligence", () => {
 
         expect(result.signalType).toBe("pump");
         expect(result.reasons.map((reason) => reason.code)).toEqual(expect.arrayContaining([
-            "pump-price-breakout",
-            "pump-volume-trend-up",
+            "scm-native-pump-breakout",
+            "scm-native-pump-volume-confirmed",
         ]));
         expect(result.reasons.map((reason) => reason.code)).not.toContain("pump-pressure-csfloat-floor-divergence");
     });
