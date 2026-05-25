@@ -4,12 +4,13 @@ Every AI agent must read this file in full before making changes in this reposit
 
 ## Current Focus
 
-Last updated: 2026-05-20
+Last updated: 2026-05-21
 
 - CS2Vault is a Next.js 16 / React 19 / strict TypeScript market-intelligence dashboard for Counter-Strike 2 items.
 - App Router lives in `src/app`; market logic in `src/lib/market`; intelligence in `src/lib/market/intelligence` plus `/app/intelligence`; charts in `src/components/charts`; tests in `tests` with Playwright e2e in `tests/e2e`.
 - Data stack: Prisma 7 generated client in `src/generated/prisma`, SQLite locally, Turso/libSQL in production, custom Turso migration push in `prisma/push-schema.ts`.
 - UI stack: CSS Modules, existing design tokens in `globals.css`, TradingView Lightweight Charts, `lightweight-charts-indicators`, `oakscriptjs`, NextAuth Steam auth, Google OAuth for AI provider access, Gemini/OpenAI chat.
+- Intelligence cron runs every 5 minutes with a 3-SCM-validation per-run cap, CSFloat scout candidates queued for SCM validation, and SCM safety limits of 19/minute and 950/day.
 - Keep this section short. Update it only when architecture, stack, workflows, active priorities, or recurring hazards change. Never include secrets.
 
 ## Zero-Tolerance Rules
@@ -76,7 +77,7 @@ Current behavior to preserve:
 - Market intelligence combines price sources, market-cap calculations, top movers, news, portfolio/watchlist state, intelligence signals, and AI chat insights.
 - Charts use TradingView Lightweight Charts with candle data from `src/lib/candles`; indicator logic stays in `src/lib/indicators`.
 - Chat renders markdown with `react-markdown`, `remark-gfm`, and sanitized HTML where markdown output can render HTML.
-- Cron jobs in `vercel.json`: `/api/sync` at `0 4 * * *` and `/api/market/market-cap-sync` at `0 8 * * *`.
+- Cron jobs in `vercel.json`: `/api/sync` at `0 4 * * *`, `/api/market/market-cap-sync` at `0 8 * * *`, and `/api/intelligence/run` at `*/5 * * * *`.
 
 ## Commands
 
@@ -215,8 +216,9 @@ Optional feature variables:
 
 ## Vercel And Cron
 
-- `vercel.json` configures `/api/sync` at `0 4 * * *` and `/api/market/market-cap-sync` at `0 8 * * *`.
+- `vercel.json` configures `/api/sync` at `0 4 * * *`, `/api/market/market-cap-sync` at `0 8 * * *`, and `/api/intelligence/run` at `*/5 * * * *`.
 - Cron-authenticated sync runs regular market sync and market-cap recalculation when stale.
+- Cron-authenticated intelligence uses the hybrid runner: SCM hot/discovery validations share the 3-request per-run cap, CSFloat scout queues thin-supply candidates for later SCM validation, and SCM budgets enforce 19/minute plus 950/day.
 - `src/proxy.ts` authorizes protected routes and intelligence cron access.
 - Set `CRON_SECRET` in Vercel so cron requests are authorized.
 - Frequent open-tab refresh should stay client/settings-driven, not server-cron-driven.
