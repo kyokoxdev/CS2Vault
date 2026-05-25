@@ -424,6 +424,11 @@ export async function processIntelligenceResult(input: ProcessIntelligenceResult
             freshness: scoring.freshness,
             sampleCount: scoring.metrics.sampleCount,
             filteredSampleCount: scoring.metrics.filteredSampleCount,
+            manipulationFocus: scoring.signalType !== "neutral",
+            primaryReasonCode: scoring.reasons[0]?.code ?? null,
+            secondarySignalCount: scoring.secondarySignals.length,
+            csfloatSupply: input.csfloatResult?.ok ? input.csfloatResult.normalized?.quantity ?? null : null,
+            csfloatFloorCents: input.csfloatResult?.ok ? input.csfloatResult.normalized?.minPriceCents ?? null : null,
         };
         const signal = await upsertSignal(input.itemId, scoring, now, { ...metadata, observationId: observation.id });
         const eventCreated = await appendSignalEventIfNeeded(input.itemId, signal, previousSignal, scoring, observedAt, metadata);

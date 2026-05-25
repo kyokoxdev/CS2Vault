@@ -387,6 +387,14 @@ const mockDb = vi.hoisted(() => {
             findMany: vi.fn(async () => []),
         },
         intelligenceSignal: {
+            count: vi.fn(async ({ where }: { where: Record<string, unknown> }) => signals.filter((row) => {
+                if (where.status !== undefined && row.status !== where.status) return false;
+                if (where.signalType && typeof where.signalType === "object" && "not" in where.signalType && row.signalType === (where.signalType as { not: string }).not) return false;
+                if (where.lastSeenAt && typeof where.lastSeenAt === "object" && "lt" in where.lastSeenAt) {
+                    return row.lastSeenAt.getTime() < (where.lastSeenAt as { lt: Date }).lt.getTime();
+                }
+                return true;
+            }).length),
             findFirst: vi.fn(async ({ where }: { where: { itemId: string; status: string } }) => signals
                 .filter((row) => row.itemId === where.itemId && row.status === where.status)
                 .sort((a, b) => b.lastSeenAt.getTime() - a.lastSeenAt.getTime())[0] ?? null),
@@ -606,8 +614,8 @@ describe("intelligence fixture pipeline", () => {
             csfloatSupply: 80,
         }));
         expect(payload.data.items[0].reasons.map((reason: { code: string }) => reason.code)).toEqual(expect.arrayContaining([
-            "accumulation-volume-spike",
-            "accumulation-price-stable",
+            "scm-native-accumulation-volume-squeeze",
+            "csfloat-validation-confirmed",
         ]));
     });
 
