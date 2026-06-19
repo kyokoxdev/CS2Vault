@@ -158,7 +158,7 @@ export function SignalCard({ signal, referenceTimeMs }: SignalCardProps) {
                 ref={triggerRef}
                 type="button"
                 className={styles.marketplaceTrigger}
-                aria-label={`Open marketplace links for ${marketHashName}`}
+                aria-label={`Open signal marketplace links for ${marketHashName}`}
                 aria-haspopup="menu"
                 aria-expanded={isMarketplaceMenuOpen}
                 aria-controls={menuId}

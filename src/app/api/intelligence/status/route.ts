@@ -109,8 +109,10 @@ export async function GET() {
         const now = new Date();
 
         const [config, queueSummary] = await Promise.all([
-            prisma.intelligenceConfig.findUnique({
+            prisma.intelligenceConfig.upsert({
                 where: { id: "default" },
+                update: {},
+                create: { id: "default", liveScmEnabled: false },
                 select: {
                     id: true,
                     liveScmEnabled: true,

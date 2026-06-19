@@ -58,7 +58,7 @@ describe("/api/intelligence/status", () => {
     });
 
     it("derives killSwitch from liveScmEnabled on read", async () => {
-        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce(mockConfig(false) as never);
+        vi.mocked(prisma.intelligenceConfig.upsert).mockResolvedValueOnce(mockConfig(false) as never);
 
         const response = await GET();
         const payload = await response.json();
@@ -69,10 +69,15 @@ describe("/api/intelligence/status", () => {
         expect(payload.data.remainingDue).toBe(6);
         expect(payload.data.processed).toBeNull();
         expect(payload.data.skippedDueToBudget).toBe(0);
+        expect(prisma.intelligenceConfig.upsert).toHaveBeenCalledWith(expect.objectContaining({
+            where: { id: "default" },
+            update: {},
+            create: { id: "default", liveScmEnabled: false },
+        }));
     });
 
     it("reports due rows skipped when the current SCM minute budget is exhausted", async () => {
-        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+        vi.mocked(prisma.intelligenceConfig.upsert).mockResolvedValueOnce({
             ...mockConfig(true),
             requestBudget: {
                 scmMinuteStartedAt: new Date().toISOString(),

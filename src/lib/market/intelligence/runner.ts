@@ -139,7 +139,6 @@ async function enqueueCsfloatScoutCandidates(entries: CsfloatPriceListEntry[], n
                 name: marketHashName,
                 category: classification.category,
                 type: classification.type,
-                isWatched: false,
                 isActive: true,
             },
             update: {},

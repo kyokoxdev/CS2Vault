@@ -11,6 +11,13 @@ const MIN_BUDGET_MS = 1_000;
 const MAX_BUDGET_MS = 28_000;
 const MIN_REMAINING_MS_TO_START_JOB = 12_000;
 
+const PAUSED_CONFIG = {
+    liveScmEnabled: false,
+    circuitBreakerUntil: null,
+    lastRunAt: null,
+    requestBudget: {},
+};
+
 const EMPTY_LANES = {
     scmHot: { candidates: 0, claimed: 0, processed: 0, succeeded: 0, failed: 0, skippedDueToBudget: 0, itemIds: [] as string[] },
     scmDiscovery: { candidates: 0, claimed: 0, processed: 0, succeeded: 0, failed: 0, skippedDueToBudget: 0, itemIds: [] as string[] },
@@ -48,7 +55,7 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const config = await prisma.intelligenceConfig.findUnique({
+        const storedConfig = await prisma.intelligenceConfig.findUnique({
             where: { id: "default" },
             select: {
                 liveScmEnabled: true,
@@ -57,13 +64,7 @@ export async function GET(request: NextRequest) {
                 requestBudget: true,
             },
         });
-
-        if (!config) {
-            return NextResponse.json(
-                { success: false, status: "error", error: "Intelligence config not found" },
-                { status: 500 }
-            );
-        }
+        const config = storedConfig ?? PAUSED_CONFIG;
 
         const now = new Date();
 

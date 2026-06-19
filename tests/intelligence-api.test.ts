@@ -12,6 +12,7 @@ vi.mock("@/lib/db", () => ({
         },
         intelligenceConfig: {
             findUnique: vi.fn(),
+            upsert: vi.fn(),
         },
         intelligenceObservation: {
             findMany: vi.fn(),
@@ -349,7 +350,7 @@ describe("GET /api/intelligence/signals", () => {
 
 describe("GET /api/intelligence/status", () => {
     it("returns queue and circuit breaker status with operational metrics when config exists", async () => {
-        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+        vi.mocked(prisma.intelligenceConfig.upsert).mockResolvedValueOnce({
             id: "default",
             liveScmEnabled: true,
             circuitBreakerUntil: null,
@@ -387,8 +388,16 @@ describe("GET /api/intelligence/status", () => {
         expect(payload.data.lastRunAt).toBe("2026-01-01T12:00:00.000Z");
     });
 
-    it("returns killSwitch true and remainingDue 0 when config is missing", async () => {
-        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce(null);
+    it("initializes a paused default config when the status is first read", async () => {
+        vi.mocked(prisma.intelligenceConfig.upsert).mockResolvedValueOnce({
+            id: "default",
+            liveScmEnabled: false,
+            circuitBreakerUntil: null,
+            consecutiveProviderFailures: 0,
+            lastRunAt: null,
+            lastError: null,
+            requestBudget: {},
+        } as never);
         vi.mocked(getQueueSummary).mockResolvedValueOnce({
             pending: 0,
             running: 0,
@@ -404,16 +413,21 @@ describe("GET /api/intelligence/status", () => {
 
         expect(response.status).toBe(200);
         expect(payload.success).toBe(true);
-        expect(payload.data.initialized).toBe(false);
+        expect(payload.data.initialized).toBe(true);
         expect(payload.data.killSwitch).toBe(true);
         expect(payload.data.remainingDue).toBe(0);
         expect(payload.data.processed).toBeNull();
-        expect(payload.data.skippedDueToBudget).toBeNull();
+        expect(payload.data.skippedDueToBudget).toBe(0);
+        expect(prisma.intelligenceConfig.upsert).toHaveBeenCalledWith(expect.objectContaining({
+            where: { id: "default" },
+            update: {},
+            create: { id: "default", liveScmEnabled: false },
+        }));
     });
 
     it("returns circuit breaker active when breaker is set", async () => {
         const futureDate = new Date(Date.now() + 30 * 60 * 1000);
-        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+        vi.mocked(prisma.intelligenceConfig.upsert).mockResolvedValueOnce({
             id: "default",
             liveScmEnabled: true,
             circuitBreakerUntil: futureDate,
@@ -442,7 +456,7 @@ describe("GET /api/intelligence/status", () => {
     });
 
     it("reports skippedDueToBudget from exhausted current SCM budget", async () => {
-        vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce({
+        vi.mocked(prisma.intelligenceConfig.upsert).mockResolvedValueOnce({
             id: "default",
             liveScmEnabled: true,
             circuitBreakerUntil: null,
@@ -474,7 +488,7 @@ describe("GET /api/intelligence/status", () => {
     });
 
     it("returns 500 on database error", async () => {
-        vi.mocked(prisma.intelligenceConfig.findUnique).mockRejectedValueOnce(new Error("DB error"));
+        vi.mocked(prisma.intelligenceConfig.upsert).mockRejectedValueOnce(new Error("DB error"));
 
         const request = new Request("http://localhost/api/intelligence/status");
         const response = await getStatus(toNextRequest(request));
@@ -840,14 +854,18 @@ describe("POST /api/intelligence/refresh", () => {
         expect(runIntelligenceQueue).not.toHaveBeenCalled();
     });
 
-    it("returns 500 when config is missing", async () => {
+    it("returns paused status when config is missing", async () => {
         vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
         vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce(null);
 
         const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
         const response = await postRefresh(toNextRequest(request));
+        const payload = await response.json();
 
-        expect(response.status).toBe(500);
+        expect(response.status).toBe(200);
+        expect(payload.success).toBe(true);
+        expect(payload.data.status).toBe("paused");
+        expect(payload.data.killSwitch).toBe(true);
         expect(promoteStaleSignalQueueItems).not.toHaveBeenCalled();
         expect(runIntelligenceQueue).not.toHaveBeenCalled();
     });
@@ -1121,15 +1139,19 @@ describe("GET /api/intelligence/run", () => {
         expect(runIntelligenceQueue).not.toHaveBeenCalled();
     });
 
-    it("returns 500 when config is missing", async () => {
+    it("returns paused status when config is missing", async () => {
         vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce(null);
 
         const request = new Request("http://localhost/api/intelligence/run", {
             headers: { authorization: "Bearer test-secret" },
         });
         const response = await getRun(toNextRequest(request));
+        const payload = await response.json();
 
-        expect(response.status).toBe(500);
+        expect(response.status).toBe(200);
+        expect(payload.success).toBe(true);
+        expect(payload.data.status).toBe("paused");
+        expect(payload.data.killSwitch).toBe(true);
         expect(runIntelligenceQueue).not.toHaveBeenCalled();
     });
 

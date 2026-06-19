@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
+import { useReducedMotion } from "@/hooks/useMediaQuery";
+
 import { SummaryCards } from "./SummaryCards";
 import { SignalFilters } from "./SignalFilters";
 import { SignalCard } from "./SignalCard";
@@ -61,6 +63,7 @@ export function IntelligenceDashboard() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [referenceTimeMs] = useState(() => Date.now());
   const seedInFlightRef = useRef(false);
+  const reducedMotion = useReducedMotion();
 
   const fetchSignals = useCallback(async (currentFilters: Filters, cursor?: string) => {
     try {
@@ -325,7 +328,11 @@ export function IntelligenceDashboard() {
           <span className={styles.emptySubtext}>Signals will appear here when market anomalies are identified.</span>
         </div>
       ) : (
-        <div className={styles.signalList}>
+        <div
+          className={styles.signalList}
+          data-testid="intelligence-radar"
+          data-reduced-motion={reducedMotion ? "true" : undefined}
+        >
           {signals.map((signal) => (
             <SignalCard key={signal.id} signal={signal} referenceTimeMs={referenceTimeMs} />
           ))}

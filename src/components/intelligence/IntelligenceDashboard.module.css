@@ -15,7 +15,6 @@
   background-color: var(--surface-2);
   border: 1px solid var(--bear);
   border-radius: 8px;
-  animation: fadeSlideIn 0.25s ease forwards;
 }
 
 .errorMessage {
@@ -149,13 +148,3 @@
   }
 }
 
-@keyframes fadeSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}

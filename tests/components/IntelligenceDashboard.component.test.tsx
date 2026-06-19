@@ -329,7 +329,7 @@ describe("IntelligenceDashboard", () => {
       expect(screen.getByText("AK-47 | Redline (Field-Tested)")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Open marketplace links for AK-47 | Redline (Field-Tested)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open signal marketplace links for AK-47 | Redline (Field-Tested)" }));
 
     const steamLink = screen.getByRole("menuitem", { name: "Open AK-47 | Redline (Field-Tested) on Steam Market" });
     const csfloatLink = screen.getByRole("menuitem", { name: "Open AK-47 | Redline (Field-Tested) on CSFloat" });

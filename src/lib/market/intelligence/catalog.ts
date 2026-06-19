@@ -216,7 +216,6 @@ export async function seedIntelligenceCatalog(options: CatalogSeedOptions = {}):
                 name: marketHashName,
                 category: classification.category,
                 type: classification.type ?? undefined,
-                isWatched: false,
                 isActive: status === "pending",
             },
             update: {},
