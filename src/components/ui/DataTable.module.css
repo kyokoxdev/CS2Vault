@@ -4,8 +4,8 @@
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: max-content;
 }
 
 .dataTable {
@@ -247,8 +247,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: auto;
+  width: 100%;
 }
 
 /* ── View toggle (cards / table) ────────────────────────────── */

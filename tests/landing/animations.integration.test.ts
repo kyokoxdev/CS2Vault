@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import "../setup-component";
 import { gsap } from "@/lib/gsap";
-import HeroCinematic from "@/components/landing/HeroCinematic";
+import HeroSection from "@/components/landing/HeroSection";
 import StartupPage from "@/app/startup/page";
 
 interface MockObserverRecord {
@@ -106,63 +106,36 @@ describe("Landing animations integration", () => {
         vi.restoreAllMocks();
     });
 
-    it("runs hero GSAP timeline and keeps duration within 5 seconds", async () => {
-        const createdTimelines: gsap.core.Timeline[] = [];
-        const originalTimeline = gsap.timeline.bind(gsap);
+    it("renders hero content without creating a GSAP timeline", async () => {
+        const timelineSpy = vi.spyOn(gsap, "timeline");
 
-        vi.spyOn(gsap, "timeline").mockImplementation(((vars?: gsap.TimelineVars) => {
-            const timeline = originalTimeline(vars);
-            createdTimelines.push(timeline);
-            return timeline;
-        }) as typeof gsap.timeline);
+        render(React.createElement(HeroSection));
 
-        render(React.createElement(HeroCinematic));
+        expect(screen.getByTestId("hero-section")).toBeVisible();
+        expect(screen.getByTestId("hero-stats")).toBeVisible();
+        expect(screen.getByTestId("hero-cta")).toBeVisible();
 
         await waitFor(() => {
-            expect(createdTimelines.length).toBeGreaterThan(0);
+            expect(timelineSpy).not.toHaveBeenCalled();
         });
-
-        const heroTimeline = createdTimelines[0];
-
-        expect(heroTimeline.totalDuration()).toBeLessThanOrEqual(5);
-        expect(heroTimeline.getChildren(false, true, true).length).toBeGreaterThan(0);
-
-        const cta = screen.getByTestId("hero-cta");
-        act(() => {
-            heroTimeline.progress(1);
-        });
-
-        expect(Number(gsap.getProperty(cta, "opacity"))).toBeGreaterThan(0.9);
     });
 
-    it("disables counter animations when reduced motion is enabled", async () => {
+    it("renders hero stats as plain text when reduced motion is enabled", async () => {
         reducedMotion = true;
         const gsapToSpy = vi.spyOn(gsap, "to");
 
-        render(React.createElement(HeroCinematic));
-
-        await waitFor(() => {
-            expect(screen.getByTestId("parallax-section").className).toContain("reducedMotion");
-        });
-
-        const counters = screen.getAllByTestId("data-reveal");
-
-        act(() => {
-            for (const counter of counters) {
-                triggerIntersection(counter, true);
-            }
-        });
+        render(React.createElement(HeroSection));
 
         expect(gsapToSpy).not.toHaveBeenCalled();
-        expect(screen.getByText("2.5")).toBeDefined();
-        expect(screen.getByText("50")).toBeDefined();
-        expect(screen.getByText("24")).toBeDefined();
+        expect(screen.getByText("$2.5B")).toBeDefined();
+        expect(screen.getByText("50K+")).toBeDefined();
+        expect(screen.getByText("24/7")).toBeDefined();
     });
 
     it("fires scroll-triggered DataReveal animations through IntersectionObserver", async () => {
         const gsapToSpy = vi.spyOn(gsap, "to");
 
-        render(React.createElement(HeroCinematic));
+        render(React.createElement(StartupPage));
 
         const counters = screen.getAllByTestId("data-reveal");
         expect(gsapToSpy).not.toHaveBeenCalled();
@@ -178,7 +151,7 @@ describe("Landing animations integration", () => {
         });
 
         const durations = gsapToSpy.mock.calls.map(([, vars]) => Number((vars as gsap.TweenVars).duration));
-        expect(durations.every((duration) => duration === 1.2)).toBe(true);
+        expect(durations.every((duration) => duration === 1.5)).toBe(true);
     });
 
     it("reveals ScrollReveal wrappers when they intersect viewport", async () => {

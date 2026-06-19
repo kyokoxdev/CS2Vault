@@ -1,8 +1,5 @@
-"use client";
-
 import SteamItemImage, { POPULAR_ITEMS } from "./SteamItemImage";
 import MockSparkline from "./MockSparkline";
-import ParallaxSection from "./ParallaxSection";
 import styles from "./ItemShowcase.module.css";
 
 interface ShowcaseItem {
@@ -35,31 +32,8 @@ function formatChange(change: number): string {
 }
 
 export default function ItemShowcase() {
-    const backgroundLayer = {
-        content: (
-            <div className={styles.gridBackground}>
-                <div className={styles.gridLines} aria-hidden="true" />
-                <div className={styles.noiseOverlay} aria-hidden="true" />
-            </div>
-        ),
-        depth: 1 as const,
-    };
-
-    const accentLayer = {
-        content: (
-            <div className={styles.accentElements}>
-                <div className={styles.accentBlock1} aria-hidden="true" />
-                <div className={styles.accentBlock2} aria-hidden="true" />
-            </div>
-        ),
-        depth: 2 as const,
-    };
-
     return (
-        <ParallaxSection
-            layers={[backgroundLayer, accentLayer]}
-            className={styles.showcaseSection}
-        >
+        <section className={styles.showcaseSection}>
             <div className={styles.showcaseContent} data-testid="item-showcase">
                 <header className={styles.sectionHeader}>
                     <h2 className={styles.sectionTitle}>MARKET MOVERS</h2>
@@ -72,7 +46,6 @@ export default function ItemShowcase() {
                             key={item.name}
                             className={styles.itemCard}
                             data-testid="showcase-item-card"
-                            style={{ animationDelay: `${index * 75}ms` }}
                         >
                             <div className={styles.itemImageWrapper}>
                                 <SteamItemImage
@@ -110,6 +83,6 @@ export default function ItemShowcase() {
                     ))}
                 </div>
             </div>
-        </ParallaxSection>
+        </section>
     );
 }

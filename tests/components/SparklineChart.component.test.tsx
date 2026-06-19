@@ -7,6 +7,8 @@ import { describe, it, expect, vi } from "vitest";
 import "../setup-component";
 import { render } from "@testing-library/react";
 
+const addSeries = vi.fn(() => ({ setData: vi.fn() }));
+
 // jsdom does not provide ResizeObserver
 global.ResizeObserver = class ResizeObserver {
     observe() {}
@@ -16,7 +18,7 @@ global.ResizeObserver = class ResizeObserver {
 
 vi.mock("lightweight-charts", () => ({
     createChart: vi.fn(() => ({
-        addSeries: vi.fn(() => ({ setData: vi.fn() })),
+        addSeries,
         applyOptions: vi.fn(),
         timeScale: vi.fn(() => ({ fitContent: vi.fn() })),
         remove: vi.fn(),
@@ -35,6 +37,17 @@ const sampleData = [
 ];
 
 describe("SparklineChart Component", () => {
+    it("creates an area series with transparent fills and the trend line color", () => {
+        render(<SparklineChart data={sampleData} />);
+
+        expect(addSeries).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+            lineColor: "#00C076",
+            topColor: "transparent",
+            bottomColor: "transparent",
+            lineWidth: 2,
+        }));
+    });
+
     it("renders container div when data has 2+ points", () => {
         const { container } = render(<SparklineChart data={sampleData} />);
         const div = container.querySelector("div");

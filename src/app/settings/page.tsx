@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ChangeEvent } from "react";
 import styles from "./Settings.module.css";
 import { FaSave, FaRobot, FaChartLine, FaClock, FaSyncAlt } from "react-icons/fa";
 import { AI_MODELS } from "@/lib/ai/model-labels";
 import { Select } from "@/components/ui/Select";
+import { useUiPreferences } from "@/components/providers/UiPreferencesProvider";
+import { UI_THEMES, isUiTheme, type UiTheme } from "@/lib/ui/preferences";
 
 interface AppSettings {
     activeMarketSource: string;
@@ -12,13 +14,70 @@ interface AppSettings {
     priceRefreshIntervalMin: number;
     openAiApiKey: string;
     geminiApiKey: string;
+    anthropicApiKey: string;
+    openRouterApiKey: string;
+    nineRouterApiKey: string;
     csfloatApiKey: string;
     csgotraderSubProvider: string;
 }
 
-const API_KEY_FIELDS = ["openAiApiKey", "geminiApiKey", "csfloatApiKey"] as const;
+const API_KEY_FIELDS = ["openAiApiKey", "geminiApiKey", "anthropicApiKey", "openRouterApiKey", "nineRouterApiKey", "csfloatApiKey"] as const;
 type ApiKeyField = typeof API_KEY_FIELDS[number];
 const SAVED_KEY_INDICATOR = "••••••••••••••••";
+
+const EMPTY_API_KEYS: Record<ApiKeyField, string> = {
+    openAiApiKey: "",
+    geminiApiKey: "",
+    anthropicApiKey: "",
+    openRouterApiKey: "",
+    nineRouterApiKey: "",
+    csfloatApiKey: "",
+};
+
+const AI_KEY_INPUTS: { field: ApiKeyField; id: string; label: string; placeholder: string; help: string }[] = [
+    {
+        field: "geminiApiKey",
+        id: "settings-gemini-key",
+        label: "Google Gemini API Key",
+        placeholder: "AIzaSy...",
+        help: "Used by Gemini Flash for text and image-aware market chats.",
+    },
+    {
+        field: "openAiApiKey",
+        id: "settings-openai-key",
+        label: "OpenAI API Key",
+        placeholder: "sk-...",
+        help: "Used by the OpenAI route; OPENAI_MODEL can override the default GPT-4o Mini model.",
+    },
+    {
+        field: "anthropicApiKey",
+        id: "settings-anthropic-key",
+        label: "Anthropic API Key",
+        placeholder: "sk-ant-...",
+        help: "Used by Claude Opus with adaptive thinking for deeper market reasoning.",
+    },
+    {
+        field: "openRouterApiKey",
+        id: "settings-openrouter-key",
+        label: "OpenRouter API Key",
+        placeholder: "sk-or-...",
+        help: "Routes through https://openrouter.ai/api/v1 by default; override with OPENROUTER_MODEL if needed.",
+    },
+    {
+        field: "nineRouterApiKey",
+        id: "settings-ninerouter-key",
+        label: "9Router API Key",
+        placeholder: "Optional for local 9Router auth",
+        help: "Targets a local OpenAI-compatible 9Router gateway; set NINEROUTER_BASE_URL when not using localhost.",
+    },
+];
+
+const THEME_LABELS: Record<UiTheme, string> = {
+    dark: "Dark",
+    "high-contrast": "High Contrast",
+};
+
+const THEME_OPTIONS = UI_THEMES.map((theme) => ({ label: THEME_LABELS[theme], value: theme }));
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -27,6 +86,7 @@ export default function SettingsPage() {
     const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
     const [savedKeyMasks, setSavedKeyMasks] = useState<Record<string, string>>({});
     const [editingKeys, setEditingKeys] = useState<Set<string>>(new Set());
+    const { preferences, updatePreferences } = useUiPreferences();
 
     useEffect(() => {
         fetch("/api/settings")
@@ -41,9 +101,7 @@ export default function SettingsPage() {
                 setSavedKeyMasks(masks);
                 setSettings({
                     ...data,
-                    openAiApiKey: "",
-                    geminiApiKey: "",
-                    csfloatApiKey: "",
+                    ...EMPTY_API_KEYS,
                 });
             })
             .catch(err => console.error("Failed to load settings:", err));
@@ -52,6 +110,16 @@ export default function SettingsPage() {
     const handleChange = (field: keyof AppSettings, value: string | number) => {
         if (!settings) return;
         setSettings({ ...settings, [field]: value });
+    };
+
+    const handleThemePreferenceChange = (value: string) => {
+        if (isUiTheme(value)) {
+            updatePreferences({ theme: value });
+        }
+    };
+
+    const handleMarketTapePreferenceChange = (event: ChangeEvent<HTMLInputElement>) => {
+        updatePreferences({ marketTapeVisible: event.target.checked });
     };
 
     const isKeySaved = (field: string): boolean => !!savedKeyMasks[field];
@@ -118,9 +186,7 @@ export default function SettingsPage() {
 
             setSettings({
                 ...data,
-                openAiApiKey: "",
-                geminiApiKey: "",
-                csfloatApiKey: "",
+                ...EMPTY_API_KEYS,
             });
 
             setMessage({ text: "Settings saved successfully! The AI and Market engines have been updated.", type: "success" });
@@ -167,22 +233,78 @@ export default function SettingsPage() {
     };
 
     if (!settings) {
-        return <div className={styles.loading}>Loading configuration...</div>;
+        return <div className={styles.loading} data-testid="route-settings">Loading configuration...</div>;
     }
 
     return (
-        <div className={styles.container}>
+        <div className={styles.container} data-testid="route-settings">
             <header className={styles.header}>
-                <h1 className={styles.title}>Provider Configuration</h1>
-                <p className={styles.subtitle}>Manage your AI models, Market data flows, and secure API keys.</p>
+                <div className={styles.headerCopy}>
+                    <p className={styles.eyebrow}>Operations and preferences</p>
+                    <h1 className={styles.title}>Settings</h1>
+                    <p className={styles.subtitle}>Manage provider credentials, refresh cadence, and the dashboard theme from one place.</p>
+                </div>
+                <dl className={styles.headerStats}>
+                    <div className={styles.statCard}>
+                        <dt>Active AI</dt>
+                        <dd>{AI_MODELS.find((model) => model.value === settings.activeAIProvider)?.shortLabel ?? settings.activeAIProvider}</dd>
+                    </div>
+                    <div className={styles.statCard}>
+                        <dt>Price refresh</dt>
+                        <dd>{settings.priceRefreshIntervalMin} min</dd>
+                    </div>
+                    <div className={styles.statCard}>
+                        <dt>Primary feed</dt>
+                        <dd>{settings.activeMarketSource}</dd>
+                    </div>
+                </dl>
             </header>
 
             <div className={styles.grid}>
+                <section className={`${styles.panel} ${styles.interfacePanel}`}>
+                    <div className={styles.panelHeader}>
+                        <FaChartLine className={styles.icon} />
+                        <div>
+                            <h2>Interface Preferences</h2>
+                            <p className={styles.panelKicker}>Theme selection</p>
+                        </div>
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label htmlFor="settings-ui-theme" data-testid="preferences-theme-select">Theme</label>
+                        <Select
+                            id="settings-ui-theme"
+                            value={preferences.theme}
+                            onChange={handleThemePreferenceChange}
+                            className={styles.select}
+                            options={THEME_OPTIONS}
+                        />
+                        <p className={styles.helpText}>Choose the standard dark palette or a higher-contrast mode for the dashboard.</p>
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label htmlFor="settings-market-tape">
+                            <input
+                                id="settings-market-tape"
+                                type="checkbox"
+                                checked={preferences.marketTapeVisible}
+                                onChange={handleMarketTapePreferenceChange}
+                                data-testid="preferences-market-tape-toggle"
+                            />
+                            Market tape
+                        </label>
+                        <p className={styles.helpText}>Show the moving top-movers tape in the dashboard header.</p>
+                    </div>
+                </section>
+
                 {/* AI Agents Panel */}
                 <section className={styles.panel}>
                     <div className={styles.panelHeader}>
                         <FaRobot className={styles.icon} />
-                        <h2>AI Market Agent</h2>
+                        <div>
+                            <h2>AI Market Agent</h2>
+                            <p className={styles.panelKicker}>Model routing and credential vault</p>
+                        </div>
                     </div>
 
                     <div className={styles.formGroup}>
@@ -197,40 +319,32 @@ export default function SettingsPage() {
                         <p className={styles.helpText}>Select the underlying language model powering the `/chat` analyst.</p>
                     </div>
 
-                    <div className={styles.formGroup}>
-                        <label htmlFor="settings-gemini-key">Google Gemini API Key</label>
-                        <input
-                            id="settings-gemini-key"
-                            type="password"
-                            value={getKeyDisplayValue("geminiApiKey")}
-                            onChange={(e) => handleKeyChange("geminiApiKey", e.target.value)}
-                            onFocus={() => handleKeyFocus("geminiApiKey")}
-                            onBlur={() => handleKeyBlur("geminiApiKey")}
-                            placeholder="AIzaSy..."
-                            className={styles.input}
-                        />
-                    </div>
-
-                    <div className={styles.formGroup}>
-                        <label htmlFor="settings-openai-key">OpenAI API Key</label>
-                        <input
-                            id="settings-openai-key"
-                            type="password"
-                            value={getKeyDisplayValue("openAiApiKey")}
-                            onChange={(e) => handleKeyChange("openAiApiKey", e.target.value)}
-                            onFocus={() => handleKeyFocus("openAiApiKey")}
-                            onBlur={() => handleKeyBlur("openAiApiKey")}
-                            placeholder="sk-..."
-                            className={styles.input}
-                        />
-                    </div>
+                    {AI_KEY_INPUTS.map((input) => (
+                        <div className={styles.formGroup} key={input.field}>
+                            <label htmlFor={input.id}>{input.label}</label>
+                            <input
+                                id={input.id}
+                                type="password"
+                                value={getKeyDisplayValue(input.field)}
+                                onChange={(e) => handleKeyChange(input.field, e.target.value)}
+                                onFocus={() => handleKeyFocus(input.field)}
+                                onBlur={() => handleKeyBlur(input.field)}
+                                placeholder={input.placeholder}
+                                className={styles.input}
+                            />
+                            <p className={styles.helpText}>{input.help}</p>
+                        </div>
+                    ))}
                 </section>
 
                 {/* Market Data Panel */}
                 <section className={styles.panel}>
                     <div className={styles.panelHeader}>
                         <FaChartLine className={styles.icon} />
-                        <h2>Market Data Source</h2>
+                        <div>
+                            <h2>Market Data Source</h2>
+                            <p className={styles.panelKicker}>Live feed controls and recalculation actions</p>
+                        </div>
                     </div>
 
                     <div className={styles.formGroup}>

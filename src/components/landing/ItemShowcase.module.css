@@ -1,81 +1,9 @@
-/* ===== Item Showcase - Brutalist Grid ===== */
-
-@keyframes cardReveal {
-    from {
-        opacity: 0;
-        transform: translateY(20px) scale(0.98);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-@keyframes pulseGlow {
-    0%, 100% {
-        box-shadow: inset 0 0 0 2px var(--border-primary);
-    }
-    50% {
-        box-shadow: inset 0 0 0 2px rgba(0, 192, 118, 0.4);
-    }
-}
-
 .showcaseSection {
     position: relative;
     padding: 6rem 2rem;
     background: var(--surface-1);
     border-top: var(--brutalist-border, 3px solid var(--border-primary));
     border-bottom: var(--brutalist-border, 3px solid var(--border-primary));
-    overflow: hidden;
-}
-
-.gridBackground {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-}
-
-.gridLines {
-    position: absolute;
-    inset: 0;
-    background-image:
-        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-    background-size: 40px 40px;
-}
-
-.noiseOverlay {
-    position: absolute;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    opacity: 0.03;
-    mix-blend-mode: overlay;
-}
-
-.accentElements {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-}
-
-.accentBlock1 {
-    position: absolute;
-    top: 10%;
-    left: -5%;
-    width: 200px;
-    height: 200px;
-    background: linear-gradient(135deg, rgba(0, 192, 118, 0.08) 0%, transparent 70%);
-    transform: rotate(-15deg);
-}
-
-.accentBlock2 {
-    position: absolute;
-    bottom: 15%;
-    right: -8%;
-    width: 300px;
-    height: 150px;
-    background: linear-gradient(-45deg, rgba(255, 77, 79, 0.06) 0%, transparent 60%);
-    transform: rotate(10deg);
 }
 
 .showcaseContent {
@@ -108,22 +36,18 @@
     border-radius: var(--brutalist-radius, 0);
 }
 
-/* ===== Brutalist Grid Layout ===== */
-
 .itemGrid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1.5rem;
 }
 
-/* Asymmetric breakpoints */
 @media (min-width: 900px) {
     .itemGrid {
         grid-template-columns: repeat(4, 1fr);
         grid-template-rows: repeat(2, auto);
     }
 
-    /* Feature the Howl and Karambit */
     .itemCard:nth-child(3) {
         grid-row: span 1;
     }
@@ -139,34 +63,17 @@
     }
 }
 
-/* ===== Item Card - Brutalist Style ===== */
-
 .itemCard {
     position: relative;
     background: var(--surface-2);
     border: var(--brutalist-border, 3px solid var(--border-primary));
     border-radius: var(--brutalist-radius, 0);
     overflow: hidden;
-    transition: 
-        transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-        box-shadow 0.2s ease;
-    animation: cardReveal 0.5s ease-out both;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .itemCard:hover {
-    transform: translateY(-4px) scale(1.02);
-    box-shadow: 
-        0 12px 40px rgba(0, 0, 0, 0.4),
-        0 0 0 1px rgba(0, 192, 118, 0.2);
-    z-index: 10;
-}
-
-.itemCard:hover .itemOverlay {
-    opacity: 1;
-}
-
-.itemCard:hover .itemImage {
-    transform: scale(1.05);
+    background: var(--surface-hover);
 }
 
 .cardBorder {
@@ -182,8 +89,6 @@
     border-color: var(--bull);
 }
 
-/* ===== Image Section ===== */
-
 .itemImageWrapper {
     position: relative;
     aspect-ratio: 16 / 10;
@@ -196,23 +101,11 @@
     width: 100%;
     height: 100%;
     object-fit: contain;
-    transition: transform 0.3s ease;
 }
 
 .itemOverlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-        180deg,
-        transparent 0%,
-        transparent 50%,
-        rgba(0, 0, 0, 0.6) 100%
-    );
-    opacity: 0;
-    transition: opacity 0.2s ease;
+    display: none;
 }
-
-/* ===== Item Info Section ===== */
 
 .itemInfo {
     padding: 1.25rem;
@@ -266,8 +159,6 @@
     border-color: var(--bear);
 }
 
-/* ===== Sparkline ===== */
-
 .sparklineWrapper {
     height: 36px;
     border-top: 1px dashed var(--border-primary);
@@ -278,8 +169,6 @@
     width: 100%;
     height: 100%;
 }
-
-/* ===== Tablet (768-1023px) ===== */
 
 @media (min-width: 768px) and (max-width: 1023px) {
     .showcaseSection {
@@ -429,18 +318,8 @@
     }
 }
 
-/* ===== Reduced Motion ===== */
-
 @media (prefers-reduced-motion: reduce) {
-    .itemCard {
-        animation: none;
-    }
-
     .itemCard:hover {
-        transform: none;
-    }
-
-    .itemCard:hover .itemImage {
         transform: none;
     }
 }

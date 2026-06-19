@@ -113,6 +113,31 @@ describe("DataTable Component", () => {
     expect(headers[0]).toHaveStyle("width: 100px");
     expect(headers[2]).toHaveStyle("width: 150px");
   });
+
+  it("restores the table branch after switching between card and table views", () => {
+    const { container } = render(
+      <DataTable
+        columns={testColumns}
+        data={testData}
+        mobileCardRenderer={(row) => <div>{row.name} card</div>}
+      />
+    );
+
+    const tableScroll = container.querySelector('[class*="tableScroll"]');
+    const cardList = container.querySelector('[class*="cardList"]');
+
+    expect(tableScroll?.className).not.toContain("viewHidden");
+    expect(cardList?.className).toContain("viewHidden");
+
+    fireEvent.click(screen.getByRole("button", { name: "Card view" }));
+    expect(tableScroll?.className).toContain("viewHidden");
+    expect(cardList?.className).not.toContain("viewHidden");
+
+    fireEvent.click(screen.getByRole("button", { name: "Table view" }));
+    expect(screen.getByRole("button", { name: "Table view" })).toHaveAttribute("aria-pressed", "true");
+    expect(tableScroll?.className).not.toContain("viewHidden");
+    expect(cardList?.className).toContain("viewHidden");
+  });
 });
 
 describe("DataTable Sorting", () => {

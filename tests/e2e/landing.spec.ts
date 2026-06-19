@@ -27,7 +27,7 @@ test.describe('Landing Page E2E Tests', () => {
     });
 
     test('should render all required sections', async ({ page }) => {
-        const heroSection = page.locator('[data-testid="hero-cinematic"]');
+        const heroSection = page.locator('[data-testid="hero-section"]');
         await expect(heroSection).toBeVisible();
 
         const featuresSection = page.locator('[data-testid="features-section"]');
@@ -52,7 +52,7 @@ test.describe('Landing Page E2E Tests', () => {
     });
 
     test('should complete hero animation within 5 seconds', async ({ page }) => {
-        const hero = page.locator('[data-testid="hero-cinematic"]');
+        const hero = page.locator('[data-testid="hero-section"]');
         await expect(hero).toBeVisible();
 
         const heroTitle = hero.locator('h1');
@@ -89,7 +89,7 @@ test.describe('Landing Page E2E Tests', () => {
 
         await page.waitForTimeout(2000);
 
-        const heroTitle = page.locator('[data-testid="hero-cinematic"] h1');
+        const heroTitle = page.locator('[data-testid="hero-section"] h1');
         await expect(heroTitle).toBeVisible();
         
         const heroStats = page.locator('[data-testid="hero-stats"]');
@@ -112,7 +112,7 @@ test.describe('Landing Page E2E Tests', () => {
             await page.waitForLoadState('networkidle');
             
             await expect(page.locator('[data-testid="landing-page"]')).toBeVisible();
-            await expect(page.locator('[data-testid="hero-cinematic"]')).toBeVisible();
+            await expect(page.locator('[data-testid="hero-section"]')).toBeVisible();
             
             await page.screenshot({ 
                 path: path.join(EVIDENCE_DIR, 'responsive-mobile-375.png'),
@@ -154,7 +154,7 @@ test.describe('Landing Page E2E Tests', () => {
             await page.emulateMedia({ reducedMotion: 'reduce' });
             await page.goto('/startup');
             
-            const hero = page.locator('[data-testid="hero-cinematic"]');
+            const hero = page.locator('[data-testid="hero-section"]');
             const heroTitle = hero.locator('h1');
             await expect(heroTitle).toBeVisible({ timeout: 1000 });
             

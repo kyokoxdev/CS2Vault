@@ -75,8 +75,8 @@ export default function SparklineChart({
 
         const series = chart.addSeries(AreaSeries, {
             lineColor: trendColor,
-            topColor: trendColor + "26", // ~0.15 alpha
-            bottomColor: trendColor + "00", // 0 alpha
+            topColor: "transparent",
+            bottomColor: "transparent",
             lineWidth: 2,
         });
 

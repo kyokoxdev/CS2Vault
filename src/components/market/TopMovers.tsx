@@ -37,6 +37,8 @@ const itemVariants = {
 
 export function TopMovers({ gainers, losers, isLoading = false, source }: TopMoversProps) {
   const reducedMotion = useReducedMotion();
+  const displayGainers = gainers.slice(0, 5);
+  const displayLosers = losers.slice(0, 5);
 
   const renderSkeletons = () => (
     <>
@@ -58,6 +60,7 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
     const badgeVariant = isPositive ? "success" : "danger";
     const changeText = `${isPositive ? "+" : ""}${item.change24h.toFixed(2)}%`;
     const chartColor = type === 'gainer' ? "#00C076" : "#FF4D4F";
+    const rankLabel = `${index + 1}`.padStart(2, "0");
 
     const motionProps = reducedMotion ? {} : {
       variants: itemVariants,
@@ -74,18 +77,28 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
           key={item.id}
           href={`/item/${item.id}`}
           className={styles.card}
+          data-testid={`top-mover-${type}-${item.id}`}
         >
-          <span className={styles.itemName} title={item.name}>{item.name}</span>
-          <span className={styles.itemPrice}>
-            ${item.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
-          <Badge variant={badgeVariant} size="sm">{changeText}</Badge>
-          <SparklineChart 
-            data={item.sparkline} 
-            width={120} 
-            height={32} 
-            color={chartColor} 
-          />
+          <span className={styles.rank}>{rankLabel}</span>
+          <div className={styles.cardBody}>
+            <div className={styles.cardHeading}>
+              <span className={styles.itemName} title={item.name}>{item.name}</span>
+              <Badge variant={badgeVariant} size="sm">{changeText}</Badge>
+            </div>
+            <div className={styles.cardFoot}>
+              <span className={styles.itemPrice}>
+                ${item.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <div className={styles.sparklineWrap}>
+                <SparklineChart
+                  data={item.sparkline}
+                  width={136}
+                  height={40}
+                  color={chartColor}
+                />
+              </div>
+            </div>
+          </div>
         </Link>
       );
     }
@@ -95,19 +108,29 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
         key={item.id}
         href={`/item/${item.id}`}
         className={styles.card}
+        data-testid={`top-mover-${type}-${item.id}`}
         {...motionProps}
       >
-        <span className={styles.itemName} title={item.name}>{item.name}</span>
-        <span className={styles.itemPrice}>
-          ${item.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-        <Badge variant={badgeVariant} size="sm">{changeText}</Badge>
-        <SparklineChart 
-          data={item.sparkline} 
-          width={120} 
-          height={32} 
-          color={chartColor} 
-        />
+        <span className={styles.rank}>{rankLabel}</span>
+        <div className={styles.cardBody}>
+          <div className={styles.cardHeading}>
+            <span className={styles.itemName} title={item.name}>{item.name}</span>
+            <Badge variant={badgeVariant} size="sm">{changeText}</Badge>
+          </div>
+          <div className={styles.cardFoot}>
+            <span className={styles.itemPrice}>
+              ${item.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <div className={styles.sparklineWrap}>
+              <SparklineChart
+                data={item.sparkline}
+                width={136}
+                height={40}
+                color={chartColor}
+              />
+            </div>
+          </div>
+        </div>
       </MotionLink>
     );
   };
@@ -115,13 +138,13 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
   const renderGainersContent = () => {
     if (isLoading) return renderSkeletons();
     if (gainers.length === 0) return renderEmptySection();
-    return gainers.slice(0, 5).map((item, i) => renderCard(item, 'gainer', i));
+    return displayGainers.map((item, i) => renderCard(item, 'gainer', i));
   };
 
   const renderLosersContent = () => {
     if (isLoading) return renderSkeletons();
     if (losers.length === 0) return renderEmptySection();
-    return losers.slice(0, 5).map((item, i) => renderCard(item, 'loser', i));
+    return displayLosers.map((item, i) => renderCard(item, 'loser', i));
   };
 
   return (
@@ -131,13 +154,35 @@ export function TopMovers({ gainers, losers, isLoading = false, source }: TopMov
           Live market data unavailable — showing watchlist items only
         </div>
       )}
-      <div className={styles.container}>
+      <div className={styles.header}>
+        <div>
+          <h2 className={styles.title}>Top Movers</h2>
+          <p className={styles.description}>Largest 24h price changes across tracked items.</p>
+        </div>
+        <div className={styles.summaryChips}>
+          <span className={styles.summaryChip}>Gainers {displayGainers.length}</span>
+          <span className={styles.summaryChip}>Losers {displayLosers.length}</span>
+        </div>
+      </div>
+      <div className={styles.container} data-testid="top-movers-board">
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>Top Gainers</div>
+          <div className={styles.sectionHeader}>
+            <div>
+              <div className={styles.sectionTitle}>Top Gainers</div>
+              <div className={styles.sectionSubtext}>Strongest gains over the last 24 hours</div>
+            </div>
+            <span className={`${styles.sectionAccent} ${styles.sectionAccentPositive}`}>Bull</span>
+          </div>
           {renderGainersContent()}
         </div>
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>Top Losers</div>
+          <div className={styles.sectionHeader}>
+            <div>
+              <div className={styles.sectionTitle}>Top Losers</div>
+              <div className={styles.sectionSubtext}>Largest declines over the last 24 hours</div>
+            </div>
+            <span className={`${styles.sectionAccent} ${styles.sectionAccentNegative}`}>Bear</span>
+          </div>
           {renderLosersContent()}
         </div>
       </div>

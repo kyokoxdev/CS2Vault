@@ -9,7 +9,7 @@ import MockStatCard from "@/components/landing/MockStatCard";
 import ScrollReveal from "@/components/landing/ScrollReveal";
 import DataReveal from "@/components/landing/DataReveal";
 import ItemShowcase from "@/components/landing/ItemShowcase";
-import HeroCinematic from "@/components/landing/HeroCinematic";
+import HeroSection from "@/components/landing/HeroSection";
 import { FaChartPie, FaWallet, FaRobot, FaSteam, FaBoxOpen } from "react-icons/fa";
 import { useReducedMotion } from "@/hooks/useMediaQuery";
 
@@ -37,12 +37,13 @@ export default function StartupPage() {
     }, [prefersReducedMotion]);
 
     return (
-        <main className={styles.landingPage} data-testid="landing-page">
+        <div data-testid="route-startup">
+            <main className={styles.landingPage} data-testid="landing-page">
             <a href="#features" className="skip-link">
                 Skip to content
             </a>
 
-            <HeroCinematic />
+            <HeroSection />
 
             <ScrollReveal className={styles.scrollRevealBase}>
                 <section id="features" className={styles.featuresSection} data-testid="features-section">
@@ -205,6 +206,7 @@ export default function StartupPage() {
                     </p>
                 </div>
             </footer>
-        </main>
+            </main>
+        </div>
     );
 }

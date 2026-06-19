@@ -108,22 +108,34 @@ export default function ItemDetailPage() {
 
     const handleToggleWatch = useCallback(async () => {
         if (watchLoading) return;
+        const nextIsWatched = !isWatched;
         setWatchLoading(true);
         try {
             const res = await fetch(`/api/items/${id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ isWatched: !isWatched }),
+                body: JSON.stringify({ isWatched: nextIsWatched }),
             });
-            const data = await res.json();
+            const data = (await res.json()) as ItemApiResponse;
             if (data.success) {
-                setIsWatched(!isWatched);
+                const updatedIsWatched = data.data?.isWatched ?? nextIsWatched;
+                setIsWatched(updatedIsWatched);
+                setItem((currentItem) => {
+                    if (!currentItem) return currentItem;
+
+                    return {
+                        ...currentItem,
+                        ...data.data,
+                        isWatched: updatedIsWatched,
+                        groups: updatedIsWatched ? (data.data?.groups ?? currentItem.groups) : [],
+                    };
+                });
                 addToast(
-                    isWatched ? "Removed from watchlist" : "Added to watchlist",
+                    nextIsWatched ? "Added to watchlist" : "Removed from watchlist",
                     "success"
                 );
             } else {
-                addToast(data.error ?? "Failed to update watchlist", "error");
+                addToast("Failed to update watchlist", "error");
             }
         } catch (err) {
             console.error("Toggle watch error:", err);
@@ -223,7 +235,7 @@ export default function ItemDetailPage() {
     };
 
     return (
-        <div className={styles.page}>
+        <div className={styles.page} data-testid="route-item-detail">
             {/* Back link */}
             <Link href={backHref} className={styles.backLink}>
                 ← {backLabel}

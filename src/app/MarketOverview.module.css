@@ -3,7 +3,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
 .errorBanner {
@@ -15,7 +15,6 @@
   background-color: var(--surface-2);
   border: 1px solid var(--bear);
   border-radius: 8px;
-  animation: fadeSlideIn 0.25s ease forwards;
 }
 
 .errorMessage {
@@ -48,14 +47,12 @@
 .statsRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
 }
 
 .statsRow > * {
   flex: 1;
   min-width: 180px;
-  animation: fadeSlideIn 0.25s ease forwards;
-  opacity: 0;
 }
 
 .statsRow > *:nth-child(1) { animation-delay: 0s; }
@@ -65,8 +62,7 @@
 
 @keyframes fadeSlideIn {
   from {
-    opacity: 0;
-    transform: translateY(6px);
+      transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -78,7 +74,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--border-primary);
 }
 
@@ -92,7 +88,7 @@
 
 .toolbarActions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
@@ -109,13 +105,13 @@
 
 .emptyState {
   text-align: center;
-  padding: 40px;
+  padding: 24px 20px;
   color: var(--text-secondary-60);
   font-size: 12px;
 }
 
 .addItemPanel {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .statCardContent {
@@ -132,7 +128,7 @@
 }
 
 .statValue {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 700;
   font-family: var(--font-numeric);
   letter-spacing: -0.02em;
@@ -155,8 +151,8 @@
 }
 
 .syncNowBtn {
-  margin-top: 6px;
-  padding: 4px 12px;
+  margin-top: 4px;
+  padding: 4px 10px;
   font-size: 10px;
   font-weight: 600;
   color: var(--text-primary-90);
@@ -192,15 +188,19 @@
 }
 @media (max-width: 1200px) {
   .statsRow {
-    gap: 16px;
+    gap: 10px;
   }
 }
 
 @media (max-width: 768px) {
+  .page {
+    gap: 14px;
+  }
+
   .statsRow {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 10px;
   }
   
   .statsRow > * {
@@ -213,14 +213,19 @@
 }
 
 @media (max-width: 480px) {
+  .page {
+    gap: 12px;
+  }
+
   .statsRow {
     grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .toolbar {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 10px;
   }
   
   .toolbarActions {

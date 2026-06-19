@@ -61,7 +61,6 @@ interface IndicatorSeriesEntry {
 
 const CHART_COLORS = {
     accent: "#3B82F6",
-    accentArea: "rgba(59, 130, 246, 0.08)",
     text: "#8C8C8C",
     surface: "#141414",
     grid: "#1A1A1A",
@@ -343,7 +342,7 @@ export default function MarketCapChart({ height = 400 }: MarketCapChartProps) {
 
         const areaSeries = chart.addSeries(AreaSeries, {
             lineColor: CHART_COLORS.accent,
-            topColor: CHART_COLORS.accentArea,
+            topColor: "transparent",
             bottomColor: "transparent",
             lineWidth: 2,
             priceLineVisible: true,

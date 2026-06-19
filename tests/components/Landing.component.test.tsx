@@ -24,7 +24,7 @@ describe("Landing Page", () => {
     it("renders all sections with correct data-testid", () => {
         render(<StartupPage />);
         expect(screen.getByTestId("landing-page")).toBeDefined();
-        expect(screen.getByTestId("hero-cinematic")).toBeDefined();
+        expect(screen.getByTestId("hero-section")).toBeDefined();
         expect(screen.getByTestId("features-section")).toBeDefined();
         expect(screen.getByTestId("how-it-works-section")).toBeDefined();
         expect(screen.getByTestId("cta-section")).toBeDefined();

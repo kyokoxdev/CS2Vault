@@ -12,6 +12,7 @@ interface StatCardProps {
   icon?: ReactNode;
   prefix?: string;
   animate?: boolean;
+  fractionDigits?: number;
 }
 
 export function StatCard({
@@ -21,6 +22,7 @@ export function StatCard({
   icon,
   prefix,
   animate = true,
+  fractionDigits,
 }: StatCardProps) {
   const getChangeColor = (changeValue: number) => {
     if (changeValue > 0) return styles.changePositive;
@@ -47,7 +49,10 @@ export function StatCard({
             {isNumberValue ? (
               <CountUp 
                 value={value as number} 
-                formatter={(v) => v.toLocaleString(undefined, { maximumFractionDigits: 2 })} 
+                formatter={(v) => v.toLocaleString(undefined, { 
+                  minimumFractionDigits: fractionDigits,
+                  maximumFractionDigits: fractionDigits ?? 2 
+                })} 
               />
             ) : (
               value

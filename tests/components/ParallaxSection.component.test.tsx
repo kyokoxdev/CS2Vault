@@ -3,9 +3,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "../setup-component";
-import ParallaxSection from "../../src/components/landing/ParallaxSection";
+import LayeredSection from "../../src/components/landing/LayeredSection";
 
-describe("ParallaxSection", () => {
+describe("LayeredSection", () => {
     beforeEach(() => {
         Object.defineProperty(window, "matchMedia", {
             writable: true,
@@ -29,19 +29,19 @@ describe("ParallaxSection", () => {
             { content: <div>Layer 3</div>, depth: 3 as const },
         ];
 
-        render(<ParallaxSection layers={layers} />);
+        render(<LayeredSection layers={layers} />);
 
-        expect(screen.getByTestId("parallax-layer-1")).toBeInTheDocument();
-        expect(screen.getByTestId("parallax-layer-2")).toBeInTheDocument();
-        expect(screen.getByTestId("parallax-layer-3")).toBeInTheDocument();
+        expect(screen.getByTestId("layered-layer-1")).toBeInTheDocument();
+        expect(screen.getByTestId("layered-layer-2")).toBeInTheDocument();
+        expect(screen.getByTestId("layered-layer-3")).toBeInTheDocument();
     });
 
     it("renders single layer correctly", () => {
         const layers = [{ content: <span>Single</span>, depth: 2 as const }];
 
-        render(<ParallaxSection layers={layers} />);
+        render(<LayeredSection layers={layers} />);
 
-        expect(screen.getByTestId("parallax-layer-2")).toBeInTheDocument();
+        expect(screen.getByTestId("layered-layer-2")).toBeInTheDocument();
         expect(screen.getByText("Single")).toBeInTheDocument();
     });
 
@@ -49,29 +49,29 @@ describe("ParallaxSection", () => {
         const layers = [{ content: <div>BG</div>, depth: 1 as const }];
 
         render(
-            <ParallaxSection layers={layers}>
+            <LayeredSection layers={layers}>
                 <p>Foreground content</p>
-            </ParallaxSection>
+            </LayeredSection>
         );
 
-        expect(screen.getByTestId("parallax-content")).toBeInTheDocument();
+        expect(screen.getByTestId("layered-content")).toBeInTheDocument();
         expect(screen.getByText("Foreground content")).toBeInTheDocument();
     });
 
     it("has container class which applies overflow hidden", () => {
         const layers = [{ content: <div>Test</div>, depth: 1 as const }];
 
-        render(<ParallaxSection layers={layers} />);
+        render(<LayeredSection layers={layers} />);
 
-        const container = screen.getByTestId("parallax-section");
+        const container = screen.getByTestId("layered-section");
         expect(container.className).toContain("container");
     });
 
-    it("disables transforms when prefers-reduced-motion is enabled", () => {
+    it("keeps layers static when prefers-reduced-motion is enabled", () => {
         Object.defineProperty(window, "matchMedia", {
             writable: true,
             value: vi.fn().mockImplementation((query: string) => ({
-                matches: query === "(prefers-reduced-motion: reduce)",
+                matches: query == "(prefers-reduced-motion: reduce)",
                 media: query,
                 onchange: null,
                 addListener: vi.fn(),
@@ -87,36 +87,36 @@ describe("ParallaxSection", () => {
             { content: <div>Layer 2</div>, depth: 2 as const },
         ];
 
-        render(<ParallaxSection layers={layers} />);
+        render(<LayeredSection layers={layers} />);
 
-        const layer1 = screen.getByTestId("parallax-layer-1");
-        const layer2 = screen.getByTestId("parallax-layer-2");
+        const layer1 = screen.getByTestId("layered-layer-1");
+        const layer2 = screen.getByTestId("layered-layer-2");
 
         expect(layer1.style.transform).toBe("");
         expect(layer2.style.transform).toBe("");
     });
 
-    it("applies transforms when motion is allowed", () => {
+    it("renders static layers when motion is allowed", () => {
         const layers = [
             { content: <div>Layer 1</div>, depth: 1 as const, speed: 1 },
             { content: <div>Layer 2</div>, depth: 2 as const, speed: 0.5 },
         ];
 
-        render(<ParallaxSection layers={layers} />);
+        render(<LayeredSection layers={layers} />);
 
-        const layer1 = screen.getByTestId("parallax-layer-1");
-        const layer2 = screen.getByTestId("parallax-layer-2");
+        const layer1 = screen.getByTestId("layered-layer-1");
+        const layer2 = screen.getByTestId("layered-layer-2");
 
-        expect(layer1.style.transform).toContain("translateZ");
-        expect(layer2.style.transform).toContain("translateZ");
+        expect(layer1.style.transform).toBe("");
+        expect(layer2.style.transform).toBe("");
     });
 
     it("accepts custom className", () => {
         const layers = [{ content: <div>Test</div>, depth: 1 as const }];
 
-        render(<ParallaxSection layers={layers} className="custom-class" />);
+        render(<LayeredSection layers={layers} className="custom-class" />);
 
-        const container = screen.getByTestId("parallax-section");
+        const container = screen.getByTestId("layered-section");
         expect(container.className).toContain("custom-class");
     });
 
@@ -127,10 +127,10 @@ describe("ParallaxSection", () => {
             { content: <div>L3</div>, depth: 3 as const },
         ];
 
-        render(<ParallaxSection layers={layers} />);
+        render(<LayeredSection layers={layers} />);
 
-        expect(screen.getByTestId("parallax-layer-1")).toHaveAttribute("data-depth", "1");
-        expect(screen.getByTestId("parallax-layer-2")).toHaveAttribute("data-depth", "2");
-        expect(screen.getByTestId("parallax-layer-3")).toHaveAttribute("data-depth", "3");
+        expect(screen.getByTestId("layered-layer-1")).toHaveAttribute("data-depth", "1");
+        expect(screen.getByTestId("layered-layer-2")).toHaveAttribute("data-depth", "2");
+        expect(screen.getByTestId("layered-layer-3")).toHaveAttribute("data-depth", "3");
     });
 });

@@ -84,7 +84,7 @@ export default function MarketCapPage() {
         : null;
 
     return (
-        <div className={styles.page}>
+        <div className={styles.page} data-testid="route-market-cap">
             <div className={styles.statsRow}>
                 <StatCard
                     label="Current Market Cap"

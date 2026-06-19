@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import "../setup-component";
 
 const setAreaData = vi.fn();
+const addSeries = vi.fn(() => ({ setData: setAreaData }));
 const chartApplyOptions = vi.fn();
 const fitContent = vi.fn();
 const remove = vi.fn();
@@ -20,7 +21,7 @@ global.ResizeObserver = class ResizeObserver {
 
 vi.mock("lightweight-charts", () => ({
   createChart: vi.fn(() => ({
-    addSeries: vi.fn(() => ({ setData: setAreaData })),
+    addSeries,
     applyOptions: chartApplyOptions,
     timeScale: () => ({ fitContent }),
     remove,
@@ -88,6 +89,19 @@ describe("MarketCapChart", () => {
       expect(screen.getByText("Reset view")).toBeInTheDocument();
       expect(screen.getByText("Refresh")).toBeInTheDocument();
       expect(screen.getByRole("img", { name: "Market cap history chart" })).toBeInTheDocument();
+    });
+  });
+
+  it("creates a market-cap area series with transparent fills", async () => {
+    render(<MarketCapChart />);
+
+    await waitFor(() => {
+      expect(addSeries).toHaveBeenCalledWith("AreaSeries", expect.objectContaining({
+        lineColor: "#3B82F6",
+        topColor: "transparent",
+        bottomColor: "transparent",
+        lineWidth: 2,
+      }));
     });
   });
 });

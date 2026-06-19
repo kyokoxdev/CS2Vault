@@ -3,7 +3,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ItemDetailPage from '../../src/app/item/[id]/page';
 import '../setup-component';
@@ -51,6 +51,7 @@ const mockItem = {
     isWatched: true,
     isActive: true,
     createdAt: '2023-01-01T00:00:00Z',
+    groups: [],
   },
 };
 
@@ -106,5 +107,44 @@ describe('ItemDetail Page', () => {
     
     expect(screen.getByText('Try again')).toBeInTheDocument();
     expect(screen.getByText(/Back to Market Overview/)).toBeInTheDocument();
+  });
+
+  it('clears group badges when the item is removed from the watchlist', async () => {
+    const itemWithGroup = {
+      ...mockItem,
+      data: {
+        ...mockItem.data,
+        groups: [{ id: 'group-1', name: 'Investment', color: '#facc15' }],
+      },
+    };
+
+    vi.mocked(fetch).mockImplementation(async (_input, init) => {
+      if (init?.method === 'PATCH') {
+        return {
+          json: async () => ({
+            success: true,
+            data: {
+              ...itemWithGroup.data,
+              isWatched: false,
+              groups: [],
+            },
+          }),
+        } as Response;
+      }
+
+      return {
+        json: async () => itemWithGroup,
+      } as Response;
+    });
+
+    render(<ItemDetailPage />);
+
+    expect(await screen.findByText('Investment')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Remove from Watchlist/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Not watched')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Investment')).not.toBeInTheDocument();
   });
 });

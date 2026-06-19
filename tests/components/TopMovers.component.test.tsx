@@ -38,6 +38,14 @@ describe('TopMovers Component', () => {
     expect(screen.getByText('Top Losers')).toBeInTheDocument();
   });
 
+  it('uses restrained copy and removes cinematic board attributes', () => {
+    render(<TopMovers gainers={mockGainers} losers={mockLosers} />);
+    expect(screen.getByRole('heading', { name: 'Top Movers' })).toBeInTheDocument();
+    expect(screen.getByText('Largest 24h price changes across tracked items.')).toBeInTheDocument();
+    expect(screen.queryByText('Velocity board')).not.toBeInTheDocument();
+    expect(screen.getByTestId('top-movers-board')).not.toHaveAttribute('data-motion');
+  });
+
   it('renders gainer cards with correct details', () => {
     render(<TopMovers gainers={mockGainers} losers={mockLosers} />);
     expect(screen.getByText('AK-47 | Redline')).toBeInTheDocument();

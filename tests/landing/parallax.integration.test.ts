@@ -4,7 +4,7 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "../setup-component";
-import ParallaxSection from "@/components/landing/ParallaxSection";
+import LayeredSection from "@/components/landing/LayeredSection";
 
 let originalMatchMedia: typeof window.matchMedia;
 
@@ -24,12 +24,7 @@ function setReducedMotion(enabled: boolean) {
     });
 }
 
-function getScale(transform: string): number {
-    const match = /scale\(([^)]+)\)/.exec(transform);
-    return match ? Number(match[1]) : 1;
-}
-
-describe("Parallax 3D integration", () => {
+describe("Layered landing integration", () => {
     beforeEach(() => {
         originalMatchMedia = window.matchMedia;
         setReducedMotion(false);
@@ -40,46 +35,39 @@ describe("Parallax 3D integration", () => {
         vi.restoreAllMocks();
     });
 
-    it("applies CSS 3D transform strings to parallax layers", () => {
+    it("renders layered sections without inline transforms", () => {
         const layers = [
             { content: React.createElement("div", undefined, "Back"), depth: 1 as const, speed: 0.8 },
             { content: React.createElement("div", undefined, "Mid"), depth: 2 as const, speed: 0.6 },
             { content: React.createElement("div", undefined, "Front"), depth: 3 as const, speed: 1 },
         ];
 
-        render(React.createElement(ParallaxSection, { layers }));
+        render(React.createElement(LayeredSection, { layers }));
 
-        const backLayer = screen.getByTestId("parallax-layer-1");
-        const midLayer = screen.getByTestId("parallax-layer-2");
-        const frontLayer = screen.getByTestId("parallax-layer-3");
+        const backLayer = screen.getByTestId("layered-layer-1");
+        const midLayer = screen.getByTestId("layered-layer-2");
+        const frontLayer = screen.getByTestId("layered-layer-3");
 
-        expect(backLayer.style.transform).toContain("translateZ(");
-        expect(backLayer.style.transform).toContain("scale(");
-        expect(midLayer.style.transform).toContain("translateZ(");
-        expect(midLayer.style.transform).toContain("scale(");
-        expect(frontLayer.style.transform).toBe("translateZ(0px) scale(1)");
+        expect(backLayer.style.transform).toBe("");
+        expect(midLayer.style.transform).toBe("");
+        expect(frontLayer.style.transform).toBe("");
     });
 
-    it("keeps transforms depth-only and bounded to avoid horizontal overflow growth", () => {
+    it("keeps depth metadata without adding transform chrome", () => {
         const layers = [
             { content: React.createElement("div", undefined, "L1"), depth: 1 as const, speed: 1 },
             { content: React.createElement("div", undefined, "L2"), depth: 2 as const, speed: 1 },
         ];
 
-        render(React.createElement(ParallaxSection, { layers }));
+        render(React.createElement(LayeredSection, { layers }));
 
-        const container = screen.getByTestId("parallax-section");
-        const layer1 = screen.getByTestId("parallax-layer-1");
-        const layer2 = screen.getByTestId("parallax-layer-2");
-
-        const transform1 = layer1.style.transform;
-        const transform2 = layer2.style.transform;
+        const container = screen.getByTestId("layered-section");
+        const layer1 = screen.getByTestId("layered-layer-1");
+        const layer2 = screen.getByTestId("layered-layer-2");
 
         expect(container.className).toContain("container");
-        expect(transform1).not.toContain("translateX(");
-        expect(transform2).not.toContain("translateX(");
-        expect(getScale(transform1)).toBeLessThanOrEqual(1.1);
-        expect(getScale(transform2)).toBeLessThanOrEqual(1.1);
+        expect(layer1).toHaveAttribute("data-depth", "1");
+        expect(layer2).toHaveAttribute("data-depth", "2");
     });
 
     it("removes transforms entirely when reduced motion is enabled", () => {
@@ -89,9 +77,9 @@ describe("Parallax 3D integration", () => {
             { content: React.createElement("div", undefined, "Layer"), depth: 1 as const, speed: 0.5 },
         ];
 
-        render(React.createElement(ParallaxSection, { layers }));
+        render(React.createElement(LayeredSection, { layers }));
 
-        const layer = screen.getByTestId("parallax-layer-1");
+        const layer = screen.getByTestId("layered-layer-1");
         expect(layer.style.transform).toBe("");
     });
 });

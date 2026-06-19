@@ -305,7 +305,7 @@ export default function MarketOverview() {
               : "No data returned";
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-testid="route-home">
       {error && (
         <div className={styles.errorBanner}>
           <span className={styles.errorMessage}>{error}</span>

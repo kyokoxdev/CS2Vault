@@ -5,6 +5,8 @@ import DashboardShell from "@/components/layout/DashboardShell";
 import SessionProvider from "@/components/providers/SessionProvider";
 import ToastProvider from "@/components/providers/ToastProvider";
 import PageTitleProvider from "@/components/providers/PageTitleProvider";
+import UiPreferencesProvider from "@/components/providers/UiPreferencesProvider";
+import { DEFAULT_UI_PREFERENCES, UI_PREFERENCES_BOOTSTRAP_SCRIPT } from "@/lib/ui/preferences";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({
@@ -12,6 +14,7 @@ const inter = Inter({
   variable: "--font-inter",
   display: "swap",
 });
+
 
 const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
@@ -25,7 +28,10 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "CS2Vault — Market Intelligence Dashboard",
+  title: {
+    template: "%s | CS2Vault",
+    default: "CS2Vault — Market Intelligence Dashboard",
+  },
   description:
     "Track CS2 item prices, manage your inventory, and get AI-powered market insights.",
   icons: {
@@ -40,15 +46,25 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrains.variable}`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${jetbrains.variable}`}
+      data-theme={DEFAULT_UI_PREFERENCES.theme}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: UI_PREFERENCES_BOOTSTRAP_SCRIPT }} />
+      </head>
       <body>
         <a href="#main-content" className="skip-link">Skip to content</a>
         <SessionProvider>
-          <ToastProvider>
-            <PageTitleProvider>
-              <DashboardShell>{children}</DashboardShell>
-            </PageTitleProvider>
-          </ToastProvider>
+          <UiPreferencesProvider>
+            <ToastProvider>
+              <PageTitleProvider>
+                <DashboardShell>{children}</DashboardShell>
+              </PageTitleProvider>
+            </ToastProvider>
+          </UiPreferencesProvider>
         </SessionProvider>
         <SpeedInsights />
       </body>

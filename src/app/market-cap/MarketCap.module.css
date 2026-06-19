@@ -15,8 +15,6 @@
 .statsRow > * {
   flex: 1;
   min-width: 160px;
-  animation: fadeSlideIn 0.25s ease forwards;
-  opacity: 0;
 }
 
 .statsRow > *:nth-child(1) { animation-delay: 0s; }
@@ -26,8 +24,7 @@
 
 @keyframes fadeSlideIn {
   from {
-    opacity: 0;
-    transform: translateY(6px);
+      transform: translateY(6px);
   }
   to {
     opacity: 1;
