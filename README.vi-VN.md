@@ -27,7 +27,7 @@ Theo dõi giá, quản lý kho đồ và nhận thông tin thị trường bằn
 | **Tổng quan thị trường** | Theo dõi giá theo thời gian thực với CSFloat, Pricempire và Steam |
 | **Quản lý danh mục** | Theo dõi giá trị kho đồ CS2 với dữ liệu giá lịch sử |
 | **Biến động lớn** | Xem các vật phẩm đang tăng hoặc giảm giá trị |
-| **Trò chuyện AI** | Phân tích thị trường bằng Google Gemini và OpenAI |
+| **Trò chuyện Aegis** | Trò chuyện Aegis dùng Gemini, OpenAI, Anthropic, OpenRouter hoặc 9Router |
 | **Bản tin** | Tổng hợp tin tức thị trường CS2 qua RSS |
 | **Chi tiết vật phẩm** | Biểu đồ nến giá với TradingView Lightweight Charts |
 | **Giao diện đáp ứng** | Hoạt động trên máy tính, máy tính bảng và điện thoại |
@@ -63,7 +63,7 @@ Theo dõi giá, quản lý kho đồ và nhận thông tin thị trường bằn
 - **Cơ sở dữ liệu**: SQLite qua [Prisma](https://prisma.io) + [Turso](https://turso.tech/) (libSQL)
 - **Xác thực**: [NextAuth.js](https://next-auth.js.org) (Steam OpenID)
 - **Biểu đồ**: [TradingView Lightweight Charts](https://tradingview.github.io/lightweight-charts/)
-- **AI**: Google Gemini, OpenAI GPT
+- **AI**: Google Gemini, OpenAI GPT, Anthropic Claude, OpenRouter, 9Router
 - **Giao diện**: CSS Modules (giao diện tối, thêm giao diện khác đang lên kế hoạch)
 
 ## Bắt đầu
@@ -116,6 +116,15 @@ Mở [http://localhost:3000](http://localhost:3000).
 | `PRICEMPIRE_API_KEY` | Không | [Khóa Pricempire API](https://pricempire.com/) |
 | `GEMINI_API_KEY` | Không | [Khóa Google AI Studio](https://aistudio.google.com/apikey) |
 | `OPENAI_API_KEY` | Không | [Khóa OpenAI API](https://platform.openai.com/api-keys) |
+| `OPENAI_MODEL` | Không | Ghi đè model OpenAI (mặc định: `gpt-4o-mini`) |
+| `ANTHROPIC_API_KEY` | Không | [Khóa Anthropic API](https://console.anthropic.com/settings/keys) |
+| `ANTHROPIC_MODEL` | Không | Ghi đè model Anthropic (mặc định: `claude-opus-4-7`) |
+| `OPENROUTER_API_KEY` | Không | [Khóa OpenRouter API](https://openrouter.ai/settings/keys) |
+| `OPENROUTER_BASE_URL` | Không | Base URL tương thích OpenRouter (mặc định: `https://openrouter.ai/api/v1`) |
+| `OPENROUTER_MODEL` | Không | Ghi đè model OpenRouter (mặc định: `~openai/gpt-latest`) |
+| `NINEROUTER_API_KEY` | Không | Khóa tùy chọn cho 9Router gateway khi bật xác thực cục bộ |
+| `NINEROUTER_BASE_URL` | Không | URL gateway 9Router tương thích OpenAI (mặc định: `http://localhost:20128/v1`) |
+| `NINEROUTER_MODEL` | Không | Ghi đè model 9Router (mặc định: `cc/claude-opus-4-7`) |
 | `GOOGLE_CLIENT_ID` | Không | Google OAuth client ID (cho luồng Gemini OAuth) |
 | `GOOGLE_CLIENT_SECRET` | Không | Google OAuth client secret |
 | `NEXTAUTH_SECRET` | Có | Tạo bằng `openssl rand -hex 32` |

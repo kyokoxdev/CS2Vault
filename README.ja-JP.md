@@ -27,7 +27,7 @@
 | **マーケット概要** | CSFloat、Pricempire、Steam をデータソースとしたリアルタイム価格追跡 |
 | **ポートフォリオ管理** | CS2 インベントリ価値と履歴価格データの追跡 |
 | **トップムーバーズ** | 価値が上昇または下落しているアイテムを確認 |
-| **AI チャット** | Google Gemini と OpenAI による市場分析 |
+| **Aegis チャット** | Gemini、OpenAI、Anthropic、OpenRouter、9Router を使う Aegis 搭載チャット |
 | **ニュースフィード** | RSS 経由の CS2 市場ニュースまとめ |
 | **アイテム詳細** | TradingView Lightweight Charts によるローソク足価格チャート |
 | **レスポンシブ UI** | デスクトップ、タブレット、モバイルに対応 |
@@ -63,7 +63,7 @@
 - **データベース**: [Prisma](https://prisma.io) + [Turso](https://turso.tech/)（libSQL）経由の SQLite
 - **認証**: [NextAuth.js](https://next-auth.js.org)（Steam OpenID）
 - **チャート**: [TradingView Lightweight Charts](https://tradingview.github.io/lightweight-charts/)
-- **AI**: Google Gemini、OpenAI GPT
+- **AI**: Google Gemini、OpenAI GPT、Anthropic Claude、OpenRouter、9Router
 - **スタイリング**: CSS Modules（ダークテーマ、追加テーマ予定）
 
 ## はじめに
@@ -116,6 +116,15 @@ npm run dev
 | `PRICEMPIRE_API_KEY` | いいえ | [Pricempire API キー](https://pricempire.com/) |
 | `GEMINI_API_KEY` | いいえ | [Google AI Studio キー](https://aistudio.google.com/apikey) |
 | `OPENAI_API_KEY` | いいえ | [OpenAI API キー](https://platform.openai.com/api-keys) |
+| `OPENAI_MODEL` | いいえ | OpenAI モデル上書き（デフォルト: `gpt-4o-mini`） |
+| `ANTHROPIC_API_KEY` | いいえ | [Anthropic API キー](https://console.anthropic.com/settings/keys) |
+| `ANTHROPIC_MODEL` | いいえ | Anthropic モデル上書き（デフォルト: `claude-opus-4-7`） |
+| `OPENROUTER_API_KEY` | いいえ | [OpenRouter API キー](https://openrouter.ai/settings/keys) |
+| `OPENROUTER_BASE_URL` | いいえ | OpenRouter 互換ベース URL（デフォルト: `https://openrouter.ai/api/v1`） |
+| `OPENROUTER_MODEL` | いいえ | OpenRouter モデル上書き（デフォルト: `~openai/gpt-latest`） |
+| `NINEROUTER_API_KEY` | いいえ | ローカル認証を有効にした 9Router ゲートウェイ用の任意キー |
+| `NINEROUTER_BASE_URL` | いいえ | 9Router OpenAI 互換ゲートウェイ URL（デフォルト: `http://localhost:20128/v1`） |
+| `NINEROUTER_MODEL` | いいえ | 9Router モデル上書き（デフォルト: `cc/claude-opus-4-7`） |
 | `GOOGLE_CLIENT_ID` | いいえ | Google OAuth クライアント ID（Gemini OAuth フロー用） |
 | `GOOGLE_CLIENT_SECRET` | いいえ | Google OAuth クライアントシークレット |
 | `NEXTAUTH_SECRET` | はい | `openssl rand -hex 32` で生成 |

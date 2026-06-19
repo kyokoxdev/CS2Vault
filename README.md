@@ -27,7 +27,7 @@ Track prices, manage your inventory, and get AI-powered market insights.
 | **Market Overview** | Real-time price tracking with CSFloat, Pricempire, and Steam as data sources |
 | **Portfolio Management** | Track your CS2 inventory value with historical price data |
 | **Top Movers** | See which items are gaining or losing value |
-| **AI Chat** | Market analysis powered by Google Gemini and OpenAI |
+| **Aegis Chat** | Aegis-powered chat using Gemini, OpenAI, Anthropic, OpenRouter, or 9Router |
 | **News Feed** | Aggregated CS2 market news via RSS |
 | **Item Detail** | Candlestick price charts with TradingView Lightweight Charts |
 | **Responsive UI** | Works on desktop, tablet, and mobile |
@@ -63,7 +63,7 @@ Track prices, manage your inventory, and get AI-powered market insights.
 - **Database**: SQLite via [Prisma](https://prisma.io) + [Turso](https://turso.tech/) (libSQL)
 - **Auth**: [NextAuth.js](https://next-auth.js.org) (Steam OpenID)
 - **Charts**: [TradingView Lightweight Charts](https://tradingview.github.io/lightweight-charts/)
-- **AI**: Google Gemini, OpenAI GPT
+- **AI**: Google Gemini, OpenAI GPT, Anthropic Claude, OpenRouter, 9Router
 - **Styling**: CSS Modules (dark theme, more themes planned)
 
 ## Getting Started
@@ -116,6 +116,15 @@ Open [http://localhost:3000](http://localhost:3000).
 | `PRICEMPIRE_API_KEY` | No | [Pricempire API key](https://pricempire.com/) |
 | `GEMINI_API_KEY` | No | [Google AI Studio key](https://aistudio.google.com/apikey) |
 | `OPENAI_API_KEY` | No | [OpenAI API key](https://platform.openai.com/api-keys) |
+| `OPENAI_MODEL` | No | OpenAI model override (default: `gpt-4o-mini`) |
+| `ANTHROPIC_API_KEY` | No | [Anthropic API key](https://console.anthropic.com/settings/keys) |
+| `ANTHROPIC_MODEL` | No | Anthropic model override (default: `claude-opus-4-7`) |
+| `OPENROUTER_API_KEY` | No | [OpenRouter API key](https://openrouter.ai/settings/keys) |
+| `OPENROUTER_BASE_URL` | No | OpenRouter-compatible base URL (default: `https://openrouter.ai/api/v1`) |
+| `OPENROUTER_MODEL` | No | OpenRouter model override (default: `~openai/gpt-latest`) |
+| `NINEROUTER_API_KEY` | No | Optional 9Router gateway key when local auth is enabled |
+| `NINEROUTER_BASE_URL` | No | 9Router OpenAI-compatible gateway URL (default: `http://localhost:20128/v1`) |
+| `NINEROUTER_MODEL` | No | 9Router model override (default: `cc/claude-opus-4-7`) |
 | `GOOGLE_CLIENT_ID` | No | Google OAuth client ID (for Gemini OAuth flow) |
 | `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
 | `NEXTAUTH_SECRET` | Yes | Generate with `openssl rand -hex 32` |

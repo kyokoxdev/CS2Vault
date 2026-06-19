@@ -27,7 +27,7 @@
 | **市场概览** | 使用 CSFloat、Pricempire 和 Steam 作为数据源的实时价格追踪 |
 | **库存管理** | 追踪你的 CS2 库存价值和历史价格数据 |
 | **涨跌排行** | 查看哪些物品正在升值或贬值 |
-| **AI 对话** | 由 Google Gemini 和 OpenAI 驱动的市场分析 |
+| **Aegis 对话** | 使用 Gemini、OpenAI、Anthropic、OpenRouter 或 9Router 的 Aegis 对话 |
 | **新闻动态** | 通过 RSS 汇总 CS2 市场新闻 |
 | **物品详情** | 使用 TradingView Lightweight Charts 的 K 线图 |
 | **响应式界面** | 支持桌面、平板和移动端 |
@@ -63,7 +63,7 @@
 - **数据库**: 通过 [Prisma](https://prisma.io) + [Turso](https://turso.tech/)（libSQL）使用 SQLite
 - **认证**: [NextAuth.js](https://next-auth.js.org)（Steam OpenID）
 - **图表**: [TradingView Lightweight Charts](https://tradingview.github.io/lightweight-charts/)
-- **AI**: Google Gemini、OpenAI GPT
+- **AI**: Google Gemini、OpenAI GPT、Anthropic Claude、OpenRouter、9Router
 - **样式**: CSS Modules（暗色主题，更多主题规划中）
 
 ## 快速开始
@@ -116,6 +116,15 @@ npm run dev
 | `PRICEMPIRE_API_KEY` | 否 | [Pricempire API 密钥](https://pricempire.com/) |
 | `GEMINI_API_KEY` | 否 | [Google AI Studio 密钥](https://aistudio.google.com/apikey) |
 | `OPENAI_API_KEY` | 否 | [OpenAI API 密钥](https://platform.openai.com/api-keys) |
+| `OPENAI_MODEL` | 否 | OpenAI 模型覆盖（默认: `gpt-4o-mini`） |
+| `ANTHROPIC_API_KEY` | 否 | [Anthropic API 密钥](https://console.anthropic.com/settings/keys) |
+| `ANTHROPIC_MODEL` | 否 | Anthropic 模型覆盖（默认: `claude-opus-4-7`） |
+| `OPENROUTER_API_KEY` | 否 | [OpenRouter API 密钥](https://openrouter.ai/settings/keys) |
+| `OPENROUTER_BASE_URL` | 否 | OpenRouter 兼容基础 URL（默认: `https://openrouter.ai/api/v1`） |
+| `OPENROUTER_MODEL` | 否 | OpenRouter 模型覆盖（默认: `~openai/gpt-latest`） |
+| `NINEROUTER_API_KEY` | 否 | 本地启用认证时的可选 9Router 网关密钥 |
+| `NINEROUTER_BASE_URL` | 否 | 9Router OpenAI 兼容网关 URL（默认: `http://localhost:20128/v1`） |
+| `NINEROUTER_MODEL` | 否 | 9Router 模型覆盖（默认: `cc/claude-opus-4-7`） |
 | `GOOGLE_CLIENT_ID` | 否 | Google OAuth 客户端 ID（用于 Gemini OAuth 流程） |
 | `GOOGLE_CLIENT_SECRET` | 否 | Google OAuth 客户端密钥 |
 | `NEXTAUTH_SECRET` | 是 | 使用 `openssl rand -hex 32` 生成 |
