@@ -25,6 +25,7 @@ describe('PortfolioFilters', () => {
     expect(screen.getAllByText('Filters').length).toBeGreaterThan(0);
     expect(screen.getByText('All categories')).toBeInTheDocument();
     expect(screen.getByText('All rarities')).toBeInTheDocument();
+    expect(screen.getByText('All prices')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search items')).toBeInTheDocument();
     expect(screen.getAllByText('42 items').length).toBeGreaterThan(0);
   });
@@ -101,6 +102,18 @@ describe('PortfolioFilters', () => {
     fireEvent.click(clearButton);
     
     expect(defaultProps.onClear).toHaveBeenCalled();
+  });
+
+  it('calls onChange when price filter is changed', () => {
+    render(<PortfolioFilters {...defaultProps} />);
+
+    const priceButton = screen.getByText('All prices');
+    fireEvent.click(priceButton);
+
+    const pricedOption = screen.getByText('Priced');
+    fireEvent.click(pricedOption);
+
+    expect(defaultProps.onChange).toHaveBeenCalledWith('price', 'priced');
   });
 
   it('initializes search input with search prop', () => {

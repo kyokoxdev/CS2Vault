@@ -153,6 +153,11 @@ describe('Portfolio Value auth-dependent fetching', () => {
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith('/api/portfolio');
     });
+
+    const calledPortfolio = vi
+      .mocked(fetch)
+      .mock.calls.filter(([input]) => getFetchUrl(input) === '/api/portfolio');
+    expect(calledPortfolio).toHaveLength(1);
   });
 
   it('when unauthenticated: renders Login required and does not fetch /api/portfolio', async () => {

@@ -6,10 +6,9 @@
   min-height: 0;
 }
 
-.header {
+.tabGroup {
   display: flex;
-  justify-content: flex-end;
-  align-items: center;
+  gap: 0;
 }
 
 .headerActions {
@@ -59,16 +58,293 @@
   cursor: not-allowed;
 }
 
-.summarySection {}
+.summarySection {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
 
 .summaryToggle {
   display: none;
 }
 
+.summaryContent {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+
+.exposureSignals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.exposureSignalCard,
+.insightCard,
+.holdingsCard,
+.exposureTreemapPanel {
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  background: var(--surface-1);
+}
+
+.exposureSignalCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+}
+
+.exposureSignalLabel,
+.insightLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary-60);
+}
+
+.exposureSignalValue,
+.insightValue {
+  font-size: 20px;
+  line-height: 1;
+  font-family: var(--font-numeric);
+  color: var(--text-primary-90);
+}
+
+.exposureSignalMeta,
+.insightMeta,
+.sectionSubtle,
+.holdingMeta,
+.mobileExposureMeta,
+.treemapNodeMeta {
+  color: var(--text-secondary-60);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .summaryRow {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.exposureLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.85fr);
   gap: 16px;
+}
+
+.exposureTreemapPanel,
+.holdingsCard {
+  padding: 16px;
+}
+
+.exposureSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.insightCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary-90);
+}
+
+.sectionSubtle {
+  margin: 4px 0 0;
+}
+
+.sectionMeta {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary-60);
+}
+
+.treemap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.treemapNode {
+  position: relative;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-primary);
+  overflow: hidden;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.treemapNode:hover {
+  border-color: var(--border-active);
+  background: var(--surface-hover);
+}
+
+.treemapNodePositive {
+  background: var(--surface-2);
+  border-color: var(--bull);
+}
+
+.treemapNodeNegative {
+  background: var(--surface-2);
+  border-color: var(--bear);
+}
+
+.treemapNodeNeutral {
+  background: var(--surface-2);
+  border-color: var(--border-active);
+}
+
+.treemapNodeOther {
+  background: var(--surface-2);
+}
+
+.treemapNodeHeader,
+.mobileExposureTop,
+.mobileExposureBottom,
+.holdingRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.treemapNodeLabel,
+.mobileExposureLabel,
+.holdingLabel {
+  color: var(--text-primary-90);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.treemapNodeShare,
+.mobileExposureShare {
+  color: var(--text-secondary-60);
+  font-family: var(--font-numeric);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.treemapNodeValue,
+.mobileExposureValue,
+.holdingValue {
+  font-family: var(--font-numeric);
+  font-size: 18px;
+  color: var(--text-primary-90);
+}
+
+.treemapNodeMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.treemapEmpty {
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px dashed var(--border-primary);
+  color: var(--text-secondary-60);
+  background: var(--surface-1);
+}
+
+.holdingsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.holdingRow {
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-primary);
+}
+
+.holdingRow:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.holdingRank {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--border-primary);
+  background: var(--surface-3);
+  color: var(--text-primary-90);
+  font-size: 12px;
+  font-family: var(--font-numeric);
+}
+
+.holdingInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.holdingValueBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.mobileExposureList {
+  display: none;
+}
+
+.mobileExposureCard {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-primary);
+  background: var(--surface-1);
+}
+
+.mobileExposureTop {
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.mobileExposureBottom {
+  align-items: baseline;
+}
+
+.page[data-reduced-motion="true"] .treemapNode,
+.page[data-reduced-motion="true"] .summaryChevron,
+.page[data-reduced-motion="true"] .mobileChevron {
+  transition: none;
 }
 
 .summaryToggleLeft {
@@ -430,6 +706,8 @@
 
 .tabBar {
   display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
   gap: 0;
   border-bottom: 1px solid var(--border-primary);
 }
@@ -664,6 +942,12 @@
 }
 
 @media (max-width: 1200px) {
+  .summaryIntro,
+  .exposureLayout {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
   .summaryRow {
     gap: 12px;
   }
@@ -689,6 +973,10 @@
     padding: 12px 16px;
   }
 
+  .summaryContent {
+    display: none;
+  }
+
   .summaryToggle {
     display: flex;
     align-items: center;
@@ -702,16 +990,46 @@
   }
 
   .summaryRow {
-    display: none;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .summarySectionExpanded .summaryContent {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-primary);
+    margin-top: 12px;
   }
 
   .summarySectionExpanded .summaryRow {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border-primary);
-    margin-top: 12px;
+  }
+
+  .summaryIntro,
+  .exposureLayout,
+  .exposureSignals {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .summaryIntro,
+  .exposureTreemapPanel,
+  .insightCard,
+  .holdingsCard {
+    padding: 16px;
+  }
+
+  .treemap {
+    display: none;
+  }
+
+  .mobileExposureList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
 
   .inventoryTable {
@@ -759,6 +1077,18 @@
     grid-template-columns: 1fr;
   }
 
+  .sectionHeader,
+  .treemapNodeMeta,
+  .mobileExposureBottom,
+  .holdingRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .holdingValueBlock {
+    align-items: flex-start;
+  }
+
   .refreshButton,
   .syncButton {
     justify-content: center;
@@ -778,5 +1108,17 @@
 
   .modal {
     max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadingIcon {
+    animation: none;
+  }
+
+  .treemapNode,
+  .summaryChevron,
+  .mobileChevron {
+    transition: none;
   }
 }

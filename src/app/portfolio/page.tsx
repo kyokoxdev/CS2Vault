@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
-import { FaSpinner, FaBoxOpen, FaChartPie, FaChevronDown, FaTimes } from "react-icons/fa";
+import { FaBoxOpen, FaChartPie, FaChevronDown, FaTimes } from "react-icons/fa";
 import { useRouter } from "next/navigation";
 import styles from "./Portfolio.module.css";
 import { PortfolioFilters } from "@/components/portfolio/PortfolioFilters";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { FallbackToast } from "@/components/ui/FallbackToast";
 import { useToast } from "@/components/providers/ToastProvider";
+import { useReducedMotion } from "@/hooks/useMediaQuery";
 import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
 import { useSmartRefresh, markRefreshed } from "@/hooks/useSmartRefresh";
 import { useStaleAwareRefresh } from "@/hooks/useStaleAwareRefresh";
@@ -113,6 +114,24 @@ interface PriceRefreshResponse {
   error?: string;
 }
 
+interface ExposureBucket {
+  key: string;
+  label: string;
+  categoryLabel: string;
+  rarity: string | null;
+  count: number;
+  totalCurrentValue: number;
+  totalAcquiredValue: number;
+  hasAnyCostBasis: boolean;
+  totalPnl: number;
+  pnlPercent: number | null;
+  pricedCount: number;
+  share: number;
+}
+
+const MAX_EXPOSURE_NODES = 12;
+const MOBILE_EXPOSURE_CARD_COUNT = 4;
+
 const RARITY_VARIANTS: Record<string, string> = {
   "Contraband": "contraband",
   "Covert": "covert",
@@ -131,6 +150,112 @@ const RARITY_VARIANTS: Record<string, string> = {
   "Exotic": "classified",
   "Extraordinary": "covert",
 };
+
+function formatCurrency(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
+
+function formatSignedCurrency(value: number): string {
+  return `${value >= 0 ? "+" : ""}${formatCurrency(value)}`;
+}
+
+function formatSignedPercent(value: number | null): string {
+  if (value === null) {
+    return "--";
+  }
+
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function formatCategoryLabel(category: string): string {
+  return category
+    .split("_")
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function buildExposureBuckets(items: PortfolioItem[], totalPortfolioValue: number): ExposureBucket[] {
+  const buckets = new Map<string, Omit<ExposureBucket, "share">>();
+
+  for (const item of items) {
+    const key = item.marketHashName || item.itemId || item.id;
+    const currentValue = Math.max(item.currentPrice, 0);
+    const acquiredValue = item.acquiredPrice ?? 0;
+    const pnl = item.pnl ?? (item.acquiredPrice != null ? currentValue - item.acquiredPrice : 0);
+    const current = buckets.get(key);
+
+    if (current) {
+      current.count += 1;
+      current.totalCurrentValue += currentValue;
+      current.totalAcquiredValue += acquiredValue;
+      current.totalPnl += pnl;
+      current.hasAnyCostBasis = current.hasAnyCostBasis || item.acquiredPrice != null;
+      current.pricedCount += currentValue > 0 ? 1 : 0;
+      continue;
+    }
+
+    buckets.set(key, {
+      key,
+      label: item.name,
+      categoryLabel: formatCategoryLabel(item.category),
+      rarity: item.rarity,
+      count: 1,
+      totalCurrentValue: currentValue,
+      totalAcquiredValue: acquiredValue,
+      hasAnyCostBasis: item.acquiredPrice != null,
+      totalPnl: pnl,
+      pnlPercent: null,
+      pricedCount: currentValue > 0 ? 1 : 0,
+    });
+  }
+
+  const sorted = Array.from(buckets.values())
+    .map((bucket) => ({
+      ...bucket,
+      pnlPercent:
+        bucket.hasAnyCostBasis && bucket.totalAcquiredValue > 0
+          ? (bucket.totalPnl / bucket.totalAcquiredValue) * 100
+          : null,
+      share: totalPortfolioValue > 0 ? bucket.totalCurrentValue / totalPortfolioValue : 0,
+    }))
+    .sort((left, right) => {
+      if (right.totalCurrentValue !== left.totalCurrentValue) {
+        return right.totalCurrentValue - left.totalCurrentValue;
+      }
+
+      return right.count - left.count;
+    });
+
+  if (sorted.length <= MAX_EXPOSURE_NODES) {
+    return sorted;
+  }
+
+  const visibleCount = Math.max(MAX_EXPOSURE_NODES - 1, 1);
+  const visible = sorted.slice(0, visibleCount);
+  const overflow = sorted.slice(visibleCount);
+  const otherValue = overflow.reduce((sum, bucket) => sum + bucket.totalCurrentValue, 0);
+  const otherAcquired = overflow.reduce((sum, bucket) => sum + bucket.totalAcquiredValue, 0);
+  const otherPnl = overflow.reduce((sum, bucket) => sum + bucket.totalPnl, 0);
+  const otherCount = overflow.reduce((sum, bucket) => sum + bucket.count, 0);
+  const otherPricedCount = overflow.reduce((sum, bucket) => sum + bucket.pricedCount, 0);
+
+  visible.push({
+    key: "other-positions",
+    label: "Other Positions",
+    categoryLabel: `${overflow.length} smaller lines`,
+    rarity: null,
+    count: otherCount,
+    totalCurrentValue: otherValue,
+    totalAcquiredValue: otherAcquired,
+    hasAnyCostBasis: overflow.some((bucket) => bucket.hasAnyCostBasis),
+    totalPnl: otherPnl,
+    pnlPercent: otherAcquired > 0 ? (otherPnl / otherAcquired) * 100 : null,
+    pricedCount: otherPricedCount,
+    share: totalPortfolioValue > 0 ? otherValue / totalPortfolioValue : 0,
+  });
+
+  return visible;
+}
 
 function useDropdownMenu() {
   const [open, setOpen] = useState(false);
@@ -397,6 +522,7 @@ function SoldActionMenu({
 
 export default function PortfolioPage() {
   const { addToast, updateToast } = useToast();
+  const reducedMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState<PortfolioTab>("active");
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
   const [soldData, setSoldData] = useState<SoldData | null>(null);
@@ -618,8 +744,9 @@ export default function PortfolioPage() {
       });
       const data = await res.json();
       if (data.success) {
+        const updatedState = data.data?.isWatched ?? newState;
         addToast(
-          newState
+          updatedState
             ? `Added "${item.name}" to watchlist`
             : `Removed "${item.name}" from watchlist`,
           "success",
@@ -629,7 +756,7 @@ export default function PortfolioPage() {
           return {
             ...prev,
             items: prev.items.map((i) =>
-              i.id === item.id ? { ...i, isWatched: newState } : i
+              i.itemId === item.itemId ? { ...i, isWatched: updatedState } : i
             ),
           };
         });
@@ -1099,18 +1226,7 @@ export default function PortfolioPage() {
     );
   }, [handleUndoSold]);
 
-  if (loading) {
-    return (
-      <div className={styles.loadingState}>
-        <div className={styles.loadingContent}>
-          <div className={styles.loadingIcon}><FaSpinner style={{ animation: "spin 1s linear infinite" }} /></div>
-          <div>Loading portfolio...</div>
-        </div>
-      </div>
-    );
-  }
-
-  const isEmpty = !portfolio || portfolio.itemCount === 0;
+  const isEmpty = !loading && (!portfolio || portfolio.itemCount === 0);
   const hasActiveFilters = Boolean(
     categoryFilter || rarityFilter || searchFilter || (priceFilter && priceFilter !== "all")
   );
@@ -1124,12 +1240,72 @@ export default function PortfolioPage() {
   const realizedPnL = soldData?.totalRealizedPnL ?? 0;
   const unrealizedPnL = totals?.unrealizedPnL ?? 0;
   const totalPnL = unrealizedPnL + realizedPnL;
+  const totalCurrentValue = totals?.totalCurrentValue ?? 0;
+
+  const exposureBuckets = buildExposureBuckets(portfolio?.items ?? [], totalCurrentValue);
+
+  const topHolding = exposureBuckets[0] ?? null;
+  const topThreeShare = exposureBuckets
+    .slice(0, Math.min(3, exposureBuckets.length))
+    .reduce((sum, bucket) => sum + bucket.share, 0);
+  const pricedHoldingsCount = (portfolio?.items ?? []).filter((item) => item.currentPrice > 0).length;
+  const pricedCoverage = itemCount > 0 ? (pricedHoldingsCount / itemCount) * 100 : 0;
+  const totalsByCategory = new Map<string, number>();
+
+  for (const item of portfolio?.items ?? []) {
+    totalsByCategory.set(
+      item.category,
+      (totalsByCategory.get(item.category) ?? 0) + Math.max(item.currentPrice, 0)
+    );
+  }
+
+  const categoryExposure = Array.from(totalsByCategory.entries())
+    .map(([category, value]) => ({
+      label: formatCategoryLabel(category),
+      value,
+      share: totalCurrentValue > 0 ? value / totalCurrentValue : 0,
+    }))
+    .sort((left, right) => right.value - left.value);
+  const topCategory = categoryExposure[0] ?? null;
+  const hasExposureData = exposureBuckets.some((bucket) => bucket.totalCurrentValue > 0);
+  const mobileExposureBuckets = exposureBuckets.slice(0, MOBILE_EXPOSURE_CARD_COUNT);
 
   return (
-    <div className={styles.page}>
-      {activeTab === "active" && (
-        <div className={styles.header}>
-          <div className={styles.headerActions}>
+    <div
+      className={styles.page}
+      data-testid="route-portfolio"
+      data-reduced-motion={reducedMotion ? "true" : undefined}
+    >
+      <div className={styles.tabBar} role="tablist">
+        <div className={styles.tabGroup}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "active"}
+            className={`${styles.tabButton} ${activeTab === "active" ? styles.tabButtonActive : ""}`}
+            onClick={() => setActiveTab("active")}
+          >
+            Active
+            {portfolio && portfolio.itemCount > 0 && (
+              <span className={styles.tabBadge}>{portfolio.itemCount}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "sold"}
+            className={`${styles.tabButton} ${activeTab === "sold" ? styles.tabButtonActive : ""}`}
+            onClick={() => setActiveTab("sold")}
+          >
+            Sold
+            {soldData && soldData.soldCount > 0 && (
+              <span className={styles.tabBadge}>{soldData.soldCount}</span>
+            )}
+          </button>
+        </div>
+
+        {activeTab === "active" && (
+          <div className={styles.headerActions} style={{ marginBottom: "8px" }}>
             <button
               type="button"
               onClick={() => handleRefreshPrices()}
@@ -1147,34 +1323,7 @@ export default function PortfolioPage() {
               {syncing ? "Syncing..." : "Sync from Steam"}
             </button>
           </div>
-        </div>
-      )}
-
-      <div className={styles.tabBar} role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "active"}
-          className={`${styles.tabButton} ${activeTab === "active" ? styles.tabButtonActive : ""}`}
-          onClick={() => setActiveTab("active")}
-        >
-          Active
-          {portfolio && portfolio.itemCount > 0 && (
-            <span className={styles.tabBadge}>{portfolio.itemCount}</span>
-          )}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "sold"}
-          className={`${styles.tabButton} ${activeTab === "sold" ? styles.tabButtonActive : ""}`}
-          onClick={() => setActiveTab("sold")}
-        >
-          Sold
-          {soldData && soldData.soldCount > 0 && (
-            <span className={styles.tabBadge}>{soldData.soldCount}</span>
-          )}
-        </button>
+        )}
       </div>
 
       {activeTab === "active" && (
@@ -1231,35 +1380,191 @@ export default function PortfolioPage() {
                     <FaChevronDown className={`${styles.summaryChevron}${summaryExpanded ? ` ${styles.summaryChevronOpen}` : ""}`} />
                   </span>
                 </button>
-                <div className={styles.summaryRow}>
-                  <StatCard
-                    label="Total Value"
-                    value={`$${totals?.totalCurrentValue?.toFixed(2) ?? '0.00'}`}
-                    prefix=""
-                  />
-                  <StatCard
-                    label="Cost Basis"
-                    value={totals?.hasAnyCostBasis ? `$${totals?.totalAcquiredValue?.toFixed(2) ?? '0.00'}` : "\u2014"}
-                  />
-                  <StatCard
-                    label="Unrealized P&L"
-                    value={totals?.hasAnyCostBasis ? `${unrealizedPnL >= 0 ? "+" : ""}$${unrealizedPnL.toFixed(2)}` : "\u2014"}
-                    change={totals?.unrealizedPnLPercent ?? 0}
-                    prefix=""
-                  />
-                  <StatCard
-                    label="Realized P&L"
-                    value={realizedPnL !== 0 ? `${realizedPnL >= 0 ? "+" : ""}$${realizedPnL.toFixed(2)}` : "\u2014"}
-                    change={soldData?.realizedPnLPercent ?? 0}
-                    prefix=""
-                  />
-                  <StatCard
-                    label="Total P&L"
-                    value={totals?.hasAnyCostBasis || realizedPnL !== 0
-                      ? `${totalPnL >= 0 ? "+" : ""}$${totalPnL.toFixed(2)}`
-                      : "\u2014"}
-                    prefix=""
-                  />
+                <div className={styles.summaryContent} data-testid="portfolio-exposure-summary">
+                  <div className={styles.exposureSignals}>
+                    <div className={styles.exposureSignalCard}>
+                      <span className={styles.exposureSignalLabel}>Largest holding</span>
+                      <strong className={styles.exposureSignalValue}>
+                        {topHolding ? `${(topHolding.share * 100).toFixed(1)}%` : "--"}
+                      </strong>
+                      <span className={styles.exposureSignalMeta}>
+                        {topHolding ? topHolding.label : "No priced positions yet"}
+                      </span>
+                    </div>
+                    <div className={styles.exposureSignalCard}>
+                      <span className={styles.exposureSignalLabel}>Top 3 concentration</span>
+                      <strong className={styles.exposureSignalValue}>{(topThreeShare * 100).toFixed(1)}%</strong>
+                      <span className={styles.exposureSignalMeta}>
+                        {topThreeShare >= 0.65 ? "High concentration" : topThreeShare >= 0.4 ? "Balanced book" : "Distributed book"}
+                      </span>
+                    </div>
+                    <div className={styles.exposureSignalCard}>
+                      <span className={styles.exposureSignalLabel}>Priced coverage</span>
+                      <strong className={styles.exposureSignalValue}>{pricedCoverage.toFixed(0)}%</strong>
+                      <span className={styles.exposureSignalMeta}>{pricedHoldingsCount}/{itemCount} priced holdings</span>
+                    </div>
+                  </div>
+
+                  <div className={styles.summaryRow}>
+                    <StatCard
+                      label="Total Value"
+                      value={totals?.totalCurrentValue ?? 0}
+                      prefix="$"
+                      fractionDigits={2}
+                    />
+                    <StatCard
+                      label="Cost Basis"
+                      value={totals?.hasAnyCostBasis ? (totals?.totalAcquiredValue ?? 0) : "\u2014"}
+                      prefix={totals?.hasAnyCostBasis ? "$" : undefined}
+                      fractionDigits={2}
+                    />
+                    <StatCard
+                      label="Unrealized P&L"
+                      value={totals?.hasAnyCostBasis ? unrealizedPnL : "\u2014"}
+                      change={totals?.unrealizedPnLPercent ?? 0}
+                      prefix={totals?.hasAnyCostBasis ? (unrealizedPnL >= 0 ? "+$" : "$") : undefined}
+                      fractionDigits={2}
+                    />
+                    <StatCard
+                      label="Realized P&L"
+                      value={realizedPnL !== 0 ? realizedPnL : "\u2014"}
+                      change={soldData?.realizedPnLPercent ?? 0}
+                      prefix={realizedPnL !== 0 ? (realizedPnL >= 0 ? "+$" : "$") : undefined}
+                      fractionDigits={2}
+                    />
+                    <StatCard
+                      label="Total P&L"
+                      value={totals?.hasAnyCostBasis || realizedPnL !== 0 ? totalPnL : "\u2014"}
+                      prefix={totals?.hasAnyCostBasis || realizedPnL !== 0 ? (totalPnL >= 0 ? "+$" : "$") : undefined}
+                      fractionDigits={2}
+                    />
+                  </div>
+
+                  <div className={styles.exposureLayout}>
+                    <section className={styles.exposureTreemapPanel} data-testid="portfolio-treemap">
+                      <div className={styles.sectionHeader}>
+                        <div>
+                          <h3 className={styles.sectionTitle}>Allocation Map</h3>
+                          <p className={styles.sectionSubtle}>Block size tracks value. Color tracks performance.</p>
+                        </div>
+                      </div>
+
+                      {hasExposureData ? (
+                        <div className={styles.treemap} data-testid="portfolio-exposure-treemap">
+                          {exposureBuckets.map((bucket) => {
+                            const toneClass = bucket.key === "other-positions"
+                              ? styles.treemapNodeOther
+                              : bucket.totalPnl > 0
+                                ? styles.treemapNodePositive
+                                : bucket.totalPnl < 0
+                                  ? styles.treemapNodeNegative
+                                  : styles.treemapNodeNeutral;
+                            const flexGrow = Math.max(Math.round(bucket.share * 100), 10);
+                            const flexBasis = bucket.share >= 0.3
+                              ? "38%"
+                              : bucket.share >= 0.18
+                                ? "30%"
+                                : bucket.share >= 0.1
+                                  ? "22%"
+                                  : "16%";
+
+                            return (
+                              <article
+                                key={bucket.key}
+                                className={`${styles.treemapNode} ${toneClass}`}
+                                style={{ flexGrow, flexBasis }}
+                                data-testid="portfolio-exposure-node"
+                                aria-label={`${bucket.label}, ${formatCurrency(bucket.totalCurrentValue)}, ${(bucket.share * 100).toFixed(1)} percent of portfolio, ${formatSignedPercent(bucket.pnlPercent)}`}
+                                title={`${bucket.label} • ${formatCurrency(bucket.totalCurrentValue)} • ${(bucket.share * 100).toFixed(1)}% of portfolio`}
+                              >
+                                <div className={styles.treemapNodeHeader}>
+                                  <span className={styles.treemapNodeLabel}>{bucket.label}</span>
+                                  <span className={styles.treemapNodeShare}>{(bucket.share * 100).toFixed(1)}%</span>
+                                </div>
+                                <strong className={styles.treemapNodeValue}>{formatCurrency(bucket.totalCurrentValue)}</strong>
+                                <div className={styles.treemapNodeMeta}>
+                                  <span>{bucket.count} {bucket.count === 1 ? "item" : "items"}</span>
+                                  <span>{bucket.hasAnyCostBasis ? formatSignedPercent(bucket.pnlPercent) : "No basis"}</span>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className={styles.treemapEmpty} data-testid="portfolio-exposure-treemap">
+                          Waiting for priced positions before the allocation map can size exposure blocks.
+                        </div>
+                      )}
+
+                      <div className={styles.mobileExposureList} data-testid="portfolio-exposure-mobile">
+                        {mobileExposureBuckets.map((bucket) => (
+                          <article key={`mobile-${bucket.key}`} className={styles.mobileExposureCard}>
+                            <div className={styles.mobileExposureTop}>
+                              <div>
+                                <div className={styles.mobileExposureLabel}>{bucket.label}</div>
+                                <div className={styles.mobileExposureMeta}>{bucket.categoryLabel}</div>
+                              </div>
+                              <div className={styles.mobileExposureShare}>{(bucket.share * 100).toFixed(1)}%</div>
+                            </div>
+                            <div className={styles.mobileExposureBottom}>
+                              <strong className={styles.mobileExposureValue}>{formatCurrency(bucket.totalCurrentValue)}</strong>
+                              <span className={bucket.totalPnl > 0 ? styles.pnlPositive : bucket.totalPnl < 0 ? styles.pnlNegative : styles.pnlNeutral}>
+                                {bucket.hasAnyCostBasis ? formatSignedPercent(bucket.pnlPercent) : "No basis"}
+                              </span>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+
+                    <aside className={styles.exposureSidebar}>
+                      <div className={styles.insightCard}>
+                        <span className={styles.insightLabel}>Largest category</span>
+                        <strong className={styles.insightValue}>{topCategory ? topCategory.label : "--"}</strong>
+                        <span className={styles.insightMeta}>
+                          {topCategory ? `${(topCategory.share * 100).toFixed(1)}% of portfolio value` : "Waiting for priced items"}
+                        </span>
+                      </div>
+                      <div className={styles.insightCard}>
+                        <span className={styles.insightLabel}>Risk posture</span>
+                        <strong className={styles.insightValue}>
+                          {topThreeShare >= 0.65 ? "Concentrated" : topThreeShare >= 0.4 ? "Balanced" : "Broad"}
+                        </strong>
+                        <span className={styles.insightMeta}>
+                          {topThreeShare >= 0.65
+                            ? "Top positions dominate current mark-to-market exposure."
+                            : topThreeShare >= 0.4
+                              ? "Core lines matter, but smaller positions still move the book."
+                              : "Exposure is spread across many smaller positions."}
+                        </span>
+                      </div>
+                      <div className={styles.holdingsCard}>
+                        <div className={styles.sectionHeader}>
+                          <div>
+                            <h3 className={styles.sectionTitle}>Top holdings</h3>
+                            <p className={styles.sectionSubtle}>Current value and delta for the heaviest lines.</p>
+                          </div>
+                        </div>
+                        <ol className={styles.holdingsList}>
+                          {exposureBuckets.slice(0, 4).map((bucket, index) => (
+                            <li key={`top-${bucket.key}`} className={styles.holdingRow}>
+                              <span className={styles.holdingRank}>{index + 1}</span>
+                              <div className={styles.holdingInfo}>
+                                <span className={styles.holdingLabel}>{bucket.label}</span>
+                                <span className={styles.holdingMeta}>{bucket.categoryLabel} • {bucket.count} {bucket.count === 1 ? "item" : "items"}</span>
+                              </div>
+                              <div className={styles.holdingValueBlock}>
+                                <strong className={styles.holdingValue}>{formatCurrency(bucket.totalCurrentValue)}</strong>
+                                <span className={bucket.totalPnl > 0 ? styles.pnlPositive : bucket.totalPnl < 0 ? styles.pnlNegative : styles.pnlNeutral}>
+                                  {bucket.hasAnyCostBasis ? formatSignedPercent(bucket.pnlPercent) : "No basis"}
+                                </span>
+                              </div>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    </aside>
+                  </div>
                 </div>
               </div>
 
@@ -1283,18 +1588,22 @@ export default function PortfolioPage() {
             <div className={styles.summaryRow}>
               <StatCard
                 label="Total Sold Value"
-                value={`$${soldData.totalSoldValue.toFixed(2)}`}
-                prefix=""
+                value={soldData.totalSoldValue}
+                prefix="$"
+                fractionDigits={2}
               />
               <StatCard
                 label="Cost Basis"
-                value={soldData.hasAnyCostBasis ? `$${soldData.totalAcquiredValue.toFixed(2)}` : "\u2014"}
+                value={soldData.hasAnyCostBasis ? soldData.totalAcquiredValue : "\u2014"}
+                prefix={soldData.hasAnyCostBasis ? "$" : undefined}
+                fractionDigits={2}
               />
               <StatCard
                 label="Realized P&L"
-                value={`${soldData.totalRealizedPnL >= 0 ? "+" : ""}$${soldData.totalRealizedPnL.toFixed(2)}`}
+                value={soldData.totalRealizedPnL}
                 change={soldData.realizedPnLPercent}
-                prefix=""
+                prefix={soldData.totalRealizedPnL >= 0 ? "+$" : "$"}
+                fractionDigits={2}
               />
               <StatCard
                 label="Items Sold"
@@ -1304,22 +1613,13 @@ export default function PortfolioPage() {
           )}
 
           <div className={styles.inventoryTable}>
-            {soldLoading ? (
-              <div className={styles.loadingState}>
-                <div className={styles.loadingContent}>
-                  <div className={styles.loadingIcon}><FaSpinner style={{ animation: "spin 1s linear infinite" }} /></div>
-                  <div>Loading sold items...</div>
-                </div>
-              </div>
-            ) : (
-              <DataTable
-                columns={soldColumns}
-                data={soldData?.items || []}
-                isLoading={false}
-                emptyMessage="No sold items yet. Mark items as sold from the Active tab."
-                mobileCardRenderer={renderSoldMobileCard}
-              />
-            )}
+            <DataTable
+              columns={soldColumns}
+              data={soldData?.items || []}
+              isLoading={soldLoading}
+              emptyMessage="No sold items yet. Mark items as sold from the Active tab."
+              mobileCardRenderer={renderSoldMobileCard}
+            />
           </div>
         </>
       )}
