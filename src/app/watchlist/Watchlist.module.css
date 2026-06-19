@@ -21,6 +21,22 @@
   align-items: center;
 }
 
+.toolbarDangerBtn {
+  border-color: color-mix(in srgb, var(--bear, #ff4d4f) 55%, transparent);
+  background: color-mix(in srgb, var(--bear, #ff4d4f) 14%, var(--surface-2));
+  color: var(--bear, #ff4d4f);
+}
+
+.toolbarDangerBtn:hover:not(:disabled) {
+  border-color: var(--bear, #ff4d4f);
+  background: color-mix(in srgb, var(--bear, #ff4d4f) 20%, var(--surface-2));
+  color: #fff;
+}
+
+.toolbarDangerBtn:disabled {
+  opacity: 0.55;
+}
+
 .statusMessage {
   font-size: 11px;
   color: var(--text-secondary-60);
@@ -36,10 +52,7 @@
 }
 
 .loadingTable {
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md, 8px);
-  overflow: hidden;
-  background: var(--surface-2);
+  /* DataTable provides its own border and background via .tableScroll */
 }
 
 .loadingState {

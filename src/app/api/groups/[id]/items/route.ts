@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { requireAuth } from "@/lib/auth/guard";
 
 const ItemIdsSchema = z.object({
     itemIds: z.array(z.string().min(1)).min(1),
@@ -16,6 +17,9 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const { id } = await params;
         const body = await request.json();
         const { itemIds } = ItemIdsSchema.parse(body);
@@ -28,12 +32,25 @@ export async function POST(
             );
         }
 
+        const watchedItems = await prisma.item.findMany({
+            where: { id: { in: itemIds }, isActive: true, isWatched: true },
+            select: { id: true },
+        });
+        const watchedItemIds = watchedItems.map((item) => item.id);
+
+        if (watchedItemIds.length === 0) {
+            return NextResponse.json(
+                { success: false, error: "No selected items are in the watchlist" },
+                { status: 400 }
+            );
+        }
+
         const existing = await prisma.itemGroup.findMany({
-            where: { groupId: id, itemId: { in: itemIds } },
+            where: { groupId: id, itemId: { in: watchedItemIds } },
             select: { itemId: true },
         });
         const existingSet = new Set(existing.map((e) => e.itemId));
-        const newItemIds = itemIds.filter((itemId) => !existingSet.has(itemId));
+        const newItemIds = watchedItemIds.filter((itemId) => !existingSet.has(itemId));
 
         let added = 0;
         if (newItemIds.length > 0) {
@@ -70,6 +87,9 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const { id } = await params;
         const body = await request.json();
         const { itemIds } = ItemIdsSchema.parse(body);

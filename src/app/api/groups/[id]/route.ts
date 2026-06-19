@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { requireAuth } from "@/lib/auth/guard";
 
 const UpdateGroupSchema = z.object({
     name: z.string().min(1).max(100).optional(),
@@ -19,12 +20,16 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const { id } = await params;
 
         const group = await prisma.watchlistGroup.findUnique({
             where: { id },
             include: {
                 items: {
+                    where: { item: { isActive: true, isWatched: true } },
                     include: {
                         item: true,
                     },
@@ -54,6 +59,9 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const { id } = await params;
         const body = await request.json();
         const data = UpdateGroupSchema.parse(body);
@@ -104,6 +112,9 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const { id } = await params;
 
         const group = await prisma.watchlistGroup.findUnique({ where: { id } });

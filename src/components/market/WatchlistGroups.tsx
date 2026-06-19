@@ -105,7 +105,7 @@ export function WatchlistGroups({
         </button>
 
         {groups.map((group) => (
-          <div key={group.id}>
+          <div key={group.id} className={styles.tabGroup}>
             <button
               type="button"
               className={`${styles.tab} ${activeGroupId === group.id ? styles.tabActive : ""}`}
@@ -119,29 +119,30 @@ export function WatchlistGroups({
               )}
               {group.name}
               <span className={styles.tabCount}>{group._count.items}</span>
-              <button
-                type="button"
-                className={styles.tabGear}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (managerGroupId === group.id) {
-                    setManagerGroupId(null);
-                    setManagerPosition(null);
-                  } else {
-                    const tabEl = e.currentTarget.parentElement;
-                    if (tabEl) {
-                      const rect = tabEl.getBoundingClientRect();
-                      setManagerPosition({
-                        top: rect.bottom + 6,
-                        left: Math.min(rect.left, window.innerWidth - 276),
-                      });
-                    }
-                    setManagerGroupId(group.id);
+            </button>
+            <button
+              type="button"
+              className={styles.tabGear}
+              aria-label={`Manage ${group.name} group`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (managerGroupId === group.id) {
+                  setManagerGroupId(null);
+                  setManagerPosition(null);
+                } else {
+                  const tabEl = e.currentTarget.parentElement;
+                  if (tabEl) {
+                    const rect = tabEl.getBoundingClientRect();
+                    setManagerPosition({
+                      top: rect.bottom + 6,
+                      left: Math.min(rect.left, window.innerWidth - 276),
+                    });
                   }
-                }}
-              >
-                &#9881;
-              </button>
+                  setManagerGroupId(group.id);
+                }
+              }}
+            >
+              &#9881;
             </button>
           </div>
         ))}

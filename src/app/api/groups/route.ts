@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
+import { requireAuth } from "@/lib/auth/guard";
 
 const CreateGroupSchema = z.object({
     name: z.string().min(1).max(100),
@@ -14,10 +15,24 @@ const CreateGroupSchema = z.object({
 
 export async function GET() {
     try {
+        const { error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const groups = await prisma.watchlistGroup.findMany({
             orderBy: { sortOrder: "asc" },
             include: {
-                _count: { select: { items: true } },
+                _count: {
+                    select: {
+                        items: {
+                            where: {
+                                item: {
+                                    isActive: true,
+                                    isWatched: true,
+                                },
+                            },
+                        },
+                    },
+                },
             },
         });
 
@@ -36,6 +51,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
     try {
+        const { error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const body = await request.json();
         const data = CreateGroupSchema.parse(body);
 

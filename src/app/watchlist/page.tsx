@@ -8,7 +8,6 @@ import { WatchlistFilters } from "@/components/market/WatchlistFilters";
 import { WatchlistGroups, type Group } from "@/components/market/WatchlistGroups";
 import { AddItemPanel } from "@/components/market/AddItemPanel";
 import { FallbackToast } from "@/components/ui/FallbackToast";
-import { DataTable, type Column } from "@/components/ui/DataTable";
 import { useToast } from "@/components/providers/ToastProvider";
 import { usePriceRefreshInterval } from "@/hooks/usePriceRefreshInterval";
 import { useSmartRefresh, markRefreshed } from "@/hooks/useSmartRefresh";
@@ -16,6 +15,12 @@ import { useStaleAwareRefresh } from "@/hooks/useStaleAwareRefresh";
 import styles from "./Watchlist.module.css";
 
 type ItemWithMaybeGroups = Item & { groups?: Item["groups"] };
+
+interface WatchlistRestoreState {
+  itemId: string;
+  notes: string | null;
+  groupIds: string[];
+}
 
 interface ConfirmDialogState {
   open: boolean;
@@ -31,11 +36,20 @@ function normalizeItem(item: ItemWithMaybeGroups): Item {
   };
 }
 
+function getRestoreState(item: Item): WatchlistRestoreState {
+  return {
+    itemId: item.id,
+    notes: item.notes ?? null,
+    groupIds: item.groups.map((group) => group.id),
+  };
+}
+
 export default function WatchlistPage() {
   const router = useRouter();
   const { addToast } = useToast();
 
   const [items, setItems] = useState<Item[]>([]);
+  const [watchlistTotal, setWatchlistTotal] = useState(0);
   const [groups, setGroups] = useState<Group[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -73,6 +87,7 @@ export default function WatchlistPage() {
 
       if (data.success) {
         setItems((data.data.items as ItemWithMaybeGroups[]).map(normalizeItem));
+        setWatchlistTotal(typeof data.data.total === "number" ? data.data.total : 0);
         setLastPriceUpdate(data.data.lastPriceUpdate ?? null);
       }
     } catch {
@@ -230,11 +245,11 @@ export default function WatchlistPage() {
     [assignmentItem]
   );
 
-  const isWatchlistEmpty = !itemsLoading && watchlistItems.length === 0;
+  const isWatchlistEmpty = !itemsLoading && watchlistTotal === 0;
   const isGroupEmpty = !itemsLoading && Boolean(groupFilter) && selectedGroupItemCount === 0;
   const isFilterEmpty =
     !itemsLoading &&
-    watchlistItems.length > 0 &&
+    watchlistTotal > 0 &&
     filteredItems.length === 0 &&
     !isGroupEmpty;
 
@@ -383,6 +398,9 @@ export default function WatchlistPage() {
 
   const handleBulkUnwatch = useCallback(() => {
     const itemIds = [...selectedIds];
+    const restoreStates = items
+      .filter((item) => selectedIds.has(item.id))
+      .map(getRestoreState);
     const count = itemIds.length;
     if (count === 0) return;
 
@@ -416,7 +434,7 @@ export default function WatchlistPage() {
                       const undoRes = await fetch("/api/items/bulk", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ action: "rewatch", itemIds }),
+                        body: JSON.stringify({ action: "rewatch", itemIds, restoreStates }),
                       });
                       const undoData = await undoRes.json();
                       if (undoData.success) {
@@ -443,7 +461,47 @@ export default function WatchlistPage() {
         }
       },
     });
-  }, [selectedIds, addToast, refreshWatchlistData]);
+  }, [items, selectedIds, addToast, refreshWatchlistData]);
+
+  const handleClearAllWatchlist = useCallback(() => {
+    const count = watchlistTotal;
+    if (count === 0) return;
+
+    setConfirmDialog({
+      open: true,
+      title: "Clear Watchlist",
+      message: `Are you sure? This will remove all ${count} watched item${count !== 1 ? "s" : ""} from your watchlist.`,
+      onConfirm: async () => {
+        setBulkLoading(true);
+        try {
+          const res = await fetch("/api/items/bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "clearAll" }),
+          });
+          const data = await res.json();
+
+          if (data.success) {
+            const affected = data.affected as number;
+            setSelectedIds(new Set());
+            handleClearFilters();
+            await refreshWatchlistData(false);
+            addToast(
+              `Cleared ${affected} watched item${affected !== 1 ? "s" : ""}`,
+              "success"
+            );
+          } else {
+            addToast(data.error || "Failed to clear watchlist", "error");
+          }
+        } catch {
+          addToast("Network error clearing watchlist", "error");
+        } finally {
+          setBulkLoading(false);
+          setConfirmDialog((prev) => ({ ...prev, open: false }));
+        }
+      },
+    });
+  }, [watchlistTotal, handleClearFilters, refreshWatchlistData, addToast]);
 
   const handleBulkAssignGroup = useCallback(async (groupId: string) => {
     const itemIds = [...selectedIds];
@@ -536,6 +594,7 @@ export default function WatchlistPage() {
   }, [addToast, refreshWatchlistData, groupFilter, groups]);
 
   const handleToggleWatch = useCallback(async (id: string, current: boolean) => {
+    const restoreState = items.find((item) => item.id === id);
     try {
       const res = await fetch(`/api/items/${id}`, {
         method: "PATCH",
@@ -559,7 +618,11 @@ export default function WatchlistPage() {
                 const undoRes = await fetch(`/api/items/${id}`, {
                   method: "PATCH",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ isWatched: true }),
+                  body: JSON.stringify({
+                    isWatched: true,
+                    notes: restoreState?.notes ?? null,
+                    restoreGroupIds: restoreState?.groups.map((group) => group.id) ?? [],
+                  }),
                 });
                 if (undoRes.ok) {
                   addToast("Item re-watched", "success");
@@ -577,25 +640,10 @@ export default function WatchlistPage() {
     } catch {
       addToast("Failed to update watchlist item", "error");
     }
-  }, [addToast, refreshWatchlistData]);
-
-  const loadingColumns = useMemo<Column<Record<string, never>>[]>(() => (
-    [
-      { key: "select", header: "", width: "40px", sticky: true },
-      { key: "image", header: "", width: "72px", sticky: true },
-      { key: "name", header: "Item" },
-      { key: "category", header: "Category", width: "120px" },
-      { key: "type", header: "Type", width: "120px" },
-      { key: "rarity", header: "Rarity", width: "120px" },
-      { key: "price", header: "Price", width: "100px" },
-      { key: "change", header: "24h", width: "100px" },
-      { key: "sparkline", header: "7d", width: "116px" },
-      { key: "actions", header: "", width: "48px" },
-    ]
-  ), []);
+  }, [items, addToast, refreshWatchlistData]);
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-testid="route-watchlist">
       <div className={styles.toolbar}>
         <div className={styles.toolbarActions}>
           <button
@@ -633,6 +681,17 @@ export default function WatchlistPage() {
               </>
             )}
           </button>
+          {watchlistTotal > 0 && (
+            <button
+              type="button"
+              className={`btn btn-sm ${styles.toolbarDangerBtn}`}
+              onClick={handleClearAllWatchlist}
+              disabled={itemsLoading || bulkLoading}
+              aria-label="Clear all watched items"
+            >
+              Clear All
+            </button>
+          )}
         </div>
       </div>
 
@@ -652,7 +711,7 @@ export default function WatchlistPage() {
         group={groupFilter}
         filterOptions={filterOptions}
         itemCount={filteredItems.length}
-        totalCount={watchlistItems.length}
+        totalCount={watchlistTotal}
         onChange={handleFilterChange}
         onClear={handleClearFilters}
       />
@@ -698,9 +757,16 @@ export default function WatchlistPage() {
 
       <div className={styles.tableContainer} ref={tableContainerRef}>
         {itemsLoading ? (
-          <div className={styles.loadingTable}>
-            <DataTable columns={loadingColumns} data={[]} isLoading={true} />
-          </div>
+          <WatchlistTable
+            items={[]}
+            isLoading={true}
+            onToggleWatch={handleToggleWatch}
+            onRowClick={handleViewDetails}
+            onAssignGroup={handleOpenGroupAssignment}
+            onViewDetails={handleViewDetails}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
+          />
         ) : isWatchlistEmpty ? (
           <div className={`${styles.emptyState} card`}>
             <div className={styles.emptyIcon}><FaEye /></div>

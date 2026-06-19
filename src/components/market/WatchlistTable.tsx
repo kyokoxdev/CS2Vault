@@ -33,6 +33,7 @@ export interface Item {
 
 interface WatchlistTableProps {
   items: Item[];
+  isLoading?: boolean;
   onToggleWatch: (id: string, current: boolean) => void;
   onRowClick?: (id: string) => void;
   onAddNote?: (id: string) => void;
@@ -270,6 +271,7 @@ function PriceChangeCell({ value }: { value: number | null }) {
 
 export function WatchlistTable({
   items,
+  isLoading = false,
   onToggleWatch,
   onRowClick,
   onAddNote,
@@ -656,8 +658,9 @@ export function WatchlistTable({
   return (
     <DataTable
       columns={columns}
-      data={items}
-      onRowClick={(item) => {
+      data={isLoading ? [] : items}
+      isLoading={isLoading}
+      onRowClick={isLoading ? undefined : (item) => {
         if (editingNoteId) return;
         if (onRowClick) {
           onRowClick(item.id);

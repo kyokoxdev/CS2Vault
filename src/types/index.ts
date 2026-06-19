@@ -94,6 +94,11 @@ export interface MarketContext {
         changePercent: number;
         rarity?: string;
     }[];
+    watchlistAction?: {
+        status: "added" | "already_watched" | "not_found" | "failed";
+        itemName?: string;
+        message: string;
+    };
     soldItems?: {
         name: string;
         acquiredPrice: number;
@@ -108,8 +113,21 @@ export interface MarketContext {
         rarity?: string;
         exterior?: string;
         category?: string;
-        history30Days: { date: string, price: number }[];
-        ohlcv7Days?: { date: string; open: number; high: number; low: number; close: number; volume: number }[];
+        historyDaily: { date: string, price: number }[];
+        historyWindowDays: number;
+        allHistoryPoints: number;
+        oldestHistoryDate?: string;
+        latestHistoryDate?: string;
+        ohlcvDaily?: { date: string; open: number; high: number; low: number; close: number; volume: number }[];
+        ohlcvWindowDays?: number;
+    };
+    researchPacket?: {
+        generatedAt: string;
+        retrievalMode: string;
+        coverage: string[];
+        currentPricingSignals: string[];
+        historicalSignals: string[];
+        dataLimits: string[];
     };
     newsHeadlines?: {
         title: string;
@@ -117,6 +135,21 @@ export interface MarketContext {
         date: string;
     }[];
     userQuery: string;
+    referencedSessionContext?: string;
+}
+
+export type AIReasoningDepth = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type AIAgentMode = "consultant" | "researcher";
+export type AIAgentStage = "researcher" | "consultant-final";
+
+export interface AIChatOptions {
+    reasoningDepth?: AIReasoningDepth;
+    agentMode: AIAgentMode;
+    agentStage?: AIAgentStage;
+    delegatedResearch?: string;
+    openRouterModelId?: string;
+    deepResearch?: boolean;
+    deepResearchBlock?: string;
 }
 
 export interface AIProvider {
@@ -125,7 +158,8 @@ export interface AIProvider {
     isAuthenticated(): Promise<boolean>;
     chat(
         messages: ChatMessageData[],
-        context: MarketContext
+        context: MarketContext,
+        options: AIChatOptions
     ): AsyncGenerator<string>;
     getModelName(): string;
 }
@@ -176,7 +210,7 @@ export interface ApiResponse<T> {
 // ─── App Settings ───────────────────────────────────────
 
 export type MarketSource = "pricempire" | "csfloat" | "csgotrader" | "steam";
-export type AIProviderName = "gemini-flash" | "openai";
+export type AIProviderName = "gemini-flash" | "openai" | "anthropic" | "openrouter" | "9router";
 
 export type CSGOTraderSubProvider = "csgotrader" | "bitskins" | "steam" | "csmoney" | "csgotm" | "lootfarm" | "skinport" | "csgoempire" | "swapgg" | "buff163" | "cstrade" | "csfloat" | "youpin" | "lisskins";
 

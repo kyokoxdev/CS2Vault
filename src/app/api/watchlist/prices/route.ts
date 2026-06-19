@@ -9,13 +9,13 @@ import { writePriceSnapshotsForItems } from "@/lib/market/pricing";
 
 export async function POST(request: NextRequest) {
     try {
-        const { session: _s, error: authError } = await requireAuth();
+        const { error: authError } = await requireAuth();
         if (authError) return authError;
 
         const watchedItems = await prisma.item.findMany({
             where: {
-                isWatched: true,
                 isActive: true,
+                isWatched: true,
             },
             select: { id: true, marketHashName: true },
         });
