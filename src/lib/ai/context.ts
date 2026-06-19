@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { extractItemMention } from "@/lib/ai/item-mentions";
 import { resolveMarketSource } from "@/lib/market/source";
 import { fetchRssFeeds } from "@/lib/news/rss-feeds";
 import type { MarketContext } from "@/types";
@@ -6,6 +7,9 @@ import type { MarketContext } from "@/types";
 const MAX_WATCHLIST_ITEMS = 20;
 const MAX_SOLD_ITEMS = 10;
 const MAX_NEWS_HEADLINES = 5;
+const MAX_ACTIVE_ITEMS_FOR_MARKET_SCAN = 50;
+const TARGET_PRICE_HISTORY_DAYS = 90;
+const TARGET_CANDLE_HISTORY_DAYS = 30;
 
 function formatTimeSince(date: Date): string {
     const diffMs = Date.now() - date.getTime();
@@ -16,6 +20,74 @@ function formatTimeSince(date: Date): string {
     return `${Math.floor(diffHours / 24)}d ago`;
 }
 
+function formatDate(date: Date): string {
+    return date.toISOString().split("T")[0];
+}
+
+function formatPrice(price: number): string {
+    return `$${price.toFixed(2)}`;
+}
+
+function formatSignedPercent(value: number): string {
+    return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function buildResearchPacket(
+    context: MarketContext,
+    activeItemCount: number,
+    activeItemsScanned: number,
+    priceSource: string
+): NonNullable<MarketContext["researchPacket"]> {
+    const currentPricingSignals = [
+        ...context.topGainers.map(item => `Top gainer ${item.name}: ${formatPrice(item.price)} (${formatSignedPercent(item.changePercent)})`),
+        ...context.topLosers.map(item => `Top loser ${item.name}: ${formatPrice(item.price)} (${formatSignedPercent(item.changePercent)})`),
+        ...(context.watchlist ?? []).slice(0, 5).map(item => `Watchlist ${item.name}: ${formatPrice(item.currentPrice)} (${formatSignedPercent(item.changePercent)})`),
+    ];
+
+    const historicalSignals: string[] = [];
+    if (context.targetedItemData) {
+        const target = context.targetedItemData;
+        const firstDailyPoint = target.historyDaily[0];
+        const latestDailyPoint = target.historyDaily[target.historyDaily.length - 1];
+        if (firstDailyPoint && latestDailyPoint) {
+            const trend = firstDailyPoint.price > 0
+                ? ((latestDailyPoint.price - firstDailyPoint.price) / firstDailyPoint.price) * 100
+                : 0;
+            historicalSignals.push(`${target.name}: ${target.allHistoryPoints} total price snapshots available; ${target.historyWindowDays}-day prompt window trend ${formatSignedPercent(trend)} from ${formatPrice(firstDailyPoint.price)} to ${formatPrice(latestDailyPoint.price)}.`);
+        } else {
+            historicalSignals.push(`${target.name}: matched item with current price ${formatPrice(target.currentPrice)}, but no daily history points were available.`);
+        }
+
+        if (target.ohlcvDaily && target.ohlcvDaily.length > 0) {
+            const volumeTotal = target.ohlcvDaily.reduce((total, candle) => total + candle.volume, 0);
+            historicalSignals.push(`${target.name}: ${target.ohlcvDaily.length} OHLCV candles retrieved across ${target.ohlcvWindowDays ?? TARGET_CANDLE_HISTORY_DAYS} days with total recorded volume ${volumeTotal}.`);
+        }
+    }
+
+    const dataLimits = [
+        `Current-price market scan is capped at ${activeItemsScanned} of ${activeItemCount} active tracked items to keep the chat context bounded.`,
+    ];
+    if (!context.targetedItemData) {
+        dataLimits.push("No specific tracked item matched the latest user query, so item-level historical series were not retrieved for this turn.");
+    }
+
+    return {
+        generatedAt: new Date().toISOString(),
+        retrievalMode: "Researcher-first market data packet",
+        coverage: [
+            `${activeItemCount} active tracked items known to CS2Vault; ${activeItemsScanned} scanned for latest price movement signals.`,
+            `${context.watchlist?.length ?? 0} global watchlist items summarized.`,
+            `Price source resolved to ${priceSource}.`,
+            context.targetedItemData
+                ? `Matched targeted item ${context.targetedItemData.name} with ${context.targetedItemData.allHistoryPoints} total historical price snapshots.`
+                : "No targeted item match for this query.",
+        ],
+        currentPricingSignals,
+        historicalSignals,
+        dataLimits,
+    };
+}
+
 export async function buildMarketContext(userId?: string, query?: string): Promise<MarketContext> {
     const context: MarketContext = {
         topGainers: [],
@@ -24,10 +96,10 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
     };
 
     try {
-        const [items, settings, marketCapSnapshot, latestSync] = await Promise.all([
+        const [items, activeItemCount, settings, marketCapSnapshot, latestSync] = await Promise.all([
             prisma.item.findMany({
                 where: { isActive: true },
-                take: 50,
+                take: MAX_ACTIVE_ITEMS_FOR_MARKET_SCAN,
                 include: {
                     priceSnapshots: {
                         orderBy: { timestamp: "desc" },
@@ -35,6 +107,7 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
                     },
                 },
             }),
+            prisma.item.count({ where: { isActive: true } }),
             prisma.appSettings.findUnique({ where: { id: "singleton" } }),
             prisma.marketCapSnapshot.findFirst({ orderBy: { timestamp: "desc" } }),
             prisma.syncLog.findFirst({
@@ -55,11 +128,13 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
         context.topLosers = withChange.slice(-5).reverse();
 
         const activeSource = resolveMarketSource(settings?.activeMarketSource);
-        const watchlistCount = await prisma.item.count({ where: { isWatched: true, isActive: true } });
+        const watchlistCount = await prisma.item.count({
+            where: { isActive: true, isWatched: true },
+        });
 
         context.marketOverview = {
             totalMarketCap: marketCapSnapshot?.totalMarketCap ?? 0,
-            trackedItemCount: items.length,
+            trackedItemCount: activeItemCount,
             watchlistCount,
             priceSource: activeSource,
             lastSyncAge: latestSync ? formatTimeSince(latestSync.timestamp) : undefined,
@@ -180,7 +255,7 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
         }
 
         const watchlistItems = await prisma.item.findMany({
-            where: { isWatched: true, isActive: true },
+            where: { isActive: true, isWatched: true },
             take: MAX_WATCHLIST_ITEMS,
             include: {
                 priceSnapshots: {
@@ -192,7 +267,7 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
 
         if (watchlistItems.length > 0) {
             context.watchlist = watchlistItems
-                .map(item => {
+                .map((item) => {
                     const current = item.priceSnapshots[0]?.price || 0;
                     const prev = item.priceSnapshots[1]?.price || current;
                     const changePercent = prev > 0 ? ((current - prev) / prev) * 100 : 0;
@@ -210,17 +285,14 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
             const matchedItem = await findMatchingItem(query);
 
             if (matchedItem) {
-                const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-                const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+                const priceHistoryWindowStart = new Date(Date.now() - TARGET_PRICE_HISTORY_DAYS * 24 * 60 * 60 * 1000);
+                const candleHistoryWindowStart = new Date(Date.now() - TARGET_CANDLE_HISTORY_DAYS * 24 * 60 * 60 * 1000);
 
-                const [latestSnapshot, history, itemMeta, candles] = await Promise.all([
-                    prisma.priceSnapshot.findFirst({
-                        where: { itemId: matchedItem.id },
-                        orderBy: { timestamp: "desc" },
-                    }),
+                const [history, itemMeta, candles] = await Promise.all([
                     prisma.priceSnapshot.findMany({
-                        where: { itemId: matchedItem.id, timestamp: { gte: thirtyDaysAgo } },
+                        where: { itemId: matchedItem.id },
                         orderBy: { timestamp: "asc" },
+                        select: { price: true, timestamp: true },
                     }),
                     prisma.item.findUnique({
                         where: { id: matchedItem.id },
@@ -230,29 +302,38 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
                         where: {
                             itemId: matchedItem.id,
                             interval: "1d",
-                            timestamp: { gte: sevenDaysAgo },
+                            timestamp: { gte: candleHistoryWindowStart },
                         },
                         orderBy: { timestamp: "asc" },
                     }),
                 ]);
 
                 if (history.length > 0) {
+                    const latestSnapshot = history[history.length - 1];
+                    const historyInPromptWindow = history.filter(snapshot => snapshot.timestamp >= priceHistoryWindowStart);
+                    const promptHistory = historyInPromptWindow.length > 0
+                        ? historyInPromptWindow
+                        : history.slice(-TARGET_PRICE_HISTORY_DAYS);
                     const dailyPrices = new Map<string, number>();
-                    for (const h of history) {
-                        const date = h.timestamp.toISOString().split("T")[0];
+                    for (const h of promptHistory) {
+                        const date = formatDate(h.timestamp);
                         dailyPrices.set(date, h.price);
                     }
 
                     context.targetedItemData = {
                         name: matchedItem.name,
-                        currentPrice: history[history.length - 1].price,
+                        currentPrice: latestSnapshot.price,
                         rarity: itemMeta?.rarity ?? undefined,
                         exterior: itemMeta?.exterior ?? undefined,
                         category: itemMeta?.category ?? undefined,
-                        history30Days: Array.from(dailyPrices.entries()).map(([date, price]) => ({ date, price })),
-                        ohlcv7Days: candles.length > 0
+                        historyDaily: Array.from(dailyPrices.entries()).map(([date, price]) => ({ date, price })),
+                        historyWindowDays: TARGET_PRICE_HISTORY_DAYS,
+                        allHistoryPoints: history.length,
+                        oldestHistoryDate: formatDate(history[0].timestamp),
+                        latestHistoryDate: formatDate(latestSnapshot.timestamp),
+                        ohlcvDaily: candles.length > 0
                             ? candles.map(c => ({
-                                date: c.timestamp.toISOString().split("T")[0],
+                                date: formatDate(c.timestamp),
                                 open: c.open,
                                 high: c.high,
                                 low: c.low,
@@ -260,15 +341,7 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
                                 volume: c.volume,
                             }))
                             : undefined,
-                    };
-                } else if (latestSnapshot) {
-                    context.targetedItemData = {
-                        name: matchedItem.name,
-                        currentPrice: latestSnapshot.price,
-                        rarity: itemMeta?.rarity ?? undefined,
-                        exterior: itemMeta?.exterior ?? undefined,
-                        category: itemMeta?.category ?? undefined,
-                        history30Days: [],
+                        ohlcvWindowDays: candles.length > 0 ? TARGET_CANDLE_HISTORY_DAYS : undefined,
                     };
                 }
             }
@@ -287,6 +360,8 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
             // RSS feed failure is non-critical
         }
 
+        context.researchPacket = buildResearchPacket(context, activeItemCount, items.length, activeSource);
+
     } catch (e) {
         console.error("[buildMarketContext] Failed:", e);
         context.contextError = true;
@@ -295,38 +370,74 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
     return context;
 }
 
+interface MatchingItemCandidate {
+    id: string;
+    name: string;
+    marketHashName: string;
+}
+
+function matchesCandidateText(query: string, normalizedQuery: string, candidate: string): boolean {
+    const candidateLower = candidate.toLowerCase();
+    if (query.includes(candidateLower)) {
+        return true;
+    }
+
+    const baseName = candidateLower.split("(")[0].trim();
+    if (baseName.length > 4 && query.includes(baseName)) {
+        return true;
+    }
+
+    const noPipe = baseName.replace(/\|/g, "").replace(/\s+/g, " ").trim();
+    if (noPipe.length > 4 && query.includes(noPipe)) {
+        return true;
+    }
+
+    const compressedCandidate = baseName.replace(/[^a-z0-9]/giu, "");
+    if (compressedCandidate.length > 4 && normalizedQuery.includes(compressedCandidate)) {
+        return true;
+    }
+
+    if (normalizedQuery.length > 4 && compressedCandidate.length > 4) {
+        let matchCount = 0;
+        let searchIndex = 0;
+        for (const char of normalizedQuery) {
+            const foundIndex = compressedCandidate.indexOf(char, searchIndex);
+            if (foundIndex !== -1) {
+                matchCount++;
+                searchIndex = foundIndex + 1;
+            }
+        }
+
+        if (matchCount / normalizedQuery.length > 0.8) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 async function findMatchingItem(query: string): Promise<{ id: string; name: string } | undefined> {
     const lowerQuery = query.toLowerCase();
     const queryClean = lowerQuery.replace(/[^a-z0-9]/giu, "");
-    const activeItems = await prisma.item.findMany({ select: { id: true, name: true } });
-    activeItems.sort((a, b) => b.name.length - a.name.length);
-
-    return activeItems.find(item => {
-        const nameLower = item.name.toLowerCase();
-        if (lowerQuery.includes(nameLower)) return true;
-
-        const baseName = nameLower.split("(")[0].trim();
-        if (baseName.length > 4 && lowerQuery.includes(baseName)) return true;
-
-        const noPipe = baseName.replace(/\|/g, "").replace(/\s+/g, " ").trim();
-        if (noPipe.length > 4 && lowerQuery.includes(noPipe)) return true;
-
-        const compressedName = baseName.replace(/[^a-z0-9]/giu, "");
-        if (compressedName.length > 4 && queryClean.includes(compressedName)) return true;
-
-        if (queryClean.length > 4 && compressedName.length > 4) {
-            let matchCount = 0;
-            let searchIndex = 0;
-            for (const char of queryClean) {
-                const foundIdx = compressedName.indexOf(char, searchIndex);
-                if (foundIdx !== -1) {
-                    matchCount++;
-                    searchIndex = foundIdx + 1;
-                }
-            }
-            if (matchCount / queryClean.length > 0.8) return true;
-        }
-
-        return false;
+    const activeItems = await prisma.item.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, marketHashName: true },
     });
+
+    const exactMention = extractItemMention(query);
+    if (exactMention) {
+        const exactMatch = activeItems.find((item) => item.marketHashName === exactMention || item.id === exactMention || item.name === exactMention);
+        if (exactMatch) {
+            return { id: exactMatch.id, name: exactMatch.name };
+        }
+    }
+
+    activeItems.sort((a, b) => Math.max(b.name.length, b.marketHashName.length) - Math.max(a.name.length, a.marketHashName.length));
+
+    const fuzzyMatch = activeItems.find((item: MatchingItemCandidate) => {
+        return matchesCandidateText(lowerQuery, queryClean, item.marketHashName)
+            || matchesCandidateText(lowerQuery, queryClean, item.name);
+    });
+
+    return fuzzyMatch ? { id: fuzzyMatch.id, name: fuzzyMatch.name } : undefined;
 }

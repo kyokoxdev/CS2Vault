@@ -1,8 +1,31 @@
-import type { AIProvider, ChatMessageData, MarketContext } from '@/types';
+import type { AIChatOptions, AIProvider, ChatMessageData, MarketContext } from '@/types';
 import { prisma } from '@/lib/db';
 import { geminiFlashQueue } from '@/lib/api-queue';
 import { buildSystemPrompt } from '@/lib/ai/prompt';
 import { decryptApiKey } from '@/lib/auth/api-keys';
+
+type GeminiThinkingLevel = "minimal" | "low" | "medium" | "high";
+
+interface GeminiRequestBody {
+    contents: Array<{
+        role: string;
+        parts: Array<{ text?: string, inlineData?: { mimeType: string, data: string } }>;
+    }>;
+    systemInstruction: { parts: Array<{ text: string }> };
+    generationConfig?: {
+        thinkingConfig: {
+            thinkingLevel: GeminiThinkingLevel;
+        };
+    };
+}
+
+function getGeminiThinkingLevel(depth: AIChatOptions["reasoningDepth"]): GeminiThinkingLevel {
+    if (depth === "minimal" || depth === "low" || depth === "medium" || depth === "high") {
+        return depth;
+    }
+
+    return "high";
+}
 
 export class GeminiFlashProvider implements AIProvider {
     name = "gemini-flash";
@@ -17,7 +40,7 @@ export class GeminiFlashProvider implements AIProvider {
         return "gemini-3-flash-preview";
     }
 
-    async *chat(messages: ChatMessageData[], context: MarketContext): AsyncGenerator<string> {
+    async *chat(messages: ChatMessageData[], context: MarketContext, options: AIChatOptions): AsyncGenerator<string> {
         const settings = await prisma.appSettings.findUnique({ where: { id: 'singleton' } });
         const apiKey = decryptApiKey(settings?.geminiApiKey) || process.env.GEMINI_API_KEY;
 
@@ -49,9 +72,15 @@ export class GeminiFlashProvider implements AIProvider {
             contents.shift();
         }
 
-        const body = {
+        const body: GeminiRequestBody = {
             contents,
-            systemInstruction: { parts: [{ text: buildSystemPrompt(context) }] }
+            systemInstruction: { parts: [{ text: buildSystemPrompt(context, options) }] }
+        };
+
+        body.generationConfig = {
+            thinkingConfig: {
+                thinkingLevel: getGeminiThinkingLevel(options.reasoningDepth),
+            },
         };
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:streamGenerateContent?alt=sse`;

@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import type { AIProvider, ChatMessageData, MarketContext } from '@/types';
+import type { AIChatOptions, AIProvider, ChatMessageData, MarketContext } from '@/types';
 import { prisma } from '@/lib/db';
 import { buildSystemPrompt } from '@/lib/ai/prompt';
 import { decryptApiKey } from '@/lib/auth/api-keys';
@@ -14,10 +14,10 @@ export class OpenAIProvider implements AIProvider {
     }
 
     getModelName(): string {
-        return "gpt-3.5-turbo";
+        return process.env.OPENAI_MODEL || "gpt-4o-mini";
     }
 
-    async *chat(messages: ChatMessageData[], context: MarketContext): AsyncGenerator<string> {
+    async *chat(messages: ChatMessageData[], context: MarketContext, options: AIChatOptions): AsyncGenerator<string> {
         const settings = await prisma.appSettings.findUnique({ where: { id: 'singleton' } });
         const apiKey = decryptApiKey(settings?.openAiApiKey) || process.env.OPENAI_API_KEY;
 
@@ -33,7 +33,7 @@ export class OpenAIProvider implements AIProvider {
         const client = new OpenAI({ apiKey });
 
         const openAiMsgs: OpenAI.Chat.ChatCompletionMessageParam[] = [
-            { role: 'system', content: buildSystemPrompt(context) },
+            { role: 'system', content: buildSystemPrompt(context, options) },
             ...messages.filter(m => m.role !== 'system').map(m => ({
                 role: m.role,
                 content: m.content

@@ -1,4 +1,4 @@
-import styles from './Chat.module.css';
+import styles from "../Chat.module.css";
 import AIChat from "@/components/chat/AIChat";
 
 export const metadata = {
@@ -6,10 +6,15 @@ export const metadata = {
     description: "Forecast value, analyze volume, and optimize risk with Aegis.",
 };
 
-export default function ChatPage() {
+interface ChatSessionPageProps {
+    params: Promise<{ id: string }>;
+}
+
+export default async function ChatSessionPage({ params }: ChatSessionPageProps) {
+    const { id } = await params;
     return (
         <div className={styles.page} data-testid="route-chat">
-            <AIChat />
+            <AIChat initialSessionId={id} />
         </div>
     );
 }

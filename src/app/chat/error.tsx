@@ -62,7 +62,7 @@ export default function ChatError({
             lineHeight: 1.5,
           }}
         >
-          The AI chat encountered an error. This may be due to a streaming
+          The Aegis chat encountered an error. This may be due to a streaming
           connection issue or service disruption.
         </p>
         {error.digest && (

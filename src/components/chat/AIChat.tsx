@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { FaArrowRight, FaBars, FaChevronDown, FaComments, FaPlus, FaStop, FaTimes } from "react-icons/fa";
+import { FaArrowRight, FaBars, FaBriefcase, FaChevronDown, FaComments, FaPaperclip, FaPlus, FaSearch, FaStop, FaTimes, FaGlobe } from "react-icons/fa";
 import { SiAnthropic, SiGooglegemini, SiOpenai } from "react-icons/si";
 import styles from "./AIChat.module.css";
 import type { AIAgentMode, AIProviderName, AIReasoningDepth, ChatMessageData } from "@/types";
@@ -22,6 +23,17 @@ import {
     isAIReasoningDepth,
 } from "@/lib/ai/model-labels";
 import { AEGIS_ITEM_SELECTED_EVENT, type AegisSelectedItem, formatItemMention } from "@/lib/ai/item-mentions";
+import {
+    SLASH_COMMANDS,
+    type SlashCommandName,
+    parseSlashCommand,
+    isShowingCommandPalette,
+    getCommandPrefix,
+    getItemSearchQuery,
+    buildAnalyzePrompt,
+    buildComparePrompt,
+    buildPortfolioPrompt,
+} from "@/lib/ai/slash-commands";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_OPENROUTER_MODEL_ID_LENGTH = 160;
@@ -34,7 +46,9 @@ const MAX_CONTEXT_MESSAGES = 30;
 // The Gemini queue enforces a 2 s minimum delay, and actual API call time adds
 // several more seconds, so 1.5 s was far too short and caused premature
 // idle-completion that cut off the entire consultant response.
-const STREAM_IDLE_COMPLETION_TIMEOUT_MS = 30_000;
+const STREAM_IDLE_COMPLETION_TIMEOUT_MS = process.env.NODE_ENV === "test" ? 1_000 : 30_000;
+
+const ITEM_AUTOCOMPLETE_DEBOUNCE_MS = 280;
 
 const AEGIS_TIPS = [
     {
@@ -232,7 +246,47 @@ function getNextTipIndex(currentIndex: number): number {
     return (currentIndex + 1) % AEGIS_TIPS.length;
 }
 
-export default function AIChat() {
+// ─── Item autocomplete result shape (mirrors /api/search response) ────────────
+interface ItemSearchResult {
+    id: string | null;
+    hashName: string;
+    name: string;
+    imageUrl: string | null;
+    price: string | null;
+    listings: number;
+    category: string;
+    type: string | null;
+    rarity: string | null;
+    exterior: string | null;
+}
+
+// ─── Portfolio item shape (from /api/portfolio) ───────────────────────────────
+interface PortfolioItem {
+    id: string;
+    itemId: string;
+    name: string;
+    marketHashName: string;
+    imageUrl: string | null;
+    currentPrice: number | null;
+    category: string;
+    rarity: string | null;
+    exterior: string | null;
+}
+
+interface AttachedPortfolioItem {
+    id: string;
+    name: string;
+    imageUrl: string | null;
+    marketHashName: string;
+    currentPrice: number | null;
+}
+
+interface AIChatProps {
+    initialSessionId?: string;
+}
+
+export default function AIChat({ initialSessionId }: AIChatProps = {}) {
+    const router = useRouter();
     const [sessions, setSessions] = useState<ChatSessionData[]>([]);
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -245,21 +299,38 @@ export default function AIChat() {
     const [reasoningDepth, setReasoningDepth] = useState<AIReasoningDepth | undefined>(getDefaultReasoningDepthForModel("gemini-flash"));
     const [agentMode, setAgentMode] = useState<AIAgentMode>("consultant");
     const [historyExpanded, setHistoryExpanded] = useState(false);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
     const [attachedImage, setAttachedImage] = useState<string | null>(null);
+    const [attachedPortfolioItem, setAttachedPortfolioItem] = useState<AttachedPortfolioItem | null>(null);
+    const [deepResearchActive, setDeepResearchActive] = useState(false);
+    const [attachDropdownOpen, setAttachDropdownOpen] = useState(false);
+    // ── Portfolio picker ────────────────────────────────────────────────────────
+    const [portfolioPickerOpen, setPortfolioPickerOpen] = useState(false);
+    const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
+    const [portfolioItemsLoading, setPortfolioItemsLoading] = useState(false);
+    const [portfolioSearch, setPortfolioSearch] = useState("");
     const [historyLoading, setHistoryLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [activeTipIndex, setActiveTipIndex] = useState(0);
     const [queuedFollowUp, setQueuedFollowUpState] = useState<ChatDraft | null>(null);
+    // ── Autocomplete state ──────────────────────────────────────────────────────
+    const [acItems, setAcItems] = useState<ItemSearchResult[]>([]);
+    const [acItemsLoading, setAcItemsLoading] = useState(false);
+    const [acSelectedIndex, setAcSelectedIndex] = useState(-1);
+    const acDebounceRef = useRef<number | null>(null);
+    const attachDropdownRef = useRef<HTMLDivElement>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const streamAbortControllerRef = useRef<AbortController | null>(null);
     const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
-    const streamIdleTimeoutRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+    const streamIdleTimeoutRef = useRef<number | null>(null);
     const messagesRef = useRef<ChatMessage[]>([]);
     const activeSessionIdRef = useRef<string | null>(null);
     const queuedFollowUpRef = useRef<ChatDraft | null>(null);
+    const submitInFlightRef = useRef(false);
     const providerTouchedRef = useRef(false);
     const isMountedRef = useRef(true);
     const pendingSelectionRef = useRef<number | null>(null);
@@ -360,14 +431,24 @@ export default function AIChat() {
                 if (data.success && data.data && data.data.length > 0) {
                     setSessions(data.data);
                 }
-                setActiveSessionId(null);
-                setMessages([createChatMessage(WELCOME_MESSAGE)]);
+                if (initialSessionId) {
+                    setActiveSessionId(initialSessionId);
+                    void loadHistory(initialSessionId);
+                } else {
+                    setActiveSessionId(null);
+                    setMessages([createChatMessage(WELCOME_MESSAGE)]);
+                }
             })
             .catch(() => {
-                setMessages([createChatMessage(WELCOME_MESSAGE)]);
+                if (initialSessionId) {
+                    setActiveSessionId(initialSessionId);
+                    void loadHistory(initialSessionId);
+                } else {
+                    setMessages([createChatMessage(WELCOME_MESSAGE)]);
+                }
             })
             .finally(() => setSessionsLoading(false));
-    }, []);
+    }, [initialSessionId, loadHistory]);
 
     useEffect(() => {
         let ignored = false;
@@ -393,7 +474,34 @@ export default function AIChat() {
             ignored = true;
         };
     }, []);
+    useEffect(() => {
+        if (initialSessionId !== undefined && initialSessionId !== activeSessionId) {
+            setActiveSessionId(initialSessionId);
+            if (initialSessionId) {
+                void loadHistory(initialSessionId);
+            } else {
+                setMessages([createChatMessage(WELCOME_MESSAGE)]);
+            }
+        }
+    }, [initialSessionId, loadHistory]);
 
+    useEffect(() => {
+        const handlePopState = () => {
+            const path = window.location.pathname;
+            const match = path.match(/^\/chat\/([^\/]+)$/);
+            if (match) {
+                const sessionId = match[1];
+                setActiveSessionId(sessionId);
+                void loadHistory(sessionId);
+            } else if (path === "/chat") {
+                setActiveSessionId(null);
+                setMessages([createChatMessage(WELCOME_MESSAGE)]);
+            }
+        };
+
+        window.addEventListener("popstate", handlePopState);
+        return () => window.removeEventListener("popstate", handlePopState);
+    }, [loadHistory]);
     useEffect(() => {
         return () => {
             isMountedRef.current = false;
@@ -402,6 +510,7 @@ export default function AIChat() {
             const activeController = streamAbortControllerRef.current;
             streamReaderRef.current = null;
             streamAbortControllerRef.current = null;
+            submitInFlightRef.current = false;
             activeController?.abort();
             void activeReader?.cancel().catch(() => undefined);
         };
@@ -469,23 +578,51 @@ export default function AIChat() {
         setActiveSessionId(sessionId);
         setInput("");
         setAttachedImage(null);
+        setAttachedPortfolioItem(null);
+        setDeepResearchActive(false);
         setError(null);
+        window.history.pushState(null, "", `/chat/${sessionId}`);
         await loadHistory(sessionId);
     };
 
-    const handleNewChat = async () => {
+    const handleNewChat = () => {
         if (isLoading) return;
-        const newSession = await createChatSession();
-        if (newSession) {
-            setSessions(prev => [newSession, ...prev]);
-            setActiveSessionId(newSession.id);
-            setMessages([createChatMessage(WELCOME_MESSAGE)]);
-            setInput("");
-            setAttachedImage(null);
-            setError(null);
-            rotateActiveTip();
-        }
+        setActiveSessionId(null);
+        setMessages([createChatMessage(WELCOME_MESSAGE)]);
+        setInput("");
+        setAttachedImage(null);
+        setAttachedPortfolioItem(null);
+        setDeepResearchActive(false);
+        setError(null);
+        rotateActiveTip();
+        window.history.pushState(null, "", "/chat");
     };
+
+    // ── Portfolio picker fetch ───────────────────────────────────────────────────
+    const fetchPortfolioItems = useCallback(async () => {
+        if (portfolioItemsLoading) return;
+        setPortfolioItemsLoading(true);
+        try {
+            const res = await fetch("/api/portfolio");
+            const data = await res.json();
+            if (data.success && Array.isArray(data.data?.items)) {
+                setPortfolioItems(data.data.items as PortfolioItem[]);
+            } else {
+                setPortfolioItems([]);
+            }
+        } catch {
+            setPortfolioItems([]);
+        } finally {
+            setPortfolioItemsLoading(false);
+        }
+    }, [portfolioItemsLoading]);
+
+    const openPortfolioPicker = useCallback(() => {
+        setAttachDropdownOpen(false);
+        setPortfolioSearch("");
+        setPortfolioPickerOpen(true);
+        void fetchPortfolioItems();
+    }, [fetchPortfolioItems]);
 
     const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
         e.stopPropagation();
@@ -499,7 +636,7 @@ export default function AIChat() {
             const remaining = sessions.filter(s => s.id !== sessionId);
 
             if (remaining.length === 0) {
-                await handleNewChat();
+                handleNewChat();
                 return;
             }
 
@@ -508,6 +645,7 @@ export default function AIChat() {
             if (activeSessionId === sessionId) {
                 const nextSession = remaining[0];
                 setActiveSessionId(nextSession.id);
+                window.history.replaceState(null, "", `/chat/${nextSession.id}`);
                 await loadHistory(nextSession.id);
             }
         } catch {
@@ -522,13 +660,16 @@ export default function AIChat() {
         clearStreamIdleTimeout();
         streamReaderRef.current = null;
         streamAbortControllerRef.current = null;
+        submitInFlightRef.current = false;
         activeController?.abort();
         void activeReader?.cancel().catch(() => undefined);
         setIsLoading(false);
     };
 
-    const submitDraft = async (draft: ChatDraft) => {
-        if (!draft.content && !draft.imageBase64) return;
+    const submitDraft = async (draft: ChatDraft, portfolioItemOverride?: AttachedPortfolioItem | null) => {
+        const portfolioItemContext = portfolioItemOverride !== undefined ? portfolioItemOverride : attachedPortfolioItem;
+        if (!draft.content && !draft.imageBase64 && !portfolioItemContext) return;
+        submitInFlightRef.current = true;
 
         const previousReader = streamReaderRef.current;
         clearStreamIdleTimeout();
@@ -540,10 +681,23 @@ export default function AIChat() {
         streamAbortControllerRef.current = controller;
 
         const previousConversationMessages = messagesRef.current.filter(message => !isWelcomeMessage(message));
-        const userMessagePayload: ChatMessageData = { role: "user" as const, content: draft.content || "[Attached Image]" };
+
+        // Build content, appending portfolio item context if present
+        const baseContent = draft.content || (draft.imageBase64 ? "[Attached Image]" : "");
+        const itemContextSuffix = portfolioItemContext
+            ? `\n\n[Attached portfolio item: ${portfolioItemContext.name} (${portfolioItemContext.marketHashName})${portfolioItemContext.currentPrice !== null ? ` — Current price: $${portfolioItemContext.currentPrice.toFixed(2)}` : ""}]`
+            : "";
+
+        const userMessagePayload: ChatMessageData = {
+            role: "user" as const,
+            content: baseContent + itemContextSuffix,
+        };
         if (draft.imageBase64) {
             userMessagePayload.imageBase64 = draft.imageBase64;
         }
+        setAttachedPortfolioItem(null);
+        const deepResearch = deepResearchActive;
+        setDeepResearchActive(false);
 
         const userMsg = createChatMessage(userMessagePayload);
         const assistantStartedAt = performance.now();
@@ -581,6 +735,7 @@ export default function AIChat() {
                     setSessions(prev => [newSession, ...prev]);
                     setActiveSessionId(newSession.id);
                     rotateActiveTip();
+                    window.history.replaceState(null, "", `/chat/${newSession.id}`);
                 }
             }
         }
@@ -606,6 +761,7 @@ export default function AIChat() {
                     ...(provider === "openrouter" && selectedOpenRouterModelId ? { openRouterModelId: selectedOpenRouterModelId } : {}),
                     agentMode,
                     ...(sessionIdForRequest ? { sessionId: sessionIdForRequest } : {}),
+                    ...(deepResearch ? { deepResearch: true } : {}),
                 }),
                 signal: controller.signal,
             });
@@ -759,6 +915,7 @@ export default function AIChat() {
             }
             if (isMountedRef.current) {
                 setQueuedFollowUp(null);
+                submitInFlightRef.current = false;
                 setIsLoading(false);
             }
         } finally {
@@ -779,13 +936,17 @@ export default function AIChat() {
                             // Safety net: submitDraft has its own try/catch/finally and
                             // should never reject, but if it does, release the lock so
                             // the UI is not permanently stuck in isLoading=true.
-                            if (isMountedRef.current) setIsLoading(false);
+                            if (isMountedRef.current) {
+                                submitInFlightRef.current = false;
+                                setIsLoading(false);
+                            }
                         });
                     } else {
                         // Aborted or no follow-up: release lock AND clear any stale
                         // queued-follow-up banner so the UI does not show an orphaned
                         // "Queued follow-up" notice after Stop is clicked.
                         setQueuedFollowUp(null);
+                        submitInFlightRef.current = false;
                         setIsLoading(false);
                     }
                 }
@@ -796,17 +957,58 @@ export default function AIChat() {
     const handleSubmit = async (e?: React.FormEvent) => {
         e?.preventDefault();
 
+        const rawInput = input.trim();
+        setAcItems([]);
+        setAcSelectedIndex(-1);
+
+        // ── Slash-command interception ─────────────────────────────────────────
+        const parsed = parseSlashCommand(rawInput);
+        if (parsed) {
+            if (parsed.command === "/watch") {
+                await handleWatchCommand(parsed.args);
+                return;
+            }
+            if (parsed.command === "/analyze" && parsed.args) {
+                const prompt = buildAnalyzePrompt(parsed.args);
+                // Switch to researcher for deep analysis
+                if (agentMode !== "researcher") setAgentMode("researcher");
+                await submitDraft({ content: prompt, imageBase64: attachedImage });
+                setInput("");
+                setAttachedImage(null);
+                return;
+            }
+            if (parsed.command === "/compare" && parsed.args) {
+                const prompt = buildComparePrompt(parsed.args);
+                await submitDraft({ content: prompt, imageBase64: attachedImage });
+                setInput("");
+                setAttachedImage(null);
+                return;
+            }
+            if (parsed.command === "/portfolio") {
+                const prompt = buildPortfolioPrompt();
+                await submitDraft({ content: prompt, imageBase64: attachedImage });
+                setInput("");
+                setAttachedImage(null);
+                return;
+            }
+        }
+        // ── Normal flow ───────────────────────────────────────────────────────
         const draft: ChatDraft = {
-            content: input.trim(),
+            content: rawInput,
             imageBase64: attachedImage,
         };
 
-        if (!draft.content && !draft.imageBase64) return;
+        if (!draft.content && !draft.imageBase64 && !attachedPortfolioItem) return;
+
+        if (submitInFlightRef.current && !isLoading) {
+            return;
+        }
 
         if (isLoading) {
             setQueuedFollowUp(draft);
             setInput("");
             setAttachedImage(null);
+            setAttachedPortfolioItem(null);
             setError(null);
             return;
         }
@@ -845,6 +1047,34 @@ export default function AIChat() {
         }
     };
 
+    // ── Item autocomplete fetcher ────────────────────────────────────────────────
+    const fetchItemSuggestions = useCallback((q: string) => {
+        if (acDebounceRef.current !== null) {
+            window.clearTimeout(acDebounceRef.current);
+        }
+        if (!q || q.length < 2) {
+            setAcItems([]);
+            setAcItemsLoading(false);
+            return;
+        }
+        setAcItemsLoading(true);
+        acDebounceRef.current = window.setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                if (data.success && Array.isArray(data.data?.results)) {
+                    setAcItems(data.data.results as ItemSearchResult[]);
+                } else {
+                    setAcItems([]);
+                }
+            } catch {
+                setAcItems([]);
+            } finally {
+                setAcItemsLoading(false);
+            }
+        }, ITEM_AUTOCOMPLETE_DEBOUNCE_MS);
+    }, []);
+
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
         if (value.length > MAX_MESSAGE_LENGTH) {
@@ -853,9 +1083,119 @@ export default function AIChat() {
         }
         setError(null);
         setInput(value);
+        setAcSelectedIndex(-1);
+        // Trigger item autocomplete when relevant
+        const itemQuery = getItemSearchQuery(value);
+        if (itemQuery) {
+            fetchItemSuggestions(itemQuery);
+        } else {
+            setAcItems([]);
+            setAcItemsLoading(false);
+        }
     };
 
+    // Derived autocomplete visibility
+    const showCommandPalette = isShowingCommandPalette(input);
+    const parsedCmd = parseSlashCommand(input);
+    const showItemAutocomplete = !showCommandPalette && parsedCmd !== null &&
+        ["analyze", "compare", "watch"].some((c) => parsedCmd.command === `/${c}`) &&
+        (acItems.length > 0 || acItemsLoading);
+    const commandPrefix = getCommandPrefix(input).toLowerCase();
+    const filteredCommands = SLASH_COMMANDS.filter(
+        (cmd) => commandPrefix === "/" || cmd.name.startsWith(commandPrefix)
+    );
+
+    // ── /watch client-side handler ───────────────────────────────────────────────
+    const handleWatchCommand = useCallback(async (args: string): Promise<void> => {
+        const hashName = args.replace(/@item\[([^\]]+)\]/g, "$1").trim();
+        if (!hashName) {
+            setError("Please specify an item name after /watch.");
+            return;
+        }
+        const userMsg = createChatMessage({ role: "user", content: `/watch ${args}` });
+        const assistantMsg = createChatMessage({ role: "assistant", content: "" });
+        setMessages((prev) => {
+            const next = [...prev, userMsg, assistantMsg];
+            messagesRef.current = next;
+            return next;
+        });
+        setInput("");
+        setIsLoading(true);
+        try {
+            const res = await fetch("/api/watchlist/add", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ hashName }),
+            });
+            const data = await res.json();
+            const reply = data.message ?? (data.success ? `✅ **${hashName}** added to Watchlist.` : `❌ Could not add **${hashName}** to Watchlist.`);
+            setMessages((prev) => {
+                const next = prev.map((m) =>
+                    m.id === assistantMsg.id ? { ...m, content: reply, agentMode: "consultant" as AIAgentMode, provider, reasoningDurationMs: 0 } : m
+                );
+                messagesRef.current = next;
+                return next;
+            });
+        } catch {
+            setMessages((prev) => {
+                const next = prev.map((m) =>
+                    m.id === assistantMsg.id ? { ...m, content: "❌ Network error — could not reach Watchlist API.", agentMode: "consultant" as AIAgentMode, provider, reasoningDurationMs: 0 } : m
+                );
+                messagesRef.current = next;
+                return next;
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [provider]);
+
     const handleComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        // Arrow navigation in autocomplete popovers
+        if (showCommandPalette || showItemAutocomplete) {
+            const listLength = showCommandPalette ? filteredCommands.length : acItems.length;
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setAcSelectedIndex((idx) => Math.min(idx + 1, listLength - 1));
+                return;
+            }
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setAcSelectedIndex((idx) => Math.max(idx - 1, 0));
+                return;
+            }
+            if (e.key === "Escape") {
+                e.preventDefault();
+                setInput("");
+                setAcItems([]);
+                setAcSelectedIndex(-1);
+                return;
+            }
+            if (e.key === "Tab" || e.key === "Enter") {
+                if (showCommandPalette) {
+                    const idx = acSelectedIndex >= 0 ? acSelectedIndex : 0;
+                    const cmd = filteredCommands[idx];
+                    if (cmd) {
+                        e.preventDefault();
+                        setInput(cmd.name + " ");
+                        setAcSelectedIndex(-1);
+                        setAcItems([]);
+                        requestAnimationFrame(() => inputRef.current?.focus());
+                        return;
+                    }
+                }
+                if (showItemAutocomplete) {
+                    const idx = acSelectedIndex >= 0 ? acSelectedIndex : 0;
+                    const item = acItems[idx];
+                    if (item && e.key === "Tab") {
+                        e.preventDefault();
+                        insertSelectedItemMention({ hashName: item.hashName, id: item.id, name: item.name, imageUrl: item.imageUrl, category: item.category, rarity: item.rarity, exterior: item.exterior, type: item.type });
+                        setAcItems([]);
+                        setAcSelectedIndex(-1);
+                        return;
+                    }
+                }
+            }
+        }
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             void handleSubmit();
@@ -885,6 +1225,9 @@ export default function AIChat() {
     const visibleMessages = messages.filter(message => !isWelcomeMessage(message));
     const hasStartedConversation = visibleMessages.length > 0;
     const activeSession = sessions.find(session => session.id === activeSessionId);
+    const filteredSessions = searchQuery.trim()
+        ? sessions.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()))
+        : sessions;
     const activeReasoningOptions = getReasoningDepthOptionsForModel(provider);
     const activeTip = AEGIS_TIPS[activeTipIndex];
 
@@ -930,12 +1273,86 @@ export default function AIChat() {
         className: getReasoningClassName(),
     }));
 
+    // ── Command colour helper ────────────────────────────────────────────────────
+    const commandChipClass = (cmd: SlashCommandName): string => {
+        const map: Record<SlashCommandName, string> = {
+            "/analyze": styles.commandChipAnalyze,
+            "/compare": styles.commandChipCompare,
+            "/watch": styles.commandChipWatch,
+            "/portfolio": styles.commandChipPortfolio,
+        };
+        return map[cmd] ?? "";
+    };
+
+    const commandNameClass = (cmd: string): string => {
+        const map: Record<string, string> = {
+            "/analyze": styles.commandNameAnalyze,
+            "/compare": styles.commandNameCompare,
+            "/watch": styles.commandNameWatch,
+            "/portfolio": styles.commandNamePortfolio,
+        };
+        return map[cmd] ?? "";
+    };
+
+    const filteredPortfolioItems = portfolioSearch.trim()
+        ? portfolioItems.filter(item =>
+            item.name.toLowerCase().includes(portfolioSearch.toLowerCase()) ||
+            item.marketHashName.toLowerCase().includes(portfolioSearch.toLowerCase())
+        )
+        : portfolioItems;
+
     const renderComposer = (centered: boolean) => (
         <form className={`${styles.inputArea} ${centered ? styles.inputAreaCentered : ""}`} onSubmit={handleSubmit}>
-            {attachedImage && (
-                <div className={styles.imagePreviewContainer}>
-                    <img src={attachedImage} alt="Attached" className={styles.imagePreview} />
-                    <button type="button" className={styles.clearImageBtn} onClick={() => setAttachedImage(null)} aria-label="Remove image"><FaTimes /></button>
+            {(attachedImage || attachedPortfolioItem || deepResearchActive) && (
+                <div className={styles.attachmentsRow}>
+                    {attachedImage && (
+                        <div className={styles.imagePreviewContainer}>
+                            <img src={attachedImage} alt="Attached" className={styles.imagePreview} />
+                            <button type="button" className={styles.clearImageBtn} onClick={() => setAttachedImage(null)} aria-label="Remove image"><FaTimes /></button>
+                        </div>
+                    )}
+                    {attachedPortfolioItem && (
+                        <div className={styles.portfolioAttachBlock}>
+                            {attachedPortfolioItem.imageUrl ? (
+                                <img src={attachedPortfolioItem.imageUrl} alt={attachedPortfolioItem.name} className={styles.portfolioAttachImg} />
+                            ) : (
+                                <span className={styles.portfolioAttachImgPlaceholder} aria-hidden="true">🔫</span>
+                            )}
+                            <div className={styles.portfolioAttachMeta}>
+                                <span className={styles.portfolioAttachName}>{attachedPortfolioItem.name}</span>
+                                {attachedPortfolioItem.currentPrice !== null && (
+                                    <span className={styles.portfolioAttachPrice}>${attachedPortfolioItem.currentPrice.toFixed(2)}</span>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                className={styles.clearImageBtn}
+                                onClick={() => setAttachedPortfolioItem(null)}
+                                aria-label="Remove portfolio item attachment"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
+                    )}
+                    {deepResearchActive && (
+                        <div className={styles.researchAttachBlock}>
+                            <div className={styles.researchAttachIcon}>
+                                <FaGlobe />
+                            </div>
+                            <div className={styles.portfolioAttachMeta}>
+                                <span className={styles.portfolioAttachName}>Deep Research Mode</span>
+                                <span className={styles.portfolioAttachPrice}>Web search enabled</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={styles.clearImageBtn}
+                                onClick={() => setDeepResearchActive(false)}
+                                aria-label="Disable Deep Research Mode"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
             {error && (
@@ -948,12 +1365,107 @@ export default function AIChat() {
                     Queued follow-up: {queuedFollowUp.content || "Attached image"}
                 </div>
             )}
+            <div className={styles.autocompleteWrap}>
+                {/* Command palette */}
+                {showCommandPalette && filteredCommands.length > 0 && (
+                    <div className={styles.commandPalette} role="listbox" aria-label="Aegis commands">
+                        <div className={styles.commandPaletteHeader}>Aegis Commands</div>
+                        <div className={styles.commandPaletteList}>
+                            {filteredCommands.map((cmd, idx) => (
+                                <button
+                                    key={cmd.name}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={idx === acSelectedIndex}
+                                    className={`${styles.commandOption} ${idx === acSelectedIndex ? styles.commandOptionActive : ""}`}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                        setInput(cmd.name + " ");
+                                        setAcSelectedIndex(-1);
+                                        requestAnimationFrame(() => inputRef.current?.focus());
+                                    }}
+                                >
+                                    <span className={`${styles.commandName} ${commandNameClass(cmd.name)}`}>{cmd.name}</span>
+                                    <span className={styles.commandDesc}>{cmd.description}</span>
+                                    {cmd.expectsItem && (
+                                        <span className={styles.commandShortcut}>item</span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {/* Item autocomplete */}
+                {showItemAutocomplete && (
+                    <div className={styles.itemAutocomplete} role="listbox" aria-label="CS2 item suggestions">
+                        <div className={styles.commandPaletteHeader}>CS2 Items</div>
+                        <div className={styles.itemAutocompleteList}>
+                            {acItemsLoading && acItems.length === 0 && (
+                                <div className={styles.itemLoadingRow}>
+                                    <div className={styles.dot} />
+                                    <div className={styles.dot} />
+                                    <div className={styles.dot} />
+                                    Searching Steam Market…
+                                </div>
+                            )}
+                            {!acItemsLoading && acItems.length === 0 && (
+                                <div className={styles.itemEmptyRow}>No items found</div>
+                            )}
+                            {acItems.map((item, idx) => (
+                                <button
+                                    key={item.hashName}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={idx === acSelectedIndex}
+                                    className={`${styles.itemRow} ${idx === acSelectedIndex ? styles.itemRowActive : ""}`}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                        insertSelectedItemMention({ hashName: item.hashName, id: item.id, name: item.name, imageUrl: item.imageUrl, category: item.category, rarity: item.rarity, exterior: item.exterior, type: item.type });
+                                        setAcItems([]);
+                                        setAcSelectedIndex(-1);
+                                        requestAnimationFrame(() => inputRef.current?.focus());
+                                    }}
+                                >
+                                    {item.imageUrl ? (
+                                        <img src={item.imageUrl} alt={item.name} className={styles.itemThumb} loading="lazy" />
+                                    ) : (
+                                        <span className={styles.itemThumbPlaceholder} aria-hidden="true">🔫</span>
+                                    )}
+                                    <span className={styles.itemMeta}>
+                                        <span className={styles.itemRowName}>{item.name}</span>
+                                        <span className={styles.itemRowSub}>
+                                            {item.exterior && <span>{item.exterior}</span>}
+                                            {item.rarity && <span>{item.rarity}</span>}
+                                        </span>
+                                    </span>
+                                    {item.price && (
+                                        <span className={styles.itemRowPrice}>{item.price}</span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             <div className={styles.composerShell}>
+                {parsedCmd && !showCommandPalette && (
+                    <div style={{ display: "flex", alignItems: "center", paddingTop: 4 }}>
+                        <span className={`${styles.commandChip} ${commandChipClass(parsedCmd.command)}`}>
+                            {parsedCmd.command}
+                            <button
+                                type="button"
+                                className={styles.commandChipClose}
+                                aria-label={`Clear ${parsedCmd.command} command`}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => { setInput(""); setAcItems([]); requestAnimationFrame(() => inputRef.current?.focus()); }}
+                            ><FaTimes /></button>
+                        </span>
+                    </div>
+                )}
                 <textarea
                     ref={inputRef}
                     data-aegis-command-target="true"
                     className={styles.input}
-                    placeholder="Message Aegis..."
+                    placeholder={parsedCmd ? (parsedCmd.command === "/portfolio" ? "Press Enter to review your portfolio…" : "Type item name or @item[…] to select") : "Message Aegis… or type / for commands"}
                     value={input}
                     onChange={handleInputChange}
                     onPaste={handlePaste}
@@ -962,16 +1474,67 @@ export default function AIChat() {
                     aria-label="Chat message input"
                 />
                 <div className={styles.composerToolbar}>
-                    <div className={styles.toolbarAttach}>
+                    <div
+                        className={styles.toolbarAttach}
+                        ref={attachDropdownRef}
+                        onBlur={(e) => {
+                            if (!attachDropdownRef.current?.contains(e.relatedTarget as Node)) {
+                                setAttachDropdownOpen(false);
+                            }
+                        }}
+                    >
                         <button
                             type="button"
-                            className={styles.attachBtn}
-                            onClick={() => fileInputRef.current?.click()}
-                            title="Upload image (or Ctrl+V)"
-                            aria-label="Attach image"
+                            className={`${styles.attachBtn} ${attachDropdownOpen ? styles.attachBtnActive : ""}`}
+                            onClick={() => setAttachDropdownOpen(prev => !prev)}
+                            title="Attach"
+                            aria-label="Attach"
+                            aria-haspopup="true"
+                            aria-expanded={attachDropdownOpen}
                         >
                             <FaPlus />
                         </button>
+                        {attachDropdownOpen && (
+                            <div className={styles.attachDropdown} role="menu">
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    className={styles.attachDropdownItem}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                        setAttachDropdownOpen(false);
+                                        fileInputRef.current?.click();
+                                    }}
+                                >
+                                    <FaPaperclip className={styles.attachDropdownIcon} aria-hidden="true" />
+                                    <span>Upload file</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    className={styles.attachDropdownItem}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={openPortfolioPicker}
+                                >
+                                    <FaBriefcase className={styles.attachDropdownIcon} aria-hidden="true" />
+                                    <span>Portfolio item</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="menuitemcheckbox"
+                                    aria-checked={deepResearchActive}
+                                    className={`${styles.attachDropdownItem} ${deepResearchActive ? styles.attachDropdownItemActive : ""}`}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                        setDeepResearchActive(prev => !prev);
+                                        setAttachDropdownOpen(false);
+                                    }}
+                                >
+                                    <FaGlobe className={styles.attachDropdownIcon} aria-hidden="true" />
+                                    <span>Deep Research</span>
+                                </button>
+                            </div>
+                        )}
                         <input
                             type="file"
                             ref={fileInputRef}
@@ -1064,6 +1627,95 @@ export default function AIChat() {
                     </div>
                 </div>
             </div>
+            </div>
+            {/* Portfolio picker modal */}
+            {portfolioPickerOpen && (
+                <div className={styles.portfolioPickerOverlay} role="dialog" aria-modal="true" aria-label="Pick portfolio item">
+                    <div className={styles.portfolioPickerPanel}>
+                        <div className={styles.portfolioPickerHeader}>
+                            <span className={styles.portfolioPickerTitle}>Portfolio Items</span>
+                            <button
+                                type="button"
+                                className={styles.portfolioPickerClose}
+                                onClick={() => setPortfolioPickerOpen(false)}
+                                aria-label="Close portfolio picker"
+                            >
+                                <FaTimes />
+                            </button>
+                        </div>
+                        <div className={styles.portfolioPickerSearch}>
+                            <FaSearch className={styles.portfolioPickerSearchIcon} aria-hidden="true" />
+                            <input
+                                type="text"
+                                className={styles.portfolioPickerSearchInput}
+                                placeholder="Search items…"
+                                value={portfolioSearch}
+                                onChange={e => setPortfolioSearch(e.target.value)}
+                                aria-label="Search portfolio items"
+                                autoFocus
+                            />
+                            {portfolioSearch && (
+                                <button
+                                    type="button"
+                                    className={styles.searchClear}
+                                    onClick={() => setPortfolioSearch("")}
+                                    aria-label="Clear search"
+                                >
+                                    <FaTimes />
+                                </button>
+                            )}
+                        </div>
+                        <div className={styles.portfolioPickerList}>
+                            {portfolioItemsLoading && (
+                                <div className={styles.portfolioPickerLoading}>
+                                    <div className={styles.dot} />
+                                    <div className={styles.dot} />
+                                    <div className={styles.dot} />
+                                    <span>Loading…</span>
+                                </div>
+                            )}
+                            {!portfolioItemsLoading && filteredPortfolioItems.length === 0 && (
+                                <div className={styles.portfolioPickerEmpty}>
+                                    {portfolioItems.length === 0 ? "No portfolio items found." : "No items match your search."}
+                                </div>
+                            )}
+                            {!portfolioItemsLoading && filteredPortfolioItems.map(item => (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    className={styles.portfolioPickerItem}
+                                    onClick={() => {
+                                        setAttachedPortfolioItem({
+                                            id: item.id,
+                                            name: item.name,
+                                            imageUrl: item.imageUrl,
+                                            marketHashName: item.marketHashName,
+                                            currentPrice: item.currentPrice,
+                                        });
+                                        setPortfolioPickerOpen(false);
+                                    }}
+                                >
+                                    {item.imageUrl ? (
+                                        <img src={item.imageUrl} alt={item.name} className={styles.portfolioPickerItemThumb} loading="lazy" />
+                                    ) : (
+                                        <span className={styles.portfolioPickerItemThumbPlaceholder} aria-hidden="true">🔫</span>
+                                    )}
+                                    <span className={styles.portfolioPickerItemMeta}>
+                                        <span className={styles.portfolioPickerItemName}>{item.name}</span>
+                                        <span className={styles.portfolioPickerItemSub}>
+                                            {item.exterior && <span>{item.exterior}</span>}
+                                            {item.rarity && <span>{item.rarity}</span>}
+                                        </span>
+                                    </span>
+                                    {item.currentPrice !== null && (
+                                        <span className={styles.portfolioPickerItemPrice}>${item.currentPrice.toFixed(2)}</span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </form>
     );
 
@@ -1074,14 +1726,60 @@ export default function AIChat() {
                     <button
                         type="button"
                         className={styles.historyToggle}
-                        onClick={() => setHistoryExpanded(prev => !prev)}
+                        onClick={() => {
+                            const next = !historyExpanded;
+                            setHistoryExpanded(next);
+                            if (!next) {
+                                setSearchOpen(false);
+                                setSearchQuery("");
+                            }
+                        }}
                         aria-expanded={historyExpanded}
                         aria-label={historyExpanded ? "Collapse chat history" : "Expand chat history"}
                     >
                         <FaBars />
                     </button>
                     {historyExpanded && <span className={styles.historyTitle}>History</span>}
+                    {historyExpanded && (
+                        <button
+                            type="button"
+                            className={`${styles.historyToggle} ${searchOpen ? styles.historyToggleActive : ""}`}
+                            onClick={() => {
+                                setSearchOpen(prev => !prev);
+                                setSearchQuery("");
+                            }}
+                            aria-label={searchOpen ? "Close search" : "Search chats"}
+                            title="Search chats"
+                        >
+                            {searchOpen ? <FaTimes /> : <FaSearch />}
+                        </button>
+                    )}
                 </div>
+                {historyExpanded && searchOpen && (
+                    <div className={styles.searchInputWrap}>
+                        <FaSearch className={styles.searchIcon} aria-hidden="true" />
+                        <input
+                            id="aegis-chat-search"
+                            type="text"
+                            className={styles.searchInput}
+                            placeholder="Search chats…"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            aria-label="Search chat sessions"
+                            autoFocus
+                        />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                className={styles.searchClear}
+                                onClick={() => setSearchQuery("")}
+                                aria-label="Clear search"
+                            >
+                                <FaTimes />
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 <button
                     type="button"
@@ -1102,7 +1800,7 @@ export default function AIChat() {
                             {historyExpanded && <span>Loading...</span>}
                         </div>
                     )}
-                    {!sessionsLoading && sessions.map((session) => (
+                    {!sessionsLoading && filteredSessions.map((session) => (
                         <div
                             key={session.id}
                             className={`${styles.sessionRow} ${session.id === activeSessionId ? styles.sessionActive : ""}`}
@@ -1116,7 +1814,7 @@ export default function AIChat() {
                                 aria-current={session.id === activeSessionId ? "page" : undefined}
                                 title={session.title}
                             >
-                                <FaComments className={styles.sessionIcon} />
+                                {historyExpanded && <FaComments className={styles.sessionIcon} />}
                                 {historyExpanded && (
                                     <span className={styles.sessionCopy}>
                                         <span className={styles.sessionTitle}>{session.title}</span>
@@ -1136,6 +1834,9 @@ export default function AIChat() {
                             )}
                         </div>
                     ))}
+                    {!sessionsLoading && searchQuery.trim() && filteredSessions.length === 0 && (
+                        <p className={styles.searchEmpty}>No chats found</p>
+                    )}
                 </div>
             </aside>
 
