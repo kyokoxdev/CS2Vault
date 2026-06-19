@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { normalizeItemType, normalizeRarity } from "@/lib/market/rarity";
 import { z } from "zod";
 import { requireAuth } from "@/lib/auth/guard";
+import { mapWatchlistGroups } from "@/lib/watchlist/global-watchlist";
 
 const PRICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days of history for sparkline
 const PRICE_CHANGE_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h for price change %
@@ -37,14 +38,6 @@ const AddItemSchema = z.object({
     imageUrl: z.string().url().optional(),
     isWatched: z.boolean().default(true),
 });
-
-function mapGroups(groups: Array<{ group: { id: string; name: string; color: string | null } }>) {
-    return groups.map(({ group }) => ({
-        id: group.id,
-        name: group.name,
-        color: group.color,
-    }));
-}
 
 function sampleSparkline(points: SparklinePoint[]): SparklinePoint[] {
     if (points.length <= MAX_SPARKLINE_POINTS) {
@@ -110,6 +103,9 @@ function calculatePriceChange24h(snapshots: Array<{ price: number; timestamp: Da
 
 export async function GET(request: NextRequest) {
     try {
+        const { error: authError } = await requireAuth();
+        if (authError) return authError;
+
         const params = Object.fromEntries(request.nextUrl.searchParams);
         const query = ItemQuerySchema.parse(params);
         const cutoff7d = new Date(Date.now() - PRICE_WINDOW_MS);
@@ -211,7 +207,7 @@ export async function GET(request: NextRequest) {
                 exterior: item.exterior,
                 imageUrl: item.imageUrl,
                 notes: item.notes,
-                groups: mapGroups(item.groups),
+                groups: mapWatchlistGroups(item.groups),
                 isWatched: item.isWatched,
                 currentPrice: latestSnapshot?.price ?? null,
                 priceChange24h: calculatePriceChange24h(snapshots24h),
@@ -259,7 +255,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     try {
-        const { session: _s, error: authError } = await requireAuth();
+        const { error: authError } = await requireAuth();
         if (authError) return authError;
 
         const body = await request.json();
@@ -296,8 +292,8 @@ export async function POST(request: NextRequest) {
             const updated = await prisma.item.update({
                 where: { id: existing.id },
                 data: {
-                    isWatched: data.isWatched,
                     category: data.category,
+                    isWatched: data.isWatched,
                     name: data.name,
                     imageUrl: data.imageUrl ?? existing.imageUrl,
                     type: normalizedType ?? existing.type,
@@ -310,9 +306,16 @@ export async function POST(request: NextRequest) {
 
         const item = await prisma.item.create({
             data: {
-                ...data,
+                marketHashName: data.marketHashName,
+                name: data.name,
+                weapon: data.weapon,
+                skin: data.skin,
+                category: data.category,
+                isWatched: data.isWatched,
                 type: normalizedType,
                 rarity: normalizedRarity,
+                exterior: data.exterior,
+                imageUrl: data.imageUrl,
             },
         });
 

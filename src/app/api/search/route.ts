@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
 import { detectRarityFromType, detectTypeFromName } from "@/lib/market/rarity";
 
 const STEAM_SEARCH_URL =
@@ -166,7 +167,24 @@ export async function GET(request: NextRequest) {
             });
         }
 
+        const marketHashNames = data.results.map((item: SteamSearchResult) => item.hash_name);
+        const trackedItems = marketHashNames.length > 0
+            ? await prisma.item.findMany({
+                where: {
+                    marketHashName: {
+                        in: marketHashNames,
+                    },
+                },
+                select: {
+                    id: true,
+                    marketHashName: true,
+                },
+            })
+            : [];
+        const trackedItemIdByHashName = new Map(trackedItems.map((item) => [item.marketHashName, item.id]));
+
         const results = data.results.map((item: SteamSearchResult) => ({
+            id: trackedItemIdByHashName.get(item.hash_name) ?? null,
             hashName: item.hash_name,
             name: item.name,
             imageUrl: item.asset_description?.icon_url

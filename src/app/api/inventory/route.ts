@@ -156,7 +156,6 @@ export async function POST(request: NextRequest) {
                             rarity: invItem.rarity ?? undefined,
                             exterior: invItem.exterior,
                             imageUrl: invItem.imageUrl,
-                            isWatched: false,
                             isActive: true,
                         },
                         update: {

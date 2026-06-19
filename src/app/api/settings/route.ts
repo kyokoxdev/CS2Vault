@@ -5,15 +5,19 @@ import { requireAuth } from "@/lib/auth/guard";
 import { z } from "zod/v4";
 import { resetProviders } from "@/lib/market/init";
 import { encryptApiKey, decryptApiKey } from "@/lib/auth/api-keys";
+import { AI_PROVIDER_VALUES } from "@/lib/ai/model-labels";
 
 // Zod schema for settings validation
 const settingsSchema = z.object({
     activeMarketSource: z.enum(["pricempire", "csfloat", "csgotrader", "steam"]).optional(),
     csgotraderSubProvider: z.enum(["csgotrader", "bitskins", "steam", "csmoney", "csgotm", "lootfarm", "skinport", "csgoempire", "swapgg", "buff163", "cstrade", "csfloat", "youpin", "lisskins"]).optional(),
-    activeAIProvider: z.enum(["gemini-flash", "openai"]).optional(),
+    activeAIProvider: z.enum(AI_PROVIDER_VALUES).optional(),
     priceRefreshIntervalMin: z.number().int().min(1).max(1440).optional(),
-    openAiApiKey: z.string().max(256).optional(),
-    geminiApiKey: z.string().max(256).optional(),
+    openAiApiKey: z.string().max(512).optional(),
+    geminiApiKey: z.string().max(512).optional(),
+    anthropicApiKey: z.string().max(512).optional(),
+    openRouterApiKey: z.string().max(512).optional(),
+    nineRouterApiKey: z.string().max(512).optional(),
     csfloatApiKey: z.string().max(256).optional(),
 });
 
@@ -46,6 +50,9 @@ export async function GET() {
                 csgotraderSubProvider: "csfloat",
                 openAiApiKey: maskApiKey(null, process.env.OPENAI_API_KEY),
                 geminiApiKey: maskApiKey(null, process.env.GEMINI_API_KEY),
+                anthropicApiKey: maskApiKey(null, process.env.ANTHROPIC_API_KEY),
+                openRouterApiKey: maskApiKey(null, process.env.OPENROUTER_API_KEY),
+                nineRouterApiKey: maskApiKey(null, process.env.NINEROUTER_API_KEY),
                 csfloatApiKey: maskApiKey(null, process.env.CSFLOAT_API_KEY),
             });
         }
@@ -57,6 +64,9 @@ export async function GET() {
             priceRefreshIntervalMin: settings.priceRefreshIntervalMin ?? 15,
             openAiApiKey: maskApiKey(decryptApiKey(settings.openAiApiKey), process.env.OPENAI_API_KEY),
             geminiApiKey: maskApiKey(decryptApiKey(settings.geminiApiKey), process.env.GEMINI_API_KEY),
+            anthropicApiKey: maskApiKey(decryptApiKey(settings.anthropicApiKey), process.env.ANTHROPIC_API_KEY),
+            openRouterApiKey: maskApiKey(decryptApiKey(settings.openRouterApiKey), process.env.OPENROUTER_API_KEY),
+            nineRouterApiKey: maskApiKey(decryptApiKey(settings.nineRouterApiKey), process.env.NINEROUTER_API_KEY),
             csfloatApiKey: maskApiKey(decryptApiKey(settings.csfloatApiKey), process.env.CSFLOAT_API_KEY),
         });
     } catch (error) {
@@ -91,6 +101,9 @@ export async function PATCH(request: Request) {
             priceRefreshIntervalMin,
             openAiApiKey,
             geminiApiKey,
+            anthropicApiKey,
+            openRouterApiKey,
+            nineRouterApiKey,
             csfloatApiKey,
             csgotraderSubProvider,
         } = parseResult.data;
@@ -111,6 +124,9 @@ export async function PATCH(request: Request) {
 
 		const resolvedOpenAi = resolveApiKey(openAiApiKey, existing?.openAiApiKey, process.env.OPENAI_API_KEY);
 		const resolvedGemini = resolveApiKey(geminiApiKey, existing?.geminiApiKey, process.env.GEMINI_API_KEY);
+		const resolvedAnthropic = resolveApiKey(anthropicApiKey, existing?.anthropicApiKey, process.env.ANTHROPIC_API_KEY);
+		const resolvedOpenRouter = resolveApiKey(openRouterApiKey, existing?.openRouterApiKey, process.env.OPENROUTER_API_KEY);
+		const resolvedNineRouter = resolveApiKey(nineRouterApiKey, existing?.nineRouterApiKey, process.env.NINEROUTER_API_KEY);
 		const resolvedCsfloat = resolveApiKey(csfloatApiKey, existing?.csfloatApiKey, process.env.CSFLOAT_API_KEY);
         // Upsert to ensure singleton exists
         const updated = await prisma.appSettings.upsert({
@@ -121,6 +137,9 @@ export async function PATCH(request: Request) {
                 priceRefreshIntervalMin,
 				...(resolvedOpenAi !== undefined && { openAiApiKey: resolvedOpenAi }),
 				...(resolvedGemini !== undefined && { geminiApiKey: resolvedGemini }),
+				...(resolvedAnthropic !== undefined && { anthropicApiKey: resolvedAnthropic }),
+				...(resolvedOpenRouter !== undefined && { openRouterApiKey: resolvedOpenRouter }),
+				...(resolvedNineRouter !== undefined && { nineRouterApiKey: resolvedNineRouter }),
 				...(resolvedCsfloat !== undefined && { csfloatApiKey: resolvedCsfloat }),
                 csgotraderSubProvider,
             },
@@ -131,6 +150,9 @@ export async function PATCH(request: Request) {
                 priceRefreshIntervalMin: priceRefreshIntervalMin ?? 15,
 				openAiApiKey: resolvedOpenAi ?? null,
 				geminiApiKey: resolvedGemini ?? null,
+				anthropicApiKey: resolvedAnthropic ?? null,
+				openRouterApiKey: resolvedOpenRouter ?? null,
+				nineRouterApiKey: resolvedNineRouter ?? null,
 				csfloatApiKey: resolvedCsfloat ?? null,
                 csgotraderSubProvider: csgotraderSubProvider ?? "csfloat",
             },
@@ -149,6 +171,9 @@ export async function PATCH(request: Request) {
             priceRefreshIntervalMin: updated.priceRefreshIntervalMin ?? 15,
             openAiApiKey: maskApiKey(decryptApiKey(updated.openAiApiKey), process.env.OPENAI_API_KEY),
             geminiApiKey: maskApiKey(decryptApiKey(updated.geminiApiKey), process.env.GEMINI_API_KEY),
+            anthropicApiKey: maskApiKey(decryptApiKey(updated.anthropicApiKey), process.env.ANTHROPIC_API_KEY),
+            openRouterApiKey: maskApiKey(decryptApiKey(updated.openRouterApiKey), process.env.OPENROUTER_API_KEY),
+            nineRouterApiKey: maskApiKey(decryptApiKey(updated.nineRouterApiKey), process.env.NINEROUTER_API_KEY),
             csfloatApiKey: maskApiKey(decryptApiKey(updated.csfloatApiKey), process.env.CSFLOAT_API_KEY),
             csgotraderSubProvider: updated.csgotraderSubProvider,
         });

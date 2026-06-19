@@ -128,7 +128,10 @@ export async function aggregateAllIntervals(itemId: string): Promise<void> {
  */
 export async function aggregateAllWatchedItems(): Promise<number> {
     const watchedItems = await prisma.item.findMany({
-        where: { isWatched: true, isActive: true },
+        where: {
+            isActive: true,
+            isWatched: true,
+        },
         select: { id: true },
     });
 

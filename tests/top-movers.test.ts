@@ -23,7 +23,12 @@ vi.mock("@/lib/market/init", () => ({
     initializeMarketProviders: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/auth/guard", () => ({
+    requireAuth: vi.fn(),
+}));
+
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth/guard";
 import { initializeMarketProviders } from "@/lib/market/init";
 import { resolveMarketProvider } from "@/lib/market/registry";
 import {
@@ -37,6 +42,7 @@ const mockAppSettingsFindUnique = vi.mocked(prisma.appSettings.findUnique);
 const mockTopMoversCacheFindUnique = vi.mocked(prisma.topMoversCache.findUnique);
 const mockResolveMarketProvider = vi.mocked(resolveMarketProvider);
 const mockInitializeMarketProviders = vi.mocked(initializeMarketProviders);
+const mockRequireAuth = vi.mocked(requireAuth);
 
 // Helper to create a Date relative to now
 function hoursAgo(hours: number): Date {
@@ -83,6 +89,10 @@ beforeEach(() => {
         csgotraderSubProvider: "csfloat",
     } as never);
     mockTopMoversCacheFindUnique.mockResolvedValue(null);
+    mockRequireAuth.mockResolvedValue({
+        session: { user: { id: "user-1", steamId: "steam-1" } },
+        error: null,
+    } as never);
 });
 
 describe("GET /api/market/top-movers", () => {
@@ -292,8 +302,31 @@ describe("GET /api/market/top-movers", () => {
         expect(body1.success).toBe(true);
         expect(body2.success).toBe(true);
         expect(body1.data.updatedAt).toBe(body2.data.updatedAt);
+        expect(res1.headers.get("Cache-Control")).toContain("private");
 
         expect(mockAppSettingsFindUnique).toHaveBeenCalledTimes(2);
+    });
+
+    it("reuses memory cache across users for the global watchlist", async () => {
+        const { GET } = await import("@/app/api/market/top-movers/route");
+
+        mockRequireAuth
+            .mockResolvedValueOnce({ session: { user: { id: "user-a", steamId: "steam-a" } }, error: null } as never)
+            .mockResolvedValueOnce({ session: { user: { id: "user-b", steamId: "steam-b" } }, error: null } as never);
+        mockResolveMarketProvider.mockReturnValue(makeMockProvider(makePriceMap([
+            { name: "Shared Source", price: 120 },
+        ])) as never);
+        mockItemFindMany.mockResolvedValue([
+            { id: "shared-1", name: "Shared Source", marketHashName: "Shared Source" },
+        ] as never);
+        mockSnapshotFindMany.mockResolvedValue(makeSnapshots("shared-1", [100, 120]) as never);
+
+        await GET();
+        await GET();
+
+        expect(mockTopMoversCacheFindUnique).toHaveBeenCalledTimes(1);
+        expect(mockTopMoversCacheFindUnique).toHaveBeenCalledWith({ where: { id: "top-movers:csfloat" } });
+        expect(mockResolveMarketProvider).toHaveBeenCalledTimes(1);
     });
 
     it("recomputes movers when active market source changes even within cache TTL", async () => {
@@ -410,6 +443,32 @@ describe("GET /api/market/top-movers", () => {
         expect(result.gainers).toHaveLength(1);
         expect(result.gainers[0].id).toBe("w1");
         expect(result.gainers[0].name).toBe("AWP | Asiimov");
+    });
+
+    it("queries provider candidates and watchlist fallback from the global watchlist", async () => {
+        mockResolveMarketProvider
+            .mockReturnValueOnce(makeMockProvider(makePriceMap([
+                { name: "Scoped Item", price: 125 },
+            ])) as never)
+            .mockReturnValueOnce(null);
+        mockItemFindMany
+            .mockResolvedValueOnce([{ marketHashName: "Scoped Item" }] as never)
+            .mockResolvedValueOnce([{ id: "scoped-1", name: "Scoped Item", marketHashName: "Scoped Item" }] as never)
+            .mockResolvedValueOnce([] as never);
+        mockSnapshotFindMany.mockResolvedValue(makeSnapshots("scoped-1", [100, 125]) as never);
+
+        await computeTopMovers(null, "csfloat");
+        await computeTopMovers(null, "csfloat");
+
+        expect(mockItemFindMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
+            where: { isActive: true, isWatched: true },
+        }));
+        expect(mockItemFindMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+            where: { isActive: true, isWatched: true },
+        }));
+        expect(mockItemFindMany).toHaveBeenNthCalledWith(3, expect.objectContaining({
+            where: { isActive: true, isWatched: true },
+        }));
     });
 
     it("fallback computes valid gainers/losers from watchlist data", async () => {

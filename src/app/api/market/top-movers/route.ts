@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { initializeMarketProviders } from "@/lib/market/init";
 import { resolveMarketProvider } from "@/lib/market/registry";
 import { resolveMarketSource } from "@/lib/market/source";
+import { requireAuth } from "@/lib/auth/guard";
 import type { MarketSource } from "@/types";
 
 interface SparklinePoint {
@@ -29,6 +30,7 @@ interface TopMoversData {
 
 let memoryCache: TopMoversData | null = null;
 let memoryCacheAt = 0;
+let memoryCacheKey: string | null = null;
 const MEMORY_CACHE_MS = 5 * 60 * 1000;
 const PERSISTENT_CACHE_TTL_MS = 60 * 60 * 1000;
 
@@ -36,8 +38,12 @@ function hasMoverData(data: TopMoversData): boolean {
     return data.gainers.length > 0 || data.losers.length > 0;
 }
 
-function canUseMemoryCache(data: TopMoversData, activeSource: MarketSource): boolean {
-    return data.source === activeSource;
+function getCacheId(activeSource: MarketSource): string {
+    return `top-movers:${activeSource}`;
+}
+
+function canUseMemoryCache(data: TopMoversData, activeSource: MarketSource, cacheId: string): boolean {
+    return data.source === activeSource && memoryCacheKey === cacheId;
 }
 
 function canUsePersistentCache(data: TopMoversData | null, activeSource: MarketSource): data is TopMoversData {
@@ -62,10 +68,10 @@ async function getActiveSource(): Promise<MarketSource> {
     return resolveMarketSource(settings?.activeMarketSource);
 }
 
-async function loadCachedData(): Promise<TopMoversData | null> {
+async function loadCachedData(cacheId: string): Promise<TopMoversData | null> {
     try {
         const cached = await prisma.topMoversCache.findUnique({
-            where: { id: "singleton" },
+            where: { id: cacheId },
         });
         
         if (!cached) return null;
@@ -83,12 +89,12 @@ async function loadCachedData(): Promise<TopMoversData | null> {
     }
 }
 
-async function saveCachedData(data: TopMoversData): Promise<void> {
+async function saveCachedData(cacheId: string, data: TopMoversData): Promise<void> {
     try {
         await prisma.topMoversCache.upsert({
-            where: { id: "singleton" },
+            where: { id: cacheId },
             create: {
-                id: "singleton",
+                id: cacheId,
                 gainers: JSON.stringify(data.gainers),
                 losers: JSON.stringify(data.losers),
                 source: data.source,
@@ -108,7 +114,7 @@ async function saveCachedData(data: TopMoversData): Promise<void> {
 
 async function computeTopMovers(
     existingCache: TopMoversData | null,
-    activeSourceOverride?: MarketSource
+    activeSourceOverride?: MarketSource,
 ): Promise<TopMoversData> {
     const now = new Date();
     const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -124,10 +130,18 @@ async function computeTopMovers(
     if (provider) {
         try {
             const localItems = await prisma.item.findMany({
-                where: { isActive: true },
+                where: {
+                    isActive: true,
+                    isWatched: true,
+                },
                 select: { marketHashName: true },
             });
             const itemNames = localItems.map((i) => i.marketHashName);
+
+            if (itemNames.length === 0) {
+                return { gainers: [], losers: [], updatedAt: now.toISOString(), source: dataSource };
+            }
+
             const bulkResult = await provider.fetchBulkPrices(itemNames);
             allPrices = new Map(
                 [...bulkResult.entries()].map(([k, v]) => [k, { price: v.price, source: v.source }])
@@ -153,7 +167,10 @@ async function computeTopMovers(
 
     if (dataSource === "watchlist") {
         const watchedItems = await prisma.item.findMany({
-            where: { isWatched: true, isActive: true },
+            where: {
+                isActive: true,
+                isWatched: true,
+            },
             include: {
                 priceSnapshots: {
                     where: { timestamp: { gte: cutoff24h } },
@@ -202,7 +219,10 @@ async function computeTopMovers(
     }
 
     const localItems = await prisma.item.findMany({
-        where: { isActive: true },
+        where: {
+            isActive: true,
+            isWatched: true,
+        },
         select: { id: true, name: true, marketHashName: true },
     });
 
@@ -277,17 +297,21 @@ async function computeTopMovers(
     return { gainers, losers, updatedAt: now.toISOString(), source: dataSource };
 }
 
-const CACHE_HEADERS = { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" };
+const CACHE_HEADERS = { "Cache-Control": "private, max-age=60, stale-while-revalidate=300" };
 
 export async function GET() {
     try {
-        const activeSource = await getActiveSource();
+        const { error: authError } = await requireAuth();
+        if (authError) return authError;
 
-        if (memoryCache && Date.now() - memoryCacheAt < MEMORY_CACHE_MS && canUseMemoryCache(memoryCache, activeSource)) {
+        const activeSource = await getActiveSource();
+        const cacheId = getCacheId(activeSource);
+
+        if (memoryCache && Date.now() - memoryCacheAt < MEMORY_CACHE_MS && canUseMemoryCache(memoryCache, activeSource, cacheId)) {
             return NextResponse.json({ success: true, data: memoryCache }, { headers: CACHE_HEADERS });
         }
 
-        const existingCache = await loadCachedData();
+        const existingCache = await loadCachedData(cacheId);
         
         if (canUsePersistentCache(existingCache, activeSource)) {
             memoryCache = existingCache;
@@ -298,25 +322,30 @@ export async function GET() {
         const data = await computeTopMovers(existingCache, activeSource);
         
         if (canUsePersistentCache(data, activeSource) && !data.cached) {
-            await saveCachedData(data);
+            await saveCachedData(cacheId, data);
         }
 
-        if (canUseMemoryCache(data, activeSource)) {
+        if (data.source === activeSource) {
             memoryCache = data;
             memoryCacheAt = Date.now();
+            memoryCacheKey = cacheId;
         } else {
             memoryCache = null;
             memoryCacheAt = 0;
+            memoryCacheKey = null;
         }
 
         return NextResponse.json({ success: true, data }, { headers: CACHE_HEADERS });
     } catch (error) {
         console.error("[API /market/top-movers]", error);
         
-        const activeSource = await getActiveSource();
-        const fallbackCache = await loadCachedData();
-        if (canUsePersistentCache(fallbackCache, activeSource)) {
-            return NextResponse.json({ success: true, data: fallbackCache }, { headers: CACHE_HEADERS });
+        const { error: authError } = await requireAuth();
+        if (!authError) {
+            const activeSource = await getActiveSource();
+            const fallbackCache = await loadCachedData(getCacheId(activeSource));
+            if (canUsePersistentCache(fallbackCache, activeSource)) {
+                return NextResponse.json({ success: true, data: fallbackCache }, { headers: CACHE_HEADERS });
+            }
         }
         
         return NextResponse.json(
@@ -332,4 +361,5 @@ export type { TopMoversData, Mover, SparklinePoint };
 export function __resetCache() {
     memoryCache = null;
     memoryCacheAt = 0;
+    memoryCacheKey = null;
 }

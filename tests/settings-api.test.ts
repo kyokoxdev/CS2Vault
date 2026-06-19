@@ -2,8 +2,6 @@
  * Unit Tests: Settings API
  * Tests auth guard, API key masking, and Zod validation
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextResponse } from "next/server";
 
@@ -33,27 +31,45 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/guard";
 import { GET, PATCH } from "@/app/api/settings/route";
 
-// Helper to create mock settings with all required fields
-const createMockSettings = (overrides: Partial<{
+interface MockAppSettings {
     id: string;
     activeMarketSource: string;
     activeAIProvider: string;
     openAiApiKey: string | null;
     geminiApiKey: string | null;
+    anthropicApiKey: string | null;
+    openRouterApiKey: string | null;
+    nineRouterApiKey: string | null;
     csfloatApiKey: string | null;
     csgotraderSubProvider: string | null;
-}>) => ({
+    priceRefreshIntervalMin: number;
+    watchlistOnly: boolean;
+    googleAccessToken: string | null;
+    googleRefreshToken: string | null;
+    googleTokenExpiry: Date | null;
+    syncInProgress: boolean;
+    syncStartedAt: Date | null;
+}
+
+// Helper to create mock settings with all required fields
+const createMockSettings = (overrides: Partial<MockAppSettings> = {}): MockAppSettings => ({
     id: "singleton",
     activeMarketSource: "csfloat",
     activeAIProvider: "gemini-flash",
     openAiApiKey: null,
     geminiApiKey: null,
+    anthropicApiKey: null,
+    openRouterApiKey: null,
+    nineRouterApiKey: null,
     csfloatApiKey: null,
     csgotraderSubProvider: "csfloat",
+    priceRefreshIntervalMin: 15,
     watchlistOnly: false,
     googleAccessToken: null,
     googleRefreshToken: null,
     googleTokenExpiry: null,
+    syncInProgress: false,
+    syncStartedAt: null,
     ...overrides,
 });
 
@@ -119,8 +135,11 @@ describe("Settings API", () => {
                 createMockSettings({
                     openAiApiKey: "sk-1234567890abcdef1234567890abcdef",
                     geminiApiKey: "AIzaSyAbCdEfGhIjKlMnOpQrStUvWxYz",
+                    anthropicApiKey: "sk-ant-api03-1234567890abcdef",
+                    openRouterApiKey: "sk-or-v1-1234567890abcdef",
+                    nineRouterApiKey: "nine-router-secret-1234567890",
                     csfloatApiKey: null,
-                }) as any
+                })
             );
 
             const response = await GET();
@@ -130,6 +149,9 @@ describe("Settings API", () => {
             // Keys should be masked
             expect(data.openAiApiKey).toBe("sk-1...cdef");
             expect(data.geminiApiKey).toBe("AIza...WxYz");
+            expect(data.anthropicApiKey).toBe("sk-a...cdef");
+            expect(data.openRouterApiKey).toBe("sk-o...cdef");
+            expect(data.nineRouterApiKey).toBe("nine...7890");
             expect(data.csfloatApiKey).toBe("");
         });
 
@@ -139,22 +161,22 @@ describe("Settings API", () => {
 
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
-                    activeAIProvider: "openai",
-                    openAiApiKey: "sk-newkey1234567890abcdef",
-                }) as any
+                    activeAIProvider: "anthropic",
+                    anthropicApiKey: "sk-ant-api03-newkey1234567890abcdef",
+                })
             );
 
             const request = new Request("http://localhost/api/settings", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ activeAIProvider: "openai" }),
+                body: JSON.stringify({ activeAIProvider: "anthropic" }),
             });
 
             const response = await PATCH(request);
             const data = await response.json();
 
             expect(response.status).toBe(200);
-            expect(data.openAiApiKey).toBe("sk-n...cdef");
+            expect(data.anthropicApiKey).toBe("sk-a...cdef");
         });
     });
 
@@ -196,8 +218,8 @@ describe("Settings API", () => {
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
                     activeMarketSource: "csfloat",
-                    activeAIProvider: "gemini-flash",
-                }) as any
+                    activeAIProvider: "openrouter",
+                })
             );
 
             const request = new Request("http://localhost/api/settings", {
@@ -205,7 +227,7 @@ describe("Settings API", () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     activeMarketSource: "csfloat",
-                    activeAIProvider: "gemini-flash",
+                    activeAIProvider: "openrouter",
                 }),
             });
 
@@ -214,7 +236,7 @@ describe("Settings API", () => {
 
             expect(response.status).toBe(200);
             expect(data.activeMarketSource).toBe("csfloat");
-            expect(data.activeAIProvider).toBe("gemini-flash");
+            expect(data.activeAIProvider).toBe("openrouter");
         });
 
         it("accepts csgotrader as valid market source with sub-provider", async () => {
@@ -222,7 +244,7 @@ describe("Settings API", () => {
                 createMockSettings({
                     activeMarketSource: "csgotrader",
                     csgotraderSubProvider: "buff163",
-                }) as any
+                })
             );
             const request = new Request("http://localhost/api/settings", {
                 method: "PATCH",
@@ -258,12 +280,12 @@ describe("Settings API", () => {
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
                 createMockSettings({
                     openAiApiKey: "sk-1234567890abcdef1234567890abcdef",
-                }) as any
+                })
             );
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
                     openAiApiKey: "sk-1234567890abcdef1234567890abcdef",
-                }) as any
+                })
             );
 
             const request = new Request("http://localhost/api/settings", {
@@ -279,18 +301,45 @@ describe("Settings API", () => {
             expect(upsertCall.update).not.toHaveProperty("openAiApiKey");
         });
 
+        it("does not overwrite routed provider key when masked value is sent back", async () => {
+            vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
+
+            vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
+                createMockSettings({
+                    openRouterApiKey: "sk-or-v1-1234567890abcdef",
+                })
+            );
+            vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
+                createMockSettings({
+                    openRouterApiKey: "sk-or-v1-1234567890abcdef",
+                })
+            );
+
+            const request = new Request("http://localhost/api/settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ openRouterApiKey: "sk-o...cdef" }),
+            });
+
+            const response = await PATCH(request);
+            expect(response.status).toBe(200);
+
+            const upsertCall = vi.mocked(prisma.appSettings.upsert).mock.calls[0][0];
+            expect(upsertCall.update).not.toHaveProperty("openRouterApiKey");
+        });
+
         it("saves new key value when different from masked", async () => {
             vi.mocked(requireAuth).mockResolvedValue({ session: createMockSession("user-123"), error: null });
 
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
                 createMockSettings({
                     openAiApiKey: "sk-oldkey1234567890abcdef1234",
-                }) as any
+                })
             );
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
                     openAiApiKey: "sk-newkey9876543210fedcba9876",
-                }) as any
+                })
             );
 
             const request = new Request("http://localhost/api/settings", {
@@ -312,12 +361,12 @@ describe("Settings API", () => {
             vi.mocked(prisma.appSettings.findUnique).mockResolvedValue(
                 createMockSettings({
                     geminiApiKey: "AIzaSyAbCdEfGhIjKlMnOpQrStUvWxYz",
-                }) as any
+                })
             );
             vi.mocked(prisma.appSettings.upsert).mockResolvedValue(
                 createMockSettings({
                     geminiApiKey: null,
-                }) as any
+                })
             );
 
             const request = new Request("http://localhost/api/settings", {
