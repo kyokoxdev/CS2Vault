@@ -10,7 +10,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { prisma } from "@/lib/db";
-import { maybeHandleAegisWatchlistAction } from "@/lib/ai/watchlist-actions";
+import { detectAegisWatchlistAction, maybeHandleAegisWatchlistAction } from "@/lib/ai/watchlist-actions";
 
 const mockItemFindMany = vi.mocked(prisma.item.findMany);
 const mockItemUpdate = vi.mocked(prisma.item.update);
@@ -50,6 +50,28 @@ describe("maybeHandleAegisWatchlistAction", () => {
             where: { id: "item-1" },
             data: { isWatched: true },
         });
+    });
+
+    it("detects an add intent without mutating the global watchlist", async () => {
+        mockItemFindMany.mockResolvedValue([
+            {
+                id: "item-1",
+                name: "AWP | Asiimov",
+                marketHashName: "AWP | Asiimov (Field-Tested)",
+                isWatched: false,
+            },
+        ] as never);
+
+        const result = await detectAegisWatchlistAction("Add @item[AWP | Asiimov (Field-Tested)] to the watchlist");
+
+        expect(result).toEqual({
+            status: "added",
+            itemId: "item-1",
+            itemName: "AWP | Asiimov",
+            marketHashName: "AWP | Asiimov (Field-Tested)",
+            message: "AWP | Asiimov was added to the global Watchlist.",
+        });
+        expect(mockItemUpdate).not.toHaveBeenCalled();
     });
 
     it("does not mutate an already watched item", async () => {

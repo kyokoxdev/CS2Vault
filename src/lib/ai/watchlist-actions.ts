@@ -4,6 +4,11 @@ import type { MarketContext } from "@/types";
 
 type WatchlistActionResult = NonNullable<MarketContext["watchlistAction"]>;
 
+export interface AegisWatchlistActionIntent extends WatchlistActionResult {
+    itemId?: string;
+    marketHashName?: string;
+}
+
 const removalIntentPattern = /\b(remove|unwatch|delete|clear|stop)\b[\s\S]{0,80}\b(watchlist|watch list|track|tracking|watching)\b/i;
 const addToWatchlistPattern = /\b(add|put|place|save)\b[\s\S]{0,100}\b(watchlist|watch list)\b|\b(watchlist|watch list)\b[\s\S]{0,100}\b(add|put|place|save)\b/i;
 const trackMentionPattern = /\b(track|watch)\b[\s\S]{0,100}@item\[/i;
@@ -16,7 +21,7 @@ function hasWatchlistAddIntent(message: string): boolean {
     return addToWatchlistPattern.test(message) || trackMentionPattern.test(message);
 }
 
-export async function maybeHandleAegisWatchlistAction(message: string): Promise<WatchlistActionResult | null> {
+export async function detectAegisWatchlistAction(message: string): Promise<AegisWatchlistActionIntent | null> {
     if (!hasWatchlistAddIntent(message)) {
         return null;
     }
@@ -55,18 +60,41 @@ export async function maybeHandleAegisWatchlistAction(message: string): Promise<
         return {
             status: "already_watched",
             itemName: item.name,
+            itemId: item.id,
+            marketHashName: item.marketHashName,
             message: `${item.name} is already on the global Watchlist.`,
         };
     }
 
+    return {
+        status: "added",
+        itemName: item.name,
+        itemId: item.id,
+        marketHashName: item.marketHashName,
+        message: `${item.name} was added to the global Watchlist.`,
+    };
+}
+
+export async function maybeHandleAegisWatchlistAction(message: string): Promise<WatchlistActionResult | null> {
+    const intent = await detectAegisWatchlistAction(message);
+    if (!intent) return null;
+
+    if (intent.status !== "added" || !intent.itemId) {
+        return {
+            status: intent.status,
+            itemName: intent.itemName,
+            message: intent.message,
+        };
+    }
+
     await prisma.item.update({
-        where: { id: item.id },
+        where: { id: intent.itemId },
         data: { isWatched: true },
     });
 
     return {
         status: "added",
-        itemName: item.name,
-        message: `${item.name} was added to the global Watchlist.`,
+        itemName: intent.itemName,
+        message: intent.message,
     };
 }
