@@ -134,6 +134,12 @@ export interface MarketContext {
         source: string;
         date: string;
     }[];
+    aegisMemories?: {
+        title: string;
+        content: string;
+        kind: string;
+        tags: string[];
+    }[];
     userQuery: string;
     referencedSessionContext?: string;
 }

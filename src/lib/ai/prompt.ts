@@ -124,6 +124,17 @@ function buildNewsBlock(headlines: MarketContext["newsHeadlines"]): string {
     return lines.join("\n");
 }
 
+function buildAegisMemoryBlock(memories: MarketContext["aegisMemories"]): string {
+    if (!memories || memories.length === 0) return "";
+
+    const lines = ["Aegis Notebook Memories:"];
+    for (const memory of memories) {
+        const tags = memory.tags.length > 0 ? ` [${memory.tags.join(", ")}]` : "";
+        lines.push(`  - ${memory.title} (${memory.kind})${tags}: ${memory.content}`);
+    }
+    return lines.join("\n");
+}
+
 function getReasoningDirective(depth: AIChatOptions["reasoningDepth"]): string {
     if (!depth) {
         return "";
@@ -235,6 +246,7 @@ export function buildSystemPrompt(
         buildWatchlistBlock(context.watchlist),
         buildTargetedItemBlock(context.targetedItemData),
         buildNewsBlock(context.newsHeadlines),
+        buildAegisMemoryBlock(context.aegisMemories),
     ].filter(Boolean);
 
     const contextBlock = sections.length > 0
@@ -271,6 +283,7 @@ Guidelines:
 - When OHLCV data is available, analyze support/resistance levels, volatility (high-low range), and volume trends.
 - When 30-day history is available, identify trends and provide timeframe-based projections.
 - For portfolio questions, factor in both unrealized and realized P&L. Consider rarity and exterior when relevant.
+- Use Aegis Notebook memories only when they are relevant to the current request, and do not reveal them unless they help the answer.
 - Reference recent news when it may impact market sentiment.
 - If an item is NOT in the data, tell the user: "I don't have tracking data for this item yet. Mention it with @item[...] and ask me to add it to the global Watchlist so I can start charting its trajectory."
 ${deepResearchDirective}`;

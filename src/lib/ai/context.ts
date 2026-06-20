@@ -2,11 +2,13 @@ import { prisma } from "@/lib/db";
 import { extractItemMention } from "@/lib/ai/item-mentions";
 import { resolveMarketSource } from "@/lib/market/source";
 import { fetchRssFeeds } from "@/lib/news/rss-feeds";
+import { listRecentAegisMemories } from "@/lib/aegis/memory/search";
 import type { MarketContext } from "@/types";
 
 const MAX_WATCHLIST_ITEMS = 20;
 const MAX_SOLD_ITEMS = 10;
 const MAX_NEWS_HEADLINES = 5;
+const MAX_AEGIS_MEMORIES = 5;
 const MAX_ACTIVE_ITEMS_FOR_MARKET_SCAN = 50;
 const TARGET_PRICE_HISTORY_DAYS = 90;
 const TARGET_CANDLE_HISTORY_DAYS = 30;
@@ -26,6 +28,10 @@ function formatDate(date: Date): string {
 
 function formatPrice(price: number): string {
     return `$${price.toFixed(2)}`;
+}
+
+function normalizeMemoryTags(tags: unknown): string[] {
+    return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === "string") : [];
 }
 
 function formatSignedPercent(value: number): string {
@@ -251,6 +257,16 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
                     itemCount: activeInventory.length,
                     soldCount: soldInventory.length,
                 };
+            }
+
+            const memories = await listRecentAegisMemories(userId, MAX_AEGIS_MEMORIES);
+            if (memories.length > 0) {
+                context.aegisMemories = memories.map((memory) => ({
+                    title: memory.title,
+                    content: memory.content,
+                    kind: memory.kind,
+                    tags: normalizeMemoryTags(memory.tags),
+                }));
             }
         }
 
