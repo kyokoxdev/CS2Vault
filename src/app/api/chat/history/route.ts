@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
                 id: true,
                 role: true,
                 content: true,
+                metadata: true,
                 createdAt: true
             }
         });

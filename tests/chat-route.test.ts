@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
-import type { MarketContext } from "@/types";
 
 vi.mock("@/lib/db", () => ({
     prisma: {
@@ -13,8 +12,10 @@ vi.mock("@/lib/db", () => ({
             findMany: vi.fn(),
         },
         chatSession: {
-            update: vi.fn(),
+            findFirst: vi.fn(),
             findMany: vi.fn(),
+            update: vi.fn(),
+            updateMany: vi.fn(),
         },
     },
 }));
@@ -43,15 +44,39 @@ vi.mock("@/lib/ai/agent-harness", () => ({
 }));
 
 vi.mock("@/lib/ai/watchlist-actions", () => ({
-    maybeHandleAegisWatchlistAction: vi.fn(),
+    detectAegisWatchlistAction: vi.fn(),
+}));
+
+vi.mock("@/lib/ai/deep-research", () => ({
+    performDeepResearch: vi.fn(),
+}));
+
+vi.mock("@/lib/aegis/ledger", () => ({
+    appendAegisTrace: vi.fn(async () => ({ sequence: 1 })),
+    completeAegisRun: vi.fn(),
+    createAegisRun: vi.fn(async () => ({ id: "run-1" })),
+    failAegisRun: vi.fn(),
+    transitionAegisRun: vi.fn(),
+}));
+
+vi.mock("@/lib/aegis/actions/executor", () => ({
+    executeAegisAction: vi.fn(),
+    proposeAegisAction: vi.fn(),
+}));
+
+vi.mock("@/lib/aegis/memory/extract", () => ({
+    extractAegisMemoryFromChat: vi.fn(),
+}));
+
+vi.mock("@/lib/aegis/runs", () => ({
+    createAndDispatchAegisRun: vi.fn(async () => ({ id: "run-1" })),
 }));
 
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/guard";
 import { getAIProvider } from "@/lib/ai/registry";
-import { buildMarketContext } from "@/lib/ai/context";
 import { runAegisAgentHarness } from "@/lib/ai/agent-harness";
-import { maybeHandleAegisWatchlistAction } from "@/lib/ai/watchlist-actions";
+import { createAndDispatchAegisRun } from "@/lib/aegis/runs";
 import { POST } from "@/app/api/chat/route";
 
 function toNextRequest(request: Request): NextRequest {
@@ -69,7 +94,9 @@ describe("POST /api/chat", () => {
         vi.mocked(prisma.chatMessage.create).mockResolvedValue({} as never);
         vi.mocked(prisma.chatMessage.count).mockResolvedValue(1 as never);
         vi.mocked(prisma.chatMessage.findMany).mockResolvedValue([] as never);
+        vi.mocked(prisma.chatSession.findFirst).mockResolvedValue({ id: "session-1" } as never);
         vi.mocked(prisma.chatSession.update).mockResolvedValue({} as never);
+        vi.mocked(prisma.chatSession.updateMany).mockResolvedValue({ count: 1 } as never);
         vi.mocked(prisma.chatSession.findMany).mockResolvedValue([] as never);
         vi.mocked(getAIProvider).mockReturnValue({
             name: "Gemini",
@@ -78,17 +105,11 @@ describe("POST /api/chat", () => {
             chat: vi.fn(),
             getModelName: vi.fn(() => "Gemini"),
         } as never);
-        vi.mocked(buildMarketContext).mockResolvedValue({
-            topGainers: [],
-            topLosers: [],
-            userQuery: "",
-        } satisfies MarketContext as never);
+        vi.mocked(createAndDispatchAegisRun).mockResolvedValue({ id: "run-1" } as never);
     });
 
-    it("continues normal chat when the deterministic watchlist action fails", async () => {
-        const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-        vi.mocked(maybeHandleAegisWatchlistAction).mockRejectedValueOnce(new Error("database unavailable"));
-
+    it("rejects a chat request for a session owned by another user", async () => {
+        vi.mocked(prisma.chatSession.findFirst).mockResolvedValueOnce(null as never);
         const response = await POST(toNextRequest(new Request("http://localhost/api/chat", {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -96,18 +117,46 @@ describe("POST /api/chat", () => {
                 messages: [{ role: "user", content: "Add @item[AWP | Asiimov] to the watchlist" }],
                 provider: "gemini-flash",
                 agentMode: "consultant",
+                sessionId: "foreign-session",
+            }),
+        })));
+
+        expect(response.status).toBe(404);
+        expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+        expect(createAndDispatchAegisRun).not.toHaveBeenCalled();
+    });
+
+    it("persists the user message and dispatches a durable Aegis run", async () => {
+        const response = await POST(toNextRequest(new Request("http://localhost/api/chat", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+                messages: [{ role: "user", content: "Analyze my watchlist" }],
+                provider: "gemini-flash",
+                agentMode: "consultant",
+                sessionId: "session-1",
             }),
         })));
 
         expect(response.status).toBe(200);
-        expect(await response.text()).toBe("normal answer");
-        expect(runAegisAgentHarness).toHaveBeenCalledWith(expect.objectContaining({
-            context: expect.objectContaining({
-                watchlistAction: expect.objectContaining({ status: "failed" }),
-            }),
+        expect(await response.text()).toContain("run-1");
+        expect(prisma.chatSession.findFirst).toHaveBeenCalledWith({
+            where: { id: "session-1", userId: "user-1" },
+            select: { id: true },
+        });
+        expect(prisma.chatMessage.count).toHaveBeenCalledWith({
+            where: { sessionId: "session-1", userId: "user-1", role: "user" },
+        });
+        expect(prisma.chatSession.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+            where: { id: "session-1", userId: "user-1" },
         }));
-        expect(consoleError).toHaveBeenCalledWith("[Aegis Watchlist Action]", expect.any(Error));
-
-        consoleError.mockRestore();
+        expect(createAndDispatchAegisRun).toHaveBeenCalledWith(expect.objectContaining({
+            userId: "user-1",
+            sessionId: "session-1",
+            input: "Analyze my watchlist",
+            provider: "gemini-flash",
+            agentMode: "consultant",
+        }));
+        expect(runAegisAgentHarness).not.toHaveBeenCalled();
     });
 });

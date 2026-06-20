@@ -3,10 +3,8 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth/guard";
 import { getAIProvider } from "@/lib/ai/registry";
 import { initAIProviders } from "@/lib/ai/init";
-import { buildMarketContext } from "@/lib/ai/context";
-import { getAegisHarnessStages, runAegisAgentHarness } from "@/lib/ai/agent-harness";
-import { maybeHandleAegisWatchlistAction } from "@/lib/ai/watchlist-actions";
-import { performDeepResearch } from "@/lib/ai/deep-research";
+import { serializeAegisStreamEvent } from "@/lib/aegis/trace-events";
+import { createAndDispatchAegisRun } from "@/lib/aegis/runs";
 import {
     AI_AGENT_MODE_VALUES,
     AI_PROVIDER_VALUES,
@@ -18,7 +16,6 @@ import {
     isReasoningDepthSupportedForModel,
 } from "@/lib/ai/model-labels";
 import { z } from "zod";
-import type { ChatMessageData } from "@/types";
 
 const MAX_CONTENT_LENGTH = 4000;
 const MAX_IMAGE_BASE64_LENGTH = 7_000_000; // ~5MB in base64
@@ -174,138 +171,71 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        let validatedSessionId: string | undefined;
+        if (sessionId) {
+            const ownedSession = await prisma.chatSession.findFirst({
+                where: { id: sessionId, userId },
+                select: { id: true },
+            });
+            if (!ownedSession) {
+                return NextResponse.json(
+                    { success: false, error: "Chat session not found." },
+                    { status: 404 }
+                );
+            }
+            validatedSessionId = ownedSession.id;
+        }
+
         await prisma.chatMessage.create({
             data: {
                 userId,
-                sessionId: sessionId ?? undefined,
+                sessionId: validatedSessionId,
                 role: "user",
                 content: latestUserMessage.content,
                 metadata: hasImage ? JSON.stringify({ hasImage: true }) : undefined,
             }
         });
 
-        if (sessionId) {
+        if (validatedSessionId) {
             const sessionMsgCount = await prisma.chatMessage.count({
-                where: { sessionId, role: "user" },
+                where: { sessionId: validatedSessionId, userId, role: "user" },
             });
             const updateData: { updatedAt: Date; title?: string } = { updatedAt: new Date() };
             if (sessionMsgCount === 1) {
                 updateData.title = latestUserMessage.content.slice(0, 80) || "New Chat";
             }
-            await prisma.chatSession.update({
-                where: { id: sessionId },
+            const updateResult = await prisma.chatSession.updateMany({
+                where: { id: validatedSessionId, userId },
                 data: updateData,
-            }).catch(() => {});
-        }
-
-        let watchlistAction: Awaited<ReturnType<typeof maybeHandleAegisWatchlistAction>> = null;
-        try {
-            watchlistAction = await maybeHandleAegisWatchlistAction(latestUserMessage.content);
-        } catch (error) {
-            console.error("[Aegis Watchlist Action]", error);
-            watchlistAction = {
-                status: "failed",
-                message: "I couldn't update the global Watchlist right now, but I can still answer normally.",
-            };
-        }
-
-        const context = await buildMarketContext(userId, latestUserMessage.content);
-        context.userQuery = latestUserMessage.content;
-
-        // Check for referenced chat session in user prompt
-        try {
-            const userSessions = await prisma.chatSession.findMany({
-                where: { userId },
-                select: { id: true, title: true }
             });
-            const referencedSession = userSessions.find(s => latestUserMessage.content.includes(s.id));
-            if (referencedSession) {
-                const referencedMessages = await prisma.chatMessage.findMany({
-                    where: { sessionId: referencedSession.id, userId },
-                    orderBy: { createdAt: "asc" },
-                    select: { role: true, content: true, createdAt: true }
-                });
-                if (referencedMessages.length > 0) {
-                    let formattedHistory = `=== REFERENCED CHAT SESSION (ID: ${referencedSession.id}, Title: "${referencedSession.title}") ===\n`;
-                    for (const msg of referencedMessages) {
-                        const sender = msg.role === "user" ? "User" : "Aegis";
-                        formattedHistory += `[${msg.createdAt.toISOString()}] ${sender}: ${msg.content}\n`;
-                    }
-                    formattedHistory += `=== END REFERENCED CHAT SESSION ===`;
-                    context.referencedSessionContext = formattedHistory;
-                }
+            if (updateResult.count === 0) {
+                console.error("[API /chat POST] Validated chat session was not updated", { sessionId: validatedSessionId, userId });
             }
-        } catch (err) {
-            console.error("[Referenced Chat Session Context Error]", err);
         }
 
-        if (watchlistAction) {
-            context.watchlistAction = watchlistAction;
-        }
+        const aegisRun = await createAndDispatchAegisRun({
+            userId,
+            sessionId: validatedSessionId,
+            input: latestUserMessage.content,
+            provider: preferredProvider,
+            agentMode,
+            reasoningDepth: normalizedReasoningDepth,
+            openRouterModelId: normalizedOpenRouterModelId,
+            deepResearch: deepResearch ?? false,
+        });
 
         const encoder = new TextEncoder();
-
-        const stream = new ReadableStream({
-            async start(controller) {
-                let fullAssistantResponse = "";
-                try {
-                    let deepResearchBlock: string | undefined;
-                    if (deepResearch) {
-                        controller.enqueue(encoder.encode("*Searching online sources...*\n\n"));
-                        try {
-                            const research = await performDeepResearch(latestUserMessage.content);
-                            deepResearchBlock = research.contextBlock;
-                            controller.enqueue(encoder.encode("*Reading and synthesizing web pages...*\n\n"));
-                        } catch (err) {
-                            console.error("[Deep Research] Error performing search:", err);
-                            controller.enqueue(encoder.encode("*Search failed, proceeding with model knowledge...*\n\n"));
-                        }
-                    }
-
-                    const aiGenerator = runAegisAgentHarness({
-                        provider: preferredProvider,
-                        messages: messages as ChatMessageData[],
-                        context,
-                        options: {
-                            reasoningDepth: normalizedReasoningDepth,
-                            agentMode,
-                            deepResearch,
-                            deepResearchBlock,
-                            ...(normalizedOpenRouterModelId ? { openRouterModelId: normalizedOpenRouterModelId } : {}),
-                        },
-                    });
-
-                    for await (const chunk of aiGenerator) {
-                        fullAssistantResponse += chunk;
-                        controller.enqueue(encoder.encode(chunk));
-                    }
-                } catch (error) {
-                    console.error("[AI Stream] Error:", error);
-                    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
-                    controller.enqueue(encoder.encode(`\n\n*Error: ${errorMessage}*`));
-                } finally {
-                    controller.close();
-                    if (fullAssistantResponse.trim()) {
-                        await prisma.chatMessage.create({
-                            data: {
-                                userId,
-                                sessionId: sessionId ?? undefined,
-                                role: "assistant",
-                                content: fullAssistantResponse,
-                                metadata: JSON.stringify({
-                                      provider: preferredProvider,
-                                      ...(normalizedOpenRouterModelId ? { openRouterModelId: normalizedOpenRouterModelId } : {}),
-                                      ...(normalizedReasoningDepth ? { reasoningDepth: normalizedReasoningDepth } : {}),
-                                     agentMode,
-                                     harness: "aegis",
-                                     stages: getAegisHarnessStages(agentMode),
-                                     ...(deepResearch ? { deepResearch: true } : {}),
-                                 }),
-                            }
-                        }).catch(e => console.error("Failed to persist assistant message", e));
-                    }
-                }
-            }
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(encoder.encode(serializeAegisStreamEvent({
+                    type: "aegis.stage",
+                    sequence: 1,
+                    stage: "queued",
+                    message: "Aegis chat run queued.",
+                    payload: { runId: aegisRun.id },
+                })));
+                controller.close();
+            },
         });
 
         return new Response(stream, {
