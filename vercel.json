@@ -8,10 +8,6 @@
     {
       "path": "/api/market/market-cap-sync",
       "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/intelligence/run",
-      "schedule": "*/5 * * * *"
     }
   ]
 }
