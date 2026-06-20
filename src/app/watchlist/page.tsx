@@ -82,7 +82,7 @@ export default function WatchlistPage() {
   const fetchItems = useCallback(async (showLoading = true) => {
     try {
       if (showLoading) setItemsLoading(true);
-      const res = await fetch("/api/items?limit=100");
+      const res = await fetch("/api/items?limit=100", { cache: "no-store" });
       const data = await res.json();
 
       if (data.success) {
