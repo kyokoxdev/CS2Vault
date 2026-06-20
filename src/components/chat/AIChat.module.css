@@ -199,6 +199,330 @@
     scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
+.notebookShell {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.notebookCollapsedButton {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    color: var(--text-secondary-60);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    opacity: 0.7;
+}
+
+.notebookHeader,
+.notebookToolbar,
+.notebookCardHeader,
+.notebookCardActions,
+.notebookEditorActions,
+.notebookTagRow,
+.aegisActionCardHeader,
+.aegisActionControls,
+.aegisActionMetaRow {
+    display: flex;
+    align-items: center;
+}
+
+.notebookHeader,
+.notebookToolbar,
+.notebookCardHeader,
+.notebookEditorActions,
+.aegisActionCardHeader {
+    justify-content: space-between;
+}
+
+.notebookHeader {
+    gap: 10px;
+}
+
+.notebookEyebrow,
+.aegisActionCardEyebrow {
+    margin: 0;
+    color: var(--text-secondary-60);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.notebookTitle {
+    margin: 4px 0 0;
+    color: var(--text-primary-90);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.notebookActionButton,
+.notebookSecondaryButton,
+.notebookPrimaryButton,
+.notebookIconButton,
+.aegisActionButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font: inherit;
+    cursor: pointer;
+    transition: transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.notebookActionButton,
+.notebookIconButton {
+    width: 32px;
+    height: 32px;
+    color: var(--text-primary-90);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+}
+
+.notebookActionButton:hover,
+.notebookSecondaryButton:hover,
+.notebookPrimaryButton:hover,
+.notebookIconButton:hover,
+.aegisActionButton:hover {
+    transform: translateY(-1px);
+}
+
+.notebookToolbar {
+    gap: 8px;
+}
+
+.notebookCount,
+.notebookCardMeta,
+.notebookStatus,
+.aegisActionMetaText {
+    color: var(--text-secondary-60);
+    font-size: 11px;
+}
+
+.notebookSecondaryButton,
+.notebookPrimaryButton,
+.aegisActionButton {
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 10px;
+}
+
+.notebookSecondaryButton,
+.aegisActionButton {
+    color: var(--text-primary-90);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.notebookPrimaryButton {
+    color: var(--surface-0);
+    background: var(--text-primary-90);
+    border: 1px solid transparent;
+}
+
+.notebookEditor {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+}
+
+.notebookLabel {
+    display: grid;
+    gap: 6px;
+    color: var(--text-secondary-60);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.notebookInput,
+.notebookTextarea {
+    width: 100%;
+    color: var(--text-primary-90);
+    background: rgba(10, 13, 18, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font: inherit;
+    outline: none;
+}
+
+.notebookInput:focus,
+.notebookTextarea:focus {
+    border-color: var(--border-active);
+}
+
+.notebookTextarea {
+    resize: vertical;
+    min-height: 88px;
+}
+
+.notebookFeedback,
+.notebookError,
+.aegisActionSuccessText,
+.aegisActionErrorText,
+.aegisActionWarning {
+    margin: 0;
+    font-size: 12px;
+}
+
+.notebookFeedback,
+.aegisActionSuccessText {
+    color: var(--bull);
+}
+
+.notebookError,
+.aegisActionErrorText,
+.aegisActionWarning {
+    color: var(--bear);
+}
+
+.notebookError,
+.aegisActionErrorText {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.notebookList,
+.aegisEvents {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.notebookCard,
+.aegisActionCard {
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+}
+
+.notebookCardArchived {
+    opacity: 0.65;
+}
+
+.notebookCardHeader {
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.notebookCardTitle,
+.aegisActionCardMessage {
+    margin: 0;
+    color: var(--text-primary-90);
+}
+
+.notebookCardTitle {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.notebookCardMeta {
+    margin: 4px 0 0;
+}
+
+.notebookCardActions,
+.notebookEditorActions,
+.notebookTagRow,
+.aegisActionControls,
+.aegisActionMetaRow {
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.notebookCardContent {
+    margin: 10px 0 0;
+    color: var(--text-primary-90);
+    font-size: 12px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}
+
+.notebookTag,
+.aegisActionBadge,
+.aegisActionStage {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 8px;
+    color: var(--text-primary-90);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.aegisActionCard {
+    display: grid;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.aegisActionCardNeutral {
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.aegisActionCardApproval {
+    border-color: color-mix(in srgb, var(--accent-gold) 40%, rgba(255, 255, 255, 0.08));
+}
+
+.aegisActionCardSuccess {
+    border-color: color-mix(in srgb, var(--bull) 40%, rgba(255, 255, 255, 0.08));
+}
+
+.aegisActionCardError {
+    border-color: color-mix(in srgb, var(--bear) 50%, rgba(255, 255, 255, 0.08));
+}
+
+.aegisActionCardHeader {
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.aegisActionCardMessage {
+    margin-top: 4px;
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.aegisActionPre {
+    margin: 0;
+    overflow-x: auto;
+    padding: 10px 12px;
+    color: rgba(255, 255, 255, 0.82);
+    background: rgba(10, 13, 18, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.aegisActionApprove {
+    border-color: color-mix(in srgb, var(--bull) 55%, rgba(255, 255, 255, 0.08));
+}
+
+.aegisActionReject {
+    border-color: color-mix(in srgb, var(--bear) 55%, rgba(255, 255, 255, 0.08));
+}
+
+.notebookPrimaryButton:disabled,
+.notebookSecondaryButton:disabled,
+.notebookIconButton:disabled,
+.aegisActionButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .historyList::-webkit-scrollbar,
 .messages::-webkit-scrollbar {
     width: 6px;
@@ -1519,6 +1843,22 @@
     }
 
     .newChatBtn span {
+        display: none;
+    }
+
+    .notebookShell {
+        flex: 0 0 auto;
+        min-width: 180px;
+    }
+
+    .notebookCollapsedButton {
+        width: 40px;
+        height: 40px;
+    }
+
+    .notebookHeader,
+    .notebookToolbar,
+    .notebookList {
         display: none;
     }
 

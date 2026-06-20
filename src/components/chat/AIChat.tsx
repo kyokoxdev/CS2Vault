@@ -16,7 +16,6 @@ import {
     getDefaultReasoningDepthForModel,
     getModelByValue,
     getOpenRouterModelLabel,
-    getReasoningDepthOption,
     getReasoningDepthOptionsForModel,
     isAIAgentMode,
     isAIProviderName,
@@ -34,6 +33,10 @@ import {
     buildComparePrompt,
     buildPortfolioPrompt,
 } from "@/lib/ai/slash-commands";
+import { AegisActionCard } from "./AegisActionCard";
+import { AegisNotebook } from "./AegisNotebook";
+import { parseAegisStreamChunk, type AegisClientStreamEvent } from "./aegisStream";
+import type { AegisActionStatus, AegisApprovalStatus, AegisRunStatus, AegisTraceEventType } from "@/lib/aegis/types";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_OPENROUTER_MODEL_ID_LENGTH = 160;
@@ -47,6 +50,8 @@ const MAX_CONTEXT_MESSAGES = 30;
 // several more seconds, so 1.5 s was far too short and caused premature
 // idle-completion that cut off the entire consultant response.
 const STREAM_IDLE_COMPLETION_TIMEOUT_MS = process.env.NODE_ENV === "test" ? 1_000 : 30_000;
+const AEGIS_RUN_POLL_INTERVAL_MS = process.env.NODE_ENV === "test" ? 20 : 1_000;
+const AEGIS_RUN_MAX_POLL_ATTEMPTS = process.env.NODE_ENV === "test" ? 20 : 120;
 
 const ITEM_AUTOCOMPLETE_DEBOUNCE_MS = 280;
 
@@ -93,7 +98,27 @@ type ChatMessage = ChatMessageData & {
     reasoningDepth?: AIReasoningDepth;
     openRouterModelId?: string;
     reasoningDurationMs?: number;
+    aegisEvents?: AegisClientStreamEvent[];
 };
+
+const RENDERABLE_AEGIS_EVENT_TYPES = new Set<AegisClientStreamEvent["type"]>([
+    "aegis.action_preview",
+    "aegis.approval_required",
+    "aegis.action_succeeded",
+    "aegis.refetch",
+    "aegis.error",
+]);
+
+const AEGIS_TRACE_EVENT_TYPE_SET = new Set<string>([
+    "aegis.stage",
+    "aegis.delta",
+    "aegis.action_preview",
+    "aegis.approval_required",
+    "aegis.action_succeeded",
+    "aegis.refetch",
+    "aegis.error",
+    "aegis.done",
+]);
 
 interface AegisTextSelectOption<T extends string> {
     value: T;
@@ -231,6 +256,151 @@ interface ChatDraft {
     imageBase64: string | null;
 }
 
+interface ChatMessageMetadata {
+    provider?: AIProviderName;
+    agentMode?: AIAgentMode;
+    reasoningDepth?: AIReasoningDepth;
+    openRouterModelId?: string;
+    durableRunId?: string;
+}
+
+interface PersistedChatMessage {
+    id: string;
+    role: string;
+    content: string;
+    metadata: string | null;
+    createdAt: string;
+}
+
+interface AegisTraceRecord {
+    type: string;
+    sequence: number;
+    stage: string | null;
+    message: string | null;
+    payload: unknown;
+    error: string | null;
+}
+
+interface AegisActionRecord {
+    id: string;
+    tool: string;
+    status: AegisActionStatus;
+    risk: string;
+    input: unknown;
+    output: unknown;
+    inputPreview: string | null;
+    outputPreview: string | null;
+    approval?: { status: AegisApprovalStatus } | null;
+}
+
+interface AegisRunRecord {
+    id: string;
+    status: AegisRunStatus;
+    finalResponse: string | null;
+    error: string | null;
+    traces: AegisTraceRecord[];
+    actions: AegisActionRecord[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+
+function parseMessageMetadata(metadata: string | null | undefined): ChatMessageMetadata {
+    if (!metadata) return {};
+
+    try {
+        const parsed = JSON.parse(metadata);
+        if (!isRecord(parsed)) return {};
+
+        const result: ChatMessageMetadata = {};
+        if (typeof parsed.provider === "string" && isAIProviderName(parsed.provider)) result.provider = parsed.provider;
+        if (typeof parsed.agentMode === "string" && isAIAgentMode(parsed.agentMode)) result.agentMode = parsed.agentMode;
+        if (typeof parsed.reasoningDepth === "string" && isAIReasoningDepth(parsed.reasoningDepth)) result.reasoningDepth = parsed.reasoningDepth;
+        if (typeof parsed.openRouterModelId === "string") result.openRouterModelId = parsed.openRouterModelId;
+        if (typeof parsed.durableRunId === "string") result.durableRunId = parsed.durableRunId;
+        return result;
+    } catch (error) {
+        console.warn("[AIChat] Failed to parse chat message metadata", error);
+        return {};
+    }
+}
+
+function isAegisTraceEventType(value: string): value is AegisTraceEventType {
+    return AEGIS_TRACE_EVENT_TYPE_SET.has(value);
+}
+
+function mergeActionStatusIntoPayload(payload: unknown, actionsById: Map<string, AegisActionRecord>): unknown {
+    if (!isRecord(payload)) return payload;
+
+    const actionId = typeof payload.actionId === "string" ? payload.actionId : undefined;
+    if (!actionId) return payload;
+
+    const action = actionsById.get(actionId);
+    if (!action) return payload;
+
+    return {
+        ...payload,
+        actionStatus: action.status,
+        approvalStatus: action.approval?.status,
+    };
+}
+
+function mapRunToAegisEvents(run: AegisRunRecord): AegisClientStreamEvent[] {
+    const actionsById = new Map(run.actions.map((action) => [action.id, action]));
+
+    return run.traces
+        .filter((trace) => isAegisTraceEventType(trace.type))
+        .map((trace) => ({
+            type: trace.type as AegisTraceEventType,
+            sequence: trace.sequence,
+            stage: trace.stage,
+            message: trace.message,
+            payload: mergeActionStatusIntoPayload(trace.payload, actionsById),
+            error: trace.error,
+        }));
+}
+
+function getRunDisplayContent(run: AegisRunRecord, fallback: string): string {
+    if (run.finalResponse?.trim()) {
+        return run.finalResponse;
+    }
+
+    const deltaText = run.traces
+        .filter((trace) => trace.type === "aegis.delta" && typeof trace.message === "string")
+        .map((trace) => trace.message)
+        .join("");
+    if (deltaText.trim()) {
+        return deltaText;
+    }
+
+    if (run.status === "failed") {
+        return run.error || "Aegis run failed.";
+    }
+
+    return fallback;
+}
+
+function getQueuedRunId(event: AegisClientStreamEvent): string | null {
+    if (event.type !== "aegis.stage" || !isRecord(event.payload)) {
+        return null;
+    }
+
+    return typeof event.payload.runId === "string" ? event.payload.runId : null;
+}
+
+function waitForNextRunPoll(): Promise<void> {
+    return new Promise((resolve) => window.setTimeout(resolve, AEGIS_RUN_POLL_INTERVAL_MS));
+}
+
+async function fetchAegisRun(runId: string): Promise<AegisRunRecord | null> {
+    const res = await fetch(`/api/aegis/runs/${encodeURIComponent(runId)}`);
+    if (!res.ok) return null;
+
+    const data = await res.json() as { success?: boolean; data?: AegisRunRecord };
+    return data.success && data.data ? data.data : null;
+}
+
 function createChatMessage(message: ChatMessageData): ChatMessage {
     return {
         ...message,
@@ -240,6 +410,11 @@ function createChatMessage(message: ChatMessageData): ChatMessage {
 
 function isWelcomeMessage(message: ChatMessageData): boolean {
     return message.role === WELCOME_MESSAGE.role && message.content === WELCOME_MESSAGE.content;
+}
+
+function hasRenderableAegisEvents(message: ChatMessage): boolean {
+    return Array.isArray(message.aegisEvents)
+        && message.aegisEvents.some((event) => RENDERABLE_AEGIS_EVENT_TYPES.has(event.type));
 }
 
 function getNextTipIndex(currentIndex: number): number {
@@ -379,14 +554,34 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
             const res = await fetch(`/api/chat/history?sessionId=${sessionId}`);
             const data = await res.json();
             if (data.success && data.data && data.data.length > 0) {
-                setMessages(data.data.map((m: { role: string; content: string }) => createChatMessage({
-                    role: m.role as "user" | "assistant",
-                    content: m.content,
-                })));
+                const hydratedMessages = await Promise.all((data.data as PersistedChatMessage[]).map(async (m) => {
+                    const metadata = parseMessageMetadata(m.metadata);
+                    const baseMessage = createChatMessage({
+                        role: m.role === "assistant" ? "assistant" : "user",
+                        content: m.content,
+                    });
+
+                    if (m.role !== "assistant" || !metadata.durableRunId) {
+                        return baseMessage;
+                    }
+
+                    const run = await fetchAegisRun(metadata.durableRunId);
+                    return {
+                        ...baseMessage,
+                        provider: metadata.provider,
+                        agentMode: metadata.agentMode,
+                        reasoningDepth: metadata.reasoningDepth,
+                        openRouterModelId: metadata.openRouterModelId,
+                        content: run ? getRunDisplayContent(run, m.content) : m.content,
+                        aegisEvents: run ? mapRunToAegisEvents(run) : undefined,
+                    };
+                }));
+                setMessages(hydratedMessages);
             } else {
                 setMessages([createChatMessage(WELCOME_MESSAGE)]);
             }
-        } catch {
+        } catch (error) {
+            console.error("[AIChat] Failed to load chat history", error);
             setMessages([createChatMessage({
                 role: "assistant",
                 content: WELCOME_MESSAGE.content,
@@ -439,7 +634,8 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                     setMessages([createChatMessage(WELCOME_MESSAGE)]);
                 }
             })
-            .catch(() => {
+            .catch((error) => {
+                console.warn("[AIChat] Failed to load chat sessions", error);
                 if (initialSessionId) {
                     setActiveSessionId(initialSessionId);
                     void loadHistory(initialSessionId);
@@ -512,7 +708,9 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
             streamAbortControllerRef.current = null;
             submitInFlightRef.current = false;
             activeController?.abort();
-            void activeReader?.cancel().catch(() => undefined);
+            void activeReader?.cancel().catch((error: unknown) => {
+                console.warn("[AIChat] Failed to cancel active stream reader on unmount", error);
+            });
         };
     }, [clearStreamIdleTimeout]);
 
@@ -610,7 +808,8 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
             } else {
                 setPortfolioItems([]);
             }
-        } catch {
+        } catch (error) {
+            console.warn("[AIChat] Failed to load portfolio items", error);
             setPortfolioItems([]);
         } finally {
             setPortfolioItemsLoading(false);
@@ -648,7 +847,8 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                 window.history.replaceState(null, "", `/chat/${nextSession.id}`);
                 await loadHistory(nextSession.id);
             }
-        } catch {
+        } catch (error) {
+            console.warn("[AIChat] Failed to delete chat session", error);
             setError("Failed to delete chat session.");
         }
     };
@@ -662,9 +862,65 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
         streamAbortControllerRef.current = null;
         submitInFlightRef.current = false;
         activeController?.abort();
-        void activeReader?.cancel().catch(() => undefined);
+        void activeReader?.cancel().catch((error: unknown) => {
+            console.warn("[AIChat] Failed to cancel active stream reader", error);
+        });
         setIsLoading(false);
     };
+
+    const pollAegisRunIntoMessage = useCallback(async (runId: string, assistantMessageId: string, fallback: string, startedAt: number, signal: AbortSignal) => {
+        for (let attempt = 0; attempt < AEGIS_RUN_MAX_POLL_ATTEMPTS; attempt++) {
+            if (signal.aborted) return;
+
+            const run = await fetchAegisRun(runId);
+            if (run) {
+                const content = getRunDisplayContent(run, fallback);
+                const aegisEvents = mapRunToAegisEvents(run);
+                const reasoningDurationMs = performance.now() - startedAt;
+
+                setMessages(prev => {
+                    const nextMessages = prev.map(message => {
+                        if (message.id !== assistantMessageId || message.role !== "assistant") {
+                            return message;
+                        }
+
+                        return {
+                            ...message,
+                            content,
+                            aegisEvents,
+                            reasoningDurationMs,
+                        };
+                    });
+                    messagesRef.current = nextMessages;
+                    return nextMessages;
+                });
+
+                if (run.status === "completed" || run.status === "failed" || run.status === "cancelled") {
+                    return;
+                }
+            }
+
+            await waitForNextRunPoll();
+        }
+
+        if (!signal.aborted) {
+            setMessages(prev => {
+                const nextMessages = prev.map(message => {
+                    if (message.id !== assistantMessageId || message.role !== "assistant") {
+                        return message;
+                    }
+
+                    return {
+                        ...message,
+                        content: message.content.trim() ? message.content : "Aegis is still running. Reopen this chat in a moment to see the durable result.",
+                        reasoningDurationMs: performance.now() - startedAt,
+                    };
+                });
+                messagesRef.current = nextMessages;
+                return nextMessages;
+            });
+        }
+    }, []);
 
     const submitDraft = async (draft: ChatDraft, portfolioItemOverride?: AttachedPortfolioItem | null) => {
         const portfolioItemContext = portfolioItemOverride !== undefined ? portfolioItemOverride : attachedPortfolioItem;
@@ -675,7 +931,9 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
         clearStreamIdleTimeout();
         streamReaderRef.current = null;
         streamAbortControllerRef.current?.abort();
-        void previousReader?.cancel().catch(() => undefined);
+        void previousReader?.cancel().catch((error: unknown) => {
+            console.warn("[AIChat] Failed to cancel previous stream reader", error);
+        });
 
         const controller = new AbortController();
         streamAbortControllerRef.current = controller;
@@ -685,7 +943,7 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
         // Build content, appending portfolio item context if present
         const baseContent = draft.content || (draft.imageBase64 ? "[Attached Image]" : "");
         const itemContextSuffix = portfolioItemContext
-            ? `\n\n[Attached portfolio item: ${portfolioItemContext.name} (${portfolioItemContext.marketHashName})${portfolioItemContext.currentPrice !== null ? ` — Current price: $${portfolioItemContext.currentPrice.toFixed(2)}` : ""}]`
+            ? `\n\n[Attached portfolio item: ${portfolioItemContext.name} (${portfolioItemContext.marketHashName}); portfolio item ${portfolioItemContext.id}${portfolioItemContext.currentPrice !== null ? ` — Current price: $${portfolioItemContext.currentPrice.toFixed(2)}` : ""}]`
             : "";
 
         const userMessagePayload: ChatMessageData = {
@@ -770,7 +1028,12 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                 let errorMessage = "API Error";
                 const contentType = res.headers.get("content-type") || "";
                 if (contentType.includes("application/json")) {
-                    const data = await res.json().catch(() => null);
+                    let data: { error?: string } | null = null;
+                    try {
+                        data = await res.json() as { error?: string };
+                    } catch (error) {
+                        console.warn("[AIChat] Failed to parse chat error response", error);
+                    }
                     if (data && typeof data.error === "string") {
                         errorMessage = data.error;
                     }
@@ -786,6 +1049,8 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
             const activeReader = reader;
             const decoder = new TextDecoder("utf-8");
             let receivedAssistantChunk = false;
+            let aegisStreamRemainder = "";
+            let queuedRunId: string | null = null;
             streamReaderRef.current = activeReader;
 
             const finalizeAssistantResponse = () => {
@@ -847,23 +1112,48 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                 const result = await readWithIdleCompletion();
                 if (result === "idle-complete") {
                     streamReaderRef.current = null;
-                    void activeReader.cancel().catch(() => undefined);
+                    void activeReader.cancel().catch((error: unknown) => {
+                        console.warn("[AIChat] Failed to cancel idle stream reader", error);
+                    });
                     break;
                 }
 
                 const { done, value } = result;
                 if (done || controller.signal.aborted) break;
 
-                receivedAssistantChunk = true;
-
                 const chunk = decoder.decode(value, { stream: true });
+                const parsed = parseAegisStreamChunk(aegisStreamRemainder + chunk);
+                aegisStreamRemainder = parsed.remainder;
+                for (const event of parsed.events) {
+                    queuedRunId = queuedRunId ?? getQueuedRunId(event);
+                }
+                const aegisEvents = parsed.events.filter(event => event.type !== "aegis.delta" && event.type !== "aegis.done");
+                const assistantText = parsed.rawText + parsed.events
+                    .filter(event => event.type === "aegis.delta" && typeof event.message === "string")
+                    .map(event => event.message)
+                    .join("");
+
+                if (!assistantText && aegisEvents.length === 0) {
+                    continue;
+                }
+
+                if (assistantText) {
+                    receivedAssistantChunk = true;
+                }
+
                 setMessages(prev => {
                     const nextMessages = prev.map(message => {
                         if (message.id !== assistantPlaceholder.id || message.role !== "assistant") {
                             return message;
                         }
 
-                        return { ...message, content: message.content + chunk };
+                        return {
+                            ...message,
+                            content: assistantText ? message.content + assistantText : message.content,
+                            aegisEvents: aegisEvents.length > 0
+                                ? [...(message.aegisEvents ?? []), ...aegisEvents]
+                                : message.aegisEvents,
+                        };
                     });
                     messagesRef.current = nextMessages;
                     return nextMessages;
@@ -871,6 +1161,15 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
             }
 
             clearStreamIdleTimeout();
+            if (queuedRunId) {
+                await pollAegisRunIntoMessage(
+                    queuedRunId,
+                    assistantPlaceholder.id,
+                    "Aegis run queued. Waiting for the durable runner to finish...",
+                    assistantStartedAt,
+                    controller.signal
+                );
+            }
             finalizeAssistantResponse();
         } catch (error) {
             clearStreamIdleTimeout();
@@ -879,7 +1178,7 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                 if (isMountedRef.current) {
                     setMessages(prev => {
                         const placeholder = prev.find(m => m.id === assistantPlaceholder.id);
-                        if (placeholder && placeholder.content.trim()) {
+                        if (placeholder && (placeholder.content.trim() || hasRenderableAegisEvents(placeholder))) {
                             messagesRef.current = prev;
                             return prev;
                         }
@@ -932,7 +1231,8 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                     const nextQueuedFollowUp = queuedFollowUpRef.current;
                     if (!controller.signal.aborted && nextQueuedFollowUp) {
                         setQueuedFollowUp(null);
-                        void submitDraft(nextQueuedFollowUp).catch(() => {
+                        void submitDraft(nextQueuedFollowUp).catch((error: unknown) => {
+                            console.error("[AIChat] Queued follow-up submit unexpectedly failed", error);
                             // Safety net: submitDraft has its own try/catch/finally and
                             // should never reject, but if it does, release the lock so
                             // the UI is not permanently stuck in isLoading=true.
@@ -1067,7 +1367,8 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                 } else {
                     setAcItems([]);
                 }
-            } catch {
+            } catch (error) {
+                console.warn("[AIChat] Failed to fetch item suggestions", error);
                 setAcItems([]);
             } finally {
                 setAcItemsLoading(false);
@@ -1136,7 +1437,8 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                 messagesRef.current = next;
                 return next;
             });
-        } catch {
+        } catch (error) {
+            console.warn("[AIChat] Failed to run watch command", error);
             setMessages((prev) => {
                 const next = prev.map((m) =>
                     m.id === assistantMsg.id ? { ...m, content: "❌ Network error — could not reach Watchlist API.", agentMode: "consultant" as AIAgentMode, provider, reasoningDurationMs: 0 } : m
@@ -1222,6 +1524,10 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
         setOpenRouterModelId((currentValue) => currentValue.trim() || DEFAULT_OPENROUTER_MODEL_ID);
     };
 
+    const handleAegisRefetch = useCallback(() => {
+        router.refresh();
+    }, [router]);
+
     const visibleMessages = messages.filter(message => !isWelcomeMessage(message));
     const hasStartedConversation = visibleMessages.length > 0;
     const activeSession = sessions.find(session => session.id === activeSessionId);
@@ -1253,6 +1559,29 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                 <span>{messageModelLabel}</span>
                 <span className={styles.assistantMetaSeparator} aria-hidden="true">·</span>
                 <span>{formatReasoningDuration(message.reasoningDurationMs)}</span>
+            </div>
+        );
+    };
+
+    const renderAegisEvents = (message: ChatMessage) => {
+        if (!Array.isArray(message.aegisEvents) || message.aegisEvents.length === 0) {
+            return null;
+        }
+
+        const visibleEvents = message.aegisEvents.filter((event) => RENDERABLE_AEGIS_EVENT_TYPES.has(event.type));
+        if (visibleEvents.length === 0) {
+            return null;
+        }
+
+        return (
+            <div className={styles.aegisEvents} aria-label="Aegis action events">
+                {visibleEvents.map((event, index) => (
+                    <AegisActionCard
+                        key={`${message.id}-${event.type}-${event.sequence ?? index}`}
+                        event={event}
+                        onRefetch={handleAegisRefetch}
+                    />
+                ))}
             </div>
         );
     };
@@ -1793,6 +2122,8 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                     {historyExpanded && <span>New chat</span>}
                 </button>
 
+                <AegisNotebook collapsed={!historyExpanded} />
+
                 <div className={styles.historyList} role="list" aria-busy={sessionsLoading}>
                     {sessionsLoading && (
                         <div className={styles.historyLoadingCompact}>
@@ -1860,7 +2191,7 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                                 </div>
                             )}
                             {!historyLoading && !sessionsLoading && visibleMessages.map((msg) => {
-                                if (msg.role === "assistant" && msg.content === "" && isLoading) {
+                                if (msg.role === "assistant" && msg.content === "" && !hasRenderableAegisEvents(msg) && isLoading) {
                                     return null;
                                 }
                                 return (
@@ -1871,13 +2202,14 @@ export default function AIChat({ initialSessionId }: AIChatProps = {}) {
                                         {msg.imageBase64 && (
                                             <img src={msg.imageBase64} alt="User attachment" className={styles.chatImage} />
                                         )}
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                                        {msg.role === "assistant" && renderAssistantMetadata(msg)}
+                                        {msg.content ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown> : null}
+                                        {msg.role === "assistant" && renderAegisEvents(msg)}
+                                        {msg.role === "assistant" && (msg.content || hasRenderableAegisEvents(msg)) ? renderAssistantMetadata(msg) : null}
                                     </div>
                                 );
                             })}
 
-                            {isLoading && messages[messages.length - 1]?.content === "" && (
+                            {isLoading && messages[messages.length - 1]?.content === "" && !hasRenderableAegisEvents(messages[messages.length - 1]) && (
                                 <output aria-live="polite" className={styles.messageLoading}>
                                     <div className={styles.dot} aria-hidden="true"></div>
                                     <div className={styles.dot} aria-hidden="true"></div>

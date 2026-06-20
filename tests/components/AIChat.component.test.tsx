@@ -18,8 +18,13 @@ vi.mock("next/navigation", () => ({
         push: vi.fn(),
         replace: vi.fn(),
         prefetch: vi.fn(),
+        refresh: vi.fn(),
     }),
     usePathname: () => "/chat",
+}));
+
+vi.mock("@/components/chat/AegisNotebook", () => ({
+    AegisNotebook: ({ collapsed }: { collapsed: boolean }) => <div data-testid="aegis-notebook" data-collapsed={String(collapsed)} />,
 }));
 
 vi.mock("@/components/ui/Select", () => ({
@@ -31,11 +36,22 @@ vi.mock("@/components/ui/Select", () => ({
 }));
 
 vi.mock("react-icons/fa", () => ({
+    FaArchive: () => <span data-testid="icon-archive" />,
     FaArrowRight: () => <span data-testid="icon-send" />,
     FaBars: () => <span data-testid="icon-bars" />,
+    FaBook: () => <span data-testid="icon-book" />,
+    FaBriefcase: () => <span data-testid="icon-briefcase" />,
+    FaCheck: () => <span data-testid="icon-check" />,
     FaChevronDown: () => <span data-testid="icon-chevron-down" />,
     FaComments: () => <span data-testid="icon-comments" />,
+    FaEdit: () => <span data-testid="icon-edit" />,
+    FaExclamationTriangle: () => <span data-testid="icon-warning" />,
+    FaGlobe: () => <span data-testid="icon-globe" />,
+    FaPaperclip: () => <span data-testid="icon-paperclip" />,
     FaPlus: () => <span data-testid="icon-plus" />,
+    FaRedo: () => <span data-testid="icon-redo" />,
+    FaSave: () => <span data-testid="icon-save" />,
+    FaSearch: () => <span data-testid="icon-search" />,
     FaStop: () => <span data-testid="icon-stop" />,
     FaTimes: () => <span data-testid="icon-times" />,
 }));
@@ -45,6 +61,61 @@ vi.mock("react-icons/si", () => ({
     SiGooglegemini: () => <span data-testid="icon-gemini" />,
     SiOpenai: () => <span data-testid="icon-openai" />,
 }));
+
+function createQueuedRunStream(runId: string): Response {
+    const encoder = new TextEncoder();
+    const event = {
+        type: "aegis.stage",
+        sequence: 1,
+        stage: "queued",
+        message: "Aegis chat run queued.",
+        payload: { runId },
+    };
+
+    return new Response(new ReadableStream({
+        start(controller) {
+            controller.enqueue(encoder.encode(`event: aegis.stage\ndata: ${JSON.stringify(event)}\n\n`));
+            controller.close();
+        },
+    }), { status: 200, headers: { "content-type": "text/event-stream" } });
+}
+
+function createCompletedRun(finalResponse: string, actionStatus = "waiting_approval", approvalStatus = "pending") {
+    return {
+        id: "run-1",
+        status: "completed",
+        finalResponse,
+        error: null,
+        traces: [
+            {
+                type: "aegis.approval_required",
+                sequence: 2,
+                stage: "approval",
+                message: "Approve cost basis update?",
+                payload: {
+                    actionId: "action-1",
+                    tool: "portfolio.acquiredPrice.update",
+                    risk: "edit",
+                    input: { inventoryItemId: "inventory-1", acquiredPrice: 12.34 },
+                },
+                error: null,
+            },
+        ],
+        actions: [
+            {
+                id: "action-1",
+                tool: "portfolio.acquiredPrice.update",
+                status: actionStatus,
+                risk: "edit",
+                input: { inventoryItemId: "inventory-1", acquiredPrice: 12.34 },
+                output: null,
+                inputPreview: null,
+                outputPreview: null,
+                approval: { status: approvalStatus },
+            },
+        ],
+    };
+}
 
 describe("AIChat", () => {
     beforeEach(() => {
@@ -593,5 +664,201 @@ describe("AIChat", () => {
         expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
         expect(screen.getByRole("button", { name: "Attach" })).toBeEnabled();
         expect(screen.getByRole("button", { name: "New chat" })).toBeEnabled();
+    });
+
+    it("polls the durable Aegis run after the chat route queues it", async () => {
+        const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = String(input);
+
+            if (url === "/api/chat/sessions") {
+                if (init?.method === "POST") {
+                    return {
+                        ok: true,
+                        json: async () => ({ success: true, data: { id: "session-1", title: "New Chat", createdAt: "", updatedAt: "" } }),
+                    } as Response;
+                }
+
+                return {
+                    ok: true,
+                    json: async () => ({ success: true, data: [] }),
+                } as Response;
+            }
+
+            if (url === "/api/settings") {
+                return {
+                    ok: true,
+                    json: async () => ({ data: { activeAIProvider: "gemini-flash" } }),
+                } as Response;
+            }
+
+            if (url === "/api/chat") {
+                return createQueuedRunStream("run-1");
+            }
+
+            if (url === "/api/aegis/runs/run-1") {
+                return {
+                    ok: true,
+                    json: async () => ({ success: true, data: createCompletedRun("Durable response ready") }),
+                } as Response;
+            }
+
+            throw new Error(`Unexpected fetch: ${url}`);
+        }) as typeof fetch;
+
+        vi.stubGlobal("fetch", fetchMock);
+        render(<AIChat />);
+
+        const textarea = await screen.findByRole("textbox", { name: "Chat message input" });
+        fireEvent.change(textarea, { target: { value: "set my cost basis to 12.34" } });
+        fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+        expect(await screen.findByText("Durable response ready")).toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: "Approve Aegis action" })).toBeEnabled();
+        expect(screen.getByText("portfolio.acquiredPrice.update")).toBeInTheDocument();
+        expect(fetchMock).toHaveBeenCalledWith("/api/aegis/runs/run-1");
+    });
+
+    it("includes the attached portfolio item id in the chat payload", async () => {
+        const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = String(input);
+
+            if (url === "/api/chat/sessions") {
+                if (init?.method === "POST") {
+                    return {
+                        ok: true,
+                        json: async () => ({ success: true, data: { id: "session-1", title: "New Chat", createdAt: "", updatedAt: "" } }),
+                    } as Response;
+                }
+
+                return {
+                    ok: true,
+                    json: async () => ({ success: true, data: [] }),
+                } as Response;
+            }
+
+            if (url === "/api/settings") {
+                return {
+                    ok: true,
+                    json: async () => ({ data: { activeAIProvider: "gemini-flash" } }),
+                } as Response;
+            }
+
+            if (url === "/api/portfolio") {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        data: {
+                            items: [{
+                                id: "inventory-1",
+                                itemId: "item-1",
+                                name: "AK-47 | Redline",
+                                marketHashName: "AK-47 | Redline (Field-Tested)",
+                                imageUrl: null,
+                                currentPrice: 22.5,
+                                category: "weapon",
+                                rarity: "Classified",
+                                exterior: "Field-Tested",
+                            }],
+                        },
+                    }),
+                } as Response;
+            }
+
+            if (url === "/api/chat") {
+                return createQueuedRunStream("run-1");
+            }
+
+            if (url === "/api/aegis/runs/run-1") {
+                return {
+                    ok: true,
+                    json: async () => ({ success: true, data: createCompletedRun("Durable response ready") }),
+                } as Response;
+            }
+
+            throw new Error(`Unexpected fetch: ${url}`);
+        }) as typeof fetch;
+
+        vi.stubGlobal("fetch", fetchMock);
+        render(<AIChat />);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Attach" }));
+        fireEvent.click(screen.getByRole("menuitem", { name: /Portfolio item/i }));
+        fireEvent.click(await screen.findByRole("button", { name: /AK-47 \| Redline/i }));
+
+        const textarea = screen.getByRole("textbox", { name: "Chat message input" });
+        fireEvent.change(textarea, { target: { value: "set cost basis to 12.34" } });
+        fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+        await screen.findByText("Durable response ready");
+
+        const chatCall = fetchMock.mock.calls.find(([request]) => String(request) === "/api/chat");
+        const chatInit = chatCall?.[1];
+        if (!chatInit || typeof chatInit.body !== "string") {
+            throw new Error("Expected /api/chat request with JSON body");
+        }
+
+        const payload = JSON.parse(chatInit.body) as { messages: { content: string }[] };
+        expect(payload.messages.at(-1)?.content).toContain("portfolio item inventory-1");
+        expect(payload.messages.at(-1)?.content).toContain("AK-47 | Redline (AK-47 | Redline (Field-Tested))");
+    });
+
+    it("rehydrates persisted approval state from durable run history", async () => {
+        const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+            const url = String(input);
+
+            if (url === "/api/chat/sessions") {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        data: [{ id: "session-1", title: "Existing Chat", createdAt: "", updatedAt: "", _count: { messages: 2 } }],
+                    }),
+                } as Response;
+            }
+
+            if (url === "/api/settings") {
+                return {
+                    ok: true,
+                    json: async () => ({ data: { activeAIProvider: "gemini-flash" } }),
+                } as Response;
+            }
+
+            if (url === "/api/chat/history?sessionId=session-1") {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        success: true,
+                        data: [
+                            { id: "msg-user", role: "user", content: "set my cost basis", metadata: null, createdAt: "" },
+                            {
+                                id: "msg-assistant",
+                                role: "assistant",
+                                content: "Queued response",
+                                metadata: JSON.stringify({ durableRunId: "run-1", provider: "gemini-flash", agentMode: "consultant" }),
+                                createdAt: "",
+                            },
+                        ],
+                    }),
+                } as Response;
+            }
+
+            if (url === "/api/aegis/runs/run-1") {
+                return {
+                    ok: true,
+                    json: async () => ({ success: true, data: createCompletedRun("Persisted durable answer", "succeeded", "approved") }),
+                } as Response;
+            }
+
+            throw new Error(`Unexpected fetch: ${url}`);
+        }) as typeof fetch;
+
+        vi.stubGlobal("fetch", fetchMock);
+        render(<AIChat initialSessionId="session-1" />);
+
+        expect(await screen.findByText("Persisted durable answer")).toBeInTheDocument();
+        expect(await screen.findByText("succeeded")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Approve Aegis action" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Reject Aegis action" })).toBeDisabled();
     });
 });
