@@ -8,15 +8,22 @@ datasource db {
 }
 
 model User {
-  id             String          @id @default(cuid())
-  steamId        String          @unique
-  displayName    String
-  avatarUrl      String?
-  createdAt      DateTime        @default(now())
-  lastLogin      DateTime        @default(now())
-  chatSessions   ChatSession[]
-  chatMessages   ChatMessage[]
-  inventoryItems InventoryItem[]
+  id              String           @id @default(cuid())
+  steamId         String           @unique
+  displayName     String
+  avatarUrl       String?
+  createdAt       DateTime         @default(now())
+  lastLogin       DateTime         @default(now())
+  aegisActions    AegisAction[]
+  aegisApprovals  AegisApproval[]
+  aegisEmbeddings AegisEmbedding[]
+  aegisLogs       AegisLog[]
+  aegisMemories   AegisMemory[]
+  aegisRuns       AegisRun[]
+  aegisTraces     AegisTrace[]
+  chatSessions    ChatSession[]
+  chatMessages    ChatMessage[]
+  inventoryItems  InventoryItem[]
 }
 
 model Item {
@@ -96,6 +103,7 @@ model ChatSession {
   title     String        @default("New Chat")
   createdAt DateTime      @default(now())
   updatedAt DateTime      @default(now())
+  aegisRuns AegisRun[]
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages  ChatMessage[]
 
@@ -115,6 +123,168 @@ model ChatMessage {
 
   @@index([userId, createdAt])
   @@index([sessionId, createdAt])
+}
+
+model AegisRun {
+  id                String          @id @default(cuid())
+  userId            String
+  sessionId         String?
+  status            String          @default("queued")
+  provider          String?
+  agentMode         String?
+  reasoningDepth    String?
+  openRouterModelId String?
+  deepResearch      Boolean         @default(false)
+  input             String
+  finalResponse     String?
+  error             String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  actions           AegisAction[]
+  approvals         AegisApproval[]
+  logs              AegisLog[]
+  session           ChatSession?    @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  traces            AegisTrace[]
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([id, userId])
+  @@index([userId, createdAt])
+  @@index([userId, status])
+  @@index([sessionId])
+}
+
+model AegisTrace {
+  id        String   @id @default(cuid())
+  runId     String
+  userId    String
+  sequence  Int
+  stage     String?
+  type      String
+  message   String?
+  payload   Json     @default("{}")
+  error     String?
+  createdAt DateTime @default(now())
+  run       AegisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, sequence])
+  @@index([runId, createdAt])
+  @@index([userId, createdAt])
+  @@index([type])
+}
+
+model AegisLog {
+  id        String   @id @default(cuid())
+  runId     String
+  userId    String
+  sequence  Int
+  stage     String?
+  level     String   @default("info")
+  type      String
+  message   String
+  payload   Json     @default("{}")
+  error     String?
+  createdAt DateTime @default(now())
+  run       AegisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, sequence])
+  @@index([runId, createdAt])
+  @@index([userId, createdAt])
+  @@index([level, type])
+}
+
+model AegisAction {
+  id             String         @id @default(cuid())
+  runId          String
+  userId         String
+  tool           String
+  status         String         @default("proposed")
+  risk           String         @default("low")
+  input          Json           @default("{}")
+  inputPreview   String?
+  output         Json           @default("{}")
+  outputPreview  String?
+  error          String?
+  idempotencyKey String?
+  proposedAt     DateTime       @default(now())
+  approvedAt     DateTime?
+  executedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  approval       AegisApproval?
+  run            AegisRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([id, userId])
+  @@unique([userId, idempotencyKey])
+  @@index([runId, status])
+  @@index([userId, createdAt])
+  @@index([tool])
+}
+
+model AegisApproval {
+  id          String      @id @default(cuid())
+  runId       String
+  actionId    String      @unique
+  userId      String
+  status      String      @default("pending")
+  request     Json        @default("{}")
+  response    Json        @default("{}")
+  expiresAt   DateTime?
+  respondedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  action      AegisAction @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  run         AegisRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([id, userId])
+  @@index([runId, status])
+  @@index([userId, status])
+  @@index([expiresAt])
+}
+
+model AegisMemory {
+  id          String           @id @default(cuid())
+  userId      String
+  title       String
+  content     String
+  kind        String           @default("preference")
+  tags        Json             @default("[]")
+  source      String           @default("chat")
+  confidence  Float            @default(0.5)
+  contentHash String?
+  archivedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  embeddings  AegisEmbedding[]
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentHash])
+  @@index([userId, archivedAt, updatedAt])
+  @@index([kind])
+}
+
+model AegisEmbedding {
+  id          String      @id @default(cuid())
+  memoryId    String
+  userId      String
+  provider    String      @default("gemini")
+  model       String      @default("gemini-embedding-2")
+  dimensions  Int         @default(1536)
+  vectorJson  String
+  contentHash String
+  metadata    Json        @default("{}")
+  createdAt   DateTime    @default(now())
+  memory      AegisMemory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, model, contentHash])
+  @@index([userId, model])
+  @@index([contentHash])
 }
 
 model SyncLog {
@@ -163,14 +333,14 @@ model AppSettings {
 /// Singleton row (id="singleton"). The `data` column holds the full JSON blob.
 model BulkPriceCache {
   id        String   @id @default("singleton")
-  data      String   // JSON blob of the full csgotrader.app/csfloat.json response
+  data      String // JSON blob of the full csgotrader.app/csfloat.json response
   updatedAt DateTime @default(now())
 }
 
 model TopMoversCache {
   id        String   @id @default("singleton")
-  gainers   String   // JSON array of top 5 gainers
-  losers    String   // JSON array of top 5 losers
+  gainers   String // JSON array of top 5 gainers
+  losers    String // JSON array of top 5 losers
   source    String   @default("csfloat")
   updatedAt DateTime @default(now())
 }
@@ -207,15 +377,15 @@ model ItemGroup {
 }
 
 model IntelligenceConfig {
-  id                           String    @id @default("default")
-  liveScmEnabled               Boolean   @default(false)
-  circuitBreakerUntil          DateTime?
-  consecutiveProviderFailures  Int       @default(0)
-  lastRunAt                    DateTime?
-  lastError                    String?
-  requestBudget                Json      @default("{}")
-  createdAt                    DateTime  @default(now())
-  updatedAt                    DateTime  @updatedAt
+  id                          String    @id @default("default")
+  liveScmEnabled              Boolean   @default(false)
+  circuitBreakerUntil         DateTime?
+  consecutiveProviderFailures Int       @default(0)
+  lastRunAt                   DateTime?
+  lastError                   String?
+  requestBudget               Json      @default("{}")
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 }
 
 model IntelligenceQueueItem {
@@ -262,21 +432,21 @@ model IntelligenceProviderCache {
 }
 
 model IntelligenceObservation {
-  id              Int      @id @default(autoincrement())
-  itemId          String
-  provider        String
-  observedAt      DateTime @default(now())
-  floorPriceCents Int?
+  id               Int      @id @default(autoincrement())
+  itemId           String
+  provider         String
+  observedAt       DateTime @default(now())
+  floorPriceCents  Int?
   medianPriceCents Int?
-  listingCount    Int?
-  volume          Int?
-  confidence      Float    @default(0)
-  freshness       String   @default("fresh")
-  status          String   @default("observed")
-  reasons         Json     @default("[]")
-  rawPayload      Json     @default("{}")
-  createdAt       DateTime @default(now())
-  item            Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  listingCount     Int?
+  volume           Int?
+  confidence       Float    @default(0)
+  freshness        String   @default("fresh")
+  status           String   @default("observed")
+  reasons          Json     @default("[]")
+  rawPayload       Json     @default("{}")
+  createdAt        DateTime @default(now())
+  item             Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([itemId])
   @@index([observedAt])
@@ -285,23 +455,23 @@ model IntelligenceObservation {
 }
 
 model IntelligenceSignal {
-  id              String                    @id @default(cuid())
-  itemId          String
-  signalType      String
-  status          String                    @default("active")
-  confidence      Float                     @default(0)
-  detectedAt      DateTime                  @default(now())
-  lastSeenAt      DateTime                  @default(now())
-  staleAt         DateTime?
-  priceCents      Int?
-  baselineCents   Int?
-  deltaCents      Int?
-  reasons         Json                      @default("[]")
-  metadata        Json                      @default("{}")
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
-  events          IntelligenceSignalEvent[]
-  item            Item                      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  id            String                    @id @default(cuid())
+  itemId        String
+  signalType    String
+  status        String                    @default("active")
+  confidence    Float                     @default(0)
+  detectedAt    DateTime                  @default(now())
+  lastSeenAt    DateTime                  @default(now())
+  staleAt       DateTime?
+  priceCents    Int?
+  baselineCents Int?
+  deltaCents    Int?
+  reasons       Json                      @default("[]")
+  metadata      Json                      @default("{}")
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  events        IntelligenceSignalEvent[]
+  item          Item                      @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@unique([itemId, signalType, status])
   @@index([itemId])
