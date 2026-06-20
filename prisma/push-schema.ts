@@ -104,17 +104,17 @@ async function repairLegacyWatchlistItems(client: LibsqlClient, phase: string): 
         )
     `);
     const total = rowNumber(pending.rows[0], "total");
-    if (total === 0) {
-        return 0;
+    if (total > 0) {
+        await client.execute(`
+            UPDATE "Item"
+            SET "isWatched" = true
+            WHERE "id" IN (SELECT "itemId" FROM "WatchlistItem")
+        `);
+        console.log(`  🔧 ${phase}: marked ${total} legacy watchlist item${total === 1 ? "" : "s"} as watched`);
     }
 
-    await client.execute(`
-        UPDATE "Item"
-        SET "isWatched" = true
-        WHERE "id" IN (SELECT "itemId" FROM "WatchlistItem")
-    `);
-
-    console.log(`  🔧 ${phase}: marked ${total} legacy watchlist item${total === 1 ? "" : "s"} as watched`);
+    await client.execute('DROP TABLE IF EXISTS "WatchlistItem"');
+    console.log(`  🔧 ${phase}: dropped legacy WatchlistItem table`);
     return total;
 }
 
