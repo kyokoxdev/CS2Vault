@@ -2,224 +2,189 @@
 
 # CS2Vault
 
-**Bảng điều khiển thông tin thị trường Counter-Strike 2**
+**Bảng Theo Dõi và Phân Tích Thông Tin Thị Trường Counter-Strike 2**
 
-[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![Next.js](https://img.shields.io/badge/Next.js-16.1.6-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![React](https://img.shields.io/badge/React-19.2.3-blue?style=flat-square&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
-[![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=flat-square&logo=prisma)](https://prisma.io)
+[![Prisma](https://img.shields.io/badge/Prisma-7.4.1-2D3748?style=flat-square&logo=prisma)](https://prisma.io)
 [![Turso](https://img.shields.io/badge/Turso-libSQL-00D9FF?style=flat-square)](https://turso.tech/)
 [![License: GNU GPLv3](https://img.shields.io/badge/license-%20%20GNU%20GPLv3%20-green?style=flat-square)](LICENSE)
 
-Theo dõi giá, quản lý kho đồ và nhận thông tin thị trường bằng AI.
+Theo dõi biến động giá thị trường, quản lý tài sản kho đồ và khai thác thông tin thị trường CS2 với sự hỗ trợ từ AI.
 
 [![English](https://img.shields.io/badge/EN-English-blue?style=flat-square)](./README.md) · [![中文](https://img.shields.io/badge/CN-中文-informational?style=flat-square)](./README.zh-CN.md) · [![日本語](https://img.shields.io/badge/JA-日本語-success?style=flat-square)](./README.ja-JP.md) · [![Tiếng Việt](https://img.shields.io/badge/VI-Tiếng%20Việt-orange?style=flat-square)](./README.vi-VN.md)
 
-[Tính năng](#tính-năng) · [Bắt đầu](#bắt-đầu) · [Triển khai](#triển-khai) · [Giấy phép](#giấy-phép)
+[Tính Năng](#tính-năng) · [Hướng Dẫn Cài Đặt](#hướng-dẫn-cài-đặt) · [Cơ Chế Đồng Bộ Dữ Liệu](#cơ-chế-đồng-bộ-dữ-liệu) · [Các Lệnh Điều Khiển](#các-lệnh-điều-khển) · [Triển Khai Sản Phẩm](#triển-khai-sản-phẩm) · [Giấy Phép](#giấy-phép)
 
 </div>
 
 ---
 
-## Tính năng
+## Tính Năng
 
 | Tính năng | Mô tả |
-|-----------|-------|
-| **Tổng quan thị trường** | Theo dõi giá theo thời gian thực với CSFloat, Pricempire và Steam |
-| **Quản lý danh mục** | Theo dõi giá trị kho đồ CS2 với dữ liệu giá lịch sử |
-| **Biến động lớn** | Xem các vật phẩm đang tăng hoặc giảm giá trị |
-| **Trò chuyện Aegis** | Trò chuyện Aegis dùng Gemini, OpenAI, Anthropic, OpenRouter hoặc 9Router |
-| **Bản tin** | Tổng hợp tin tức thị trường CS2 qua RSS |
-| **Chi tiết vật phẩm** | Biểu đồ nến giá với TradingView Lightweight Charts |
-| **Giao diện đáp ứng** | Hoạt động trên máy tính, máy tính bảng và điện thoại |
+|---------|-------------|
+| **Tổng quan thị trường** | Theo dõi giá theo thời gian thực kết nối với API của CSFloat, Pricempire và Steam Community Market. |
+| **Quản lý danh mục** | Quản lý kho đồ CS2 cá nhân, cập nhật biến động giá trị tài sản, lưu trữ lịch sử mua/bán và tính toán biên lợi nhuận. |
+| **Biến động giá mạnh** | Lọc nhanh các vật phẩm đang tăng hoặc giảm giá mạnh nhất trong các khoảng thời gian ngắn hạn và dài hạn. |
+| **Trợ lý Aegis Chat** | Trò chuyện phân tích thị trường tích hợp AI hỗ trợ Google Gemini, OpenAI GPT, Anthropic Claude, OpenRouter và cổng kết nối 9Router. |
+| **Bản tin tức RSS** | Tổng hợp tự động các tin tức nóng hổi về nền kinh tế và thị trường Counter-Strike qua RSS. |
+| **Biểu đồ giá kỹ thuật** | Xem biểu đồ nến giá trực quan tích hợp các chỉ báo phân tích kỹ thuật sử dụng TradingView Lightweight Charts. |
+| **Giao diện thích ứng** | Giao diện responsive tối ưu cho thiết bị di động, máy tính bảng và máy tính để bàn bằng CSS Modules. |
 
-## Công nghệ
+---
 
-<table>
-<tr>
-<td align="center" width="96">
-<img src="https://skillicons.dev/icons?i=nextjs" width="48" height="48" alt="Next.js" />
-<br>Next.js 16
-</td>
-<td align="center" width="96">
-<img src="https://skillicons.dev/icons?i=ts" width="48" height="48" alt="TypeScript" />
-<br>TypeScript
-</td>
-<td align="center" width="96">
-<img src="https://skillicons.dev/icons?i=prisma" width="48" height="48" alt="Prisma" />
-<br>Prisma
-</td>
-<td align="center" width="96">
-<img src="https://skillicons.dev/icons?i=sqlite" width="48" height="48" alt="SQLite" />
-<br>SQLite/Turso
-</td>
-<td align="center" width="96">
-<img src="https://skillicons.dev/icons?i=css" width="48" height="48" alt="CSS" />
-<br>CSS Modules
-</td>
-</tr>
-</table>
+## Công Nghệ Sử Dụng
 
-- **Framework**: [Next.js 16](https://nextjs.org) (App Router, React Compiler)
-- **Cơ sở dữ liệu**: SQLite qua [Prisma](https://prisma.io) + [Turso](https://turso.tech/) (libSQL)
-- **Xác thực**: [NextAuth.js](https://next-auth.js.org) (Steam OpenID)
-- **Biểu đồ**: [TradingView Lightweight Charts](https://tradingview.github.io/lightweight-charts/)
-- **AI**: Google Gemini, OpenAI GPT, Anthropic Claude, OpenRouter, 9Router
-- **Giao diện**: CSS Modules (giao diện tối, thêm giao diện khác đang lên kế hoạch)
+- **Framework**: Next.js 16.1.6 (App Router, React Compiler)
+- **Giao diện & Phong cách**: React 19.2.3, CSS Modules (Hệ thống màu sắc và font được cấu hình tại `src/app/globals.css`)
+- **Cơ sở dữ liệu & ORM**: SQLite (Môi trường phát triển cục bộ) / Turso (Môi trường sản xuất libSQL). Quản lý bởi Prisma 7.4.1 (Prisma client tự động tạo tại `src/generated/prisma`)
+- **Xác thực người dùng**: NextAuth.js (Đăng nhập qua Steam OpenID)
+- **Biểu đồ**: TradingView Lightweight Charts & thư viện `lightweight-charts-indicators`
+- **Tích hợp AI**: SDK chính thức của Gemini, OpenAI, Anthropic cùng các tùy chọn proxy qua OpenRouter và 9Router
 
-## Bắt đầu
+---
 
-### Yêu cầu
+## Hướng Dẫn Cài Đặt
 
-- Node.js 20+
-- npm / pnpm / yarn
+### Yêu cầu hệ thống
 
-### Cài đặt nhanh
+- Node.js phiên bản 20 trở lên
+- npm, pnpm hoặc yarn
+
+### Cài đặt và khởi chạy cục bộ
 
 ```bash
-# Sao chép kho mã nguồn
+# Tải kho mã nguồn về máy
 git clone https://github.com/kyokoxdev/CS2Vault.git
 cd CS2Vault
 
-# Cài đặt các phụ thuộc
+# Cài đặt các gói phụ thuộc
 npm install
 
-# Sao chép mẫu biến môi trường và điền các khóa của bạn
+# Tạo tệp cấu hình môi trường từ tệp mẫu
 cp .env.example .env.local
 
-# Tạo Prisma client và cơ sở dữ liệu cục bộ
+# Khởi tạo thư viện Prisma client
 npx prisma generate
+
+# Đồng bộ cấu trúc cơ sở dữ liệu SQLite cục bộ
 npx prisma db push
 
-# Khởi tạo cài đặt mặc định
+# Nạp dữ liệu cấu hình ban đầu
 npx tsx prisma/seed.ts
 
-# Khởi động máy chủ phát triển
+# Khởi chạy máy chủ phát triển
 npm run dev
 ```
 
-Mở [http://localhost:3000](http://localhost:3000).
-
-### Biến môi trường
-
-<details>
-<summary>Nhấn để mở bảng biến môi trường</summary>
-
-| Biến | Bắt buộc | Mô tả |
-|------|----------|-------|
-| `DATABASE_URL` | Có | Đường dẫn SQLite cho phát triển cục bộ (mặc định: `file:./dev.db`) |
-| `TURSO_DATABASE_URL` | Vercel | URL cơ sở dữ liệu Turso (`libsql://...`) |
-| `TURSO_AUTH_TOKEN` | Vercel | Mã thông báo xác thực Turso |
-| `CRON_SECRET` | Vercel | Mã bảo mật cho Vercel Cron |
-| `STEAM_API_KEY` | Có | [Khóa Steam Web API](https://steamcommunity.com/dev/apikey) |
-| `ALLOWED_STEAM_ID` | Có | Steam64 ID của bạn để xác thực |
-| `CSFLOAT_API_KEY` | Có | [Khóa CSFloat API](https://csfloat.com/) |
-| `PRICEMPIRE_API_KEY` | Không | [Khóa Pricempire API](https://pricempire.com/) |
-| `GEMINI_API_KEY` | Không | [Khóa Google AI Studio](https://aistudio.google.com/apikey) |
-| `OPENAI_API_KEY` | Không | [Khóa OpenAI API](https://platform.openai.com/api-keys) |
-| `OPENAI_MODEL` | Không | Ghi đè model OpenAI (mặc định: `gpt-4o-mini`) |
-| `ANTHROPIC_API_KEY` | Không | [Khóa Anthropic API](https://console.anthropic.com/settings/keys) |
-| `ANTHROPIC_MODEL` | Không | Ghi đè model Anthropic (mặc định: `claude-opus-4-7`) |
-| `OPENROUTER_API_KEY` | Không | [Khóa OpenRouter API](https://openrouter.ai/settings/keys) |
-| `OPENROUTER_BASE_URL` | Không | Base URL tương thích OpenRouter (mặc định: `https://openrouter.ai/api/v1`) |
-| `OPENROUTER_MODEL` | Không | Ghi đè model OpenRouter (mặc định: `~openai/gpt-latest`) |
-| `NINEROUTER_API_KEY` | Không | Khóa tùy chọn cho 9Router gateway khi bật xác thực cục bộ |
-| `NINEROUTER_BASE_URL` | Không | URL gateway 9Router tương thích OpenAI (mặc định: `http://localhost:20128/v1`) |
-| `NINEROUTER_MODEL` | Không | Ghi đè model 9Router (mặc định: `cc/claude-opus-4-7`) |
-| `GOOGLE_CLIENT_ID` | Không | Google OAuth client ID (cho luồng Gemini OAuth) |
-| `GOOGLE_CLIENT_SECRET` | Không | Google OAuth client secret |
-| `NEXTAUTH_SECRET` | Có | Tạo bằng `openssl rand -hex 32` |
-| `NEXTAUTH_URL` | Có | URL ứng dụng (mặc định: `http://localhost:3000`) |
-| `TOKEN_ENCRYPTION_KEY` | Có | Khóa mã hóa cho các mã thông báo đã lưu |
-
-</details>
-
-### Mô hình làm mới dữ liệu
-
-- **Đồng bộ máy chủ nền**: `vercel.json` lên lịch đồng bộ thị trường hằng ngày, đồng bộ vốn hóa thị trường hằng ngày và kiểm tra `GET /api/intelligence/run` mỗi 5 phút với tối đa 3 xác thực SCM mỗi lần chạy.
-- **Làm mới khi mở tab**: ứng dụng sử dụng cài đặt `priceRefreshIntervalMin` đã lưu để làm mới dữ liệu thị trường trên trang chủ, danh sách theo dõi và danh mục khi trình duyệt mở.
-- **Làm mới vốn hóa thị trường thủ công**: Cài đặt hiện có hành động `Làm mới vốn hóa thị trường` giúp tính toán lại có trọng số mới ngay lập tức.
-
-### Lệnh thường dùng
-
-| Lệnh | Mô tả |
-|------|-------|
-| `npm run dev` | Khởi động máy chủ phát triển |
-| `npm run build` | Build sản xuất |
-| `npm run start` | Khởi động máy chủ sản xuất |
-| `npm run lint` | Chạy ESLint |
-| `npm run test` | Chạy kiểm thử Vitest |
-| `npm run db:push:turso` | Đẩy schema + seed đến Turso |
-
-## Triển khai
-
-### Vercel + Turso
-
-Ứng dụng này sử dụng [Turso](https://turso.tech/) làm cơ sở dữ liệu đám mây cho triển khai Vercel.
-
-<details>
-<summary><strong>1. Thiết lập Turso</strong></summary>
-
-```bash
-# Cài đặt Turso CLI
-curl -sSfL https://get.tur.so/install.sh | bash
-
-# Tạo cơ sở dữ liệu
-turso db create cs2vault
-
-# Lấy thông tin xác thực
-turso db show cs2vault --url
-turso db tokens create cs2vault
-```
-
-</details>
-
-<details>
-<summary><strong>2. Đẩy schema đến Turso</strong></summary>
-
-```bash
-# Đặt thông tin xác thực trong .env.local, sau đó:
-npm run db:push:turso
-```
-
-</details>
-
-<details>
-<summary><strong>3. Triển khai lên Vercel</strong></summary>
-
-1. Nhập kho GitHub tại [vercel.com/new](https://vercel.com/new)
-2. Thêm tất cả biến môi trường từ `.env.example` trong bảng điều khiển Vercel
-3. Đặt ghi đè lệnh build: `npx prisma generate && next build`
-4. Triển khai
-
-</details>
-
-<details>
-<summary><strong>4. Cron và hành vi làm mới</strong></summary>
-
-`vercel.json` cấu hình cron hằng ngày cho `GET /api/sync` (`0 4 * * *`), hằng ngày cho `GET /api/market/market-cap-sync` (`0 8 * * *`) và mỗi 5 phút cho `GET /api/intelligence/run` (`*/5 * * * *`). Với yêu cầu được xác thực cron, intelligence runner giữ SCM ở mức 3 xác thực mỗi lần chạy và áp dụng giới hạn an toàn 19/phút và 950/ngày. Đặt `CRON_SECRET` trong Vercel để yêu cầu cron được xác thực.
-
-Nếu gói Vercel của bạn không hỗ trợ cron 5 phút, hãy gọi `/api/intelligence/run` từ bộ lập lịch bên ngoài với cùng `CRON_SECRET`. Các phiên đang mở vẫn làm mới dữ liệu thị trường phía máy khách qua `Khoảng thời gian làm mới trình duyệt (phút)`, và bạn có thể dùng trang Cài đặt để buộc làm mới vốn hóa thị trường theo yêu cầu.
-
-</details>
-
-### Phát triển cục bộ
-
-Đối với phát triển cục bộ, ứng dụng sử dụng tệp SQLite cục bộ (`dev.db`) tự động — không cần Turso.
-
-### Cấu hình Build
-
-Nếu gặp lỗi OOM trong quá trình build:
-
-```bash
-NODE_OPTIONS=--max-old-space-size=4096 npm run build
-```
+Sau khi khởi chạy thành công, truy cập ứng dụng tại địa chỉ [http://localhost:3000](http://localhost:3000).
 
 ---
 
-<div align="center">
+## Biến Môi Trường
 
-## Giấy phép
+Môi trường phát triển cục bộ sẽ tự động đọc các giá trị cấu hình từ tệp `.env.local`.
+
+| Tên biến | Bắt buộc | Mô tả |
+|----------|----------|-------------|
+| `DATABASE_URL` | Có | Đường dẫn đến tệp cơ sở dữ liệu SQLite cục bộ (mặc định: `file:./dev.db`) |
+| `TURSO_DATABASE_URL` | Production | URL cơ sở dữ liệu đám mây Turso (`libsql://...`) |
+| `TURSO_AUTH_TOKEN` | Production | Mã xác thực cơ sở dữ liệu Turso |
+| `CRON_SECRET` | Production | Mã bảo mật để xác thực các yêu cầu chạy tác vụ cron tự động |
+| `STEAM_API_KEY` | Có | [Khóa Steam Web API](https://steamcommunity.com/dev/apikey) |
+| `ALLOWED_STEAM_ID` | Có | Steam64 ID của tài khoản được phép đăng nhập hệ thống |
+| `CSFLOAT_API_KEY` | Có | [Khóa API từ nền tảng CSFloat](https://csfloat.com/) |
+| `PRICEMPIRE_API_KEY` | Không | [Khóa API từ nền tảng Pricempire](https://pricempire.com/) |
+| `GEMINI_API_KEY` | Không | [Khóa API Google AI Studio](https://aistudio.google.com/apikey) |
+| `OPENAI_API_KEY` | Không | [Khóa API OpenAI](https://platform.openai.com/api-keys) |
+| `OPENAI_MODEL` | Không | Thay thế model OpenAI mặc định (mặc định: `gpt-4o-mini`) |
+| `ANTHROPIC_API_KEY` | Không | [Khóa API Anthropic Console](https://console.anthropic.com/settings/keys) |
+| `ANTHROPIC_MODEL` | Không | Thay thế model Anthropic mặc định (mặc định: `claude-opus-4-7`) |
+| `OPENROUTER_API_KEY` | Không | [Khóa API OpenRouter](https://openrouter.ai/settings/keys) |
+| `OPENROUTER_BASE_URL` | Không | URL cổng OpenRouter (mặc định: `https://openrouter.ai/api/v1`) |
+| `OPENROUTER_MODEL` | Không | Thay thế model OpenRouter mặc định (mặc định: `~openai/gpt-latest`) |
+| `NINEROUTER_API_KEY` | Không | Khóa cổng kết nối 9Router |
+| `NINEROUTER_BASE_URL` | Không | URL cổng kết nối 9Router (mặc định: `http://localhost:20128/v1`) |
+| `NINEROUTER_MODEL` | Không | Thay thế model 9Router mặc định (mặc định: `cc/claude-opus-4-7`) |
+| `GOOGLE_CLIENT_ID` | Không | Google OAuth client ID (sử dụng cho luồng đăng nhập Gemini) |
+| `GOOGLE_CLIENT_SECRET` | Không | Google OAuth client secret |
+| `NEXTAUTH_SECRET` | Có | Mã bí mật để mã hóa phiên đăng nhập (tạo bằng lệnh `openssl rand -hex 32`) |
+| `NEXTAUTH_URL` | Có | URL chạy ứng dụng (mặc định: `http://localhost:3000`) |
+| `TOKEN_ENCRYPTION_KEY` | Có | Khóa đối xứng dùng để mã hóa thông tin xác thực lưu trong cơ sở dữ liệu |
+
+---
+
+## Cơ Chế Đồng Bộ Dữ Liệu
+
+Tác vụ làm mới dữ liệu được phân chia giữa máy chủ chạy tự động và trình kích hoạt ở phía client:
+
+1. **Tác vụ Cron trên Vercel** (cấu hình trong `vercel.json`):
+   - `GET /api/sync`: Chạy hằng ngày (`0 4 * * *`) để đồng bộ dữ liệu giá chung từ thị trường.
+   - `GET /api/market/market-cap-sync`: Chạy hằng ngày (`0 8 * * *`) để tính toán lại vốn hóa thị trường có trọng số.
+2. **Bộ lập lịch ngoài** (ví dụ: cron-job.org):
+   - `GET /api/intelligence/run`: Đường dẫn này đã được loại bỏ khỏi cấu hình `vercel.json` và cần được cấu hình chạy mỗi 5 phút qua các dịch vụ cron bên ngoài (yêu cầu gửi kèm header chứa mã `CRON_SECRET`). Nhiệm vụ này kiểm tra các vật phẩm tiềm năng phát hiện từ CSFloat và xác thực thông tin thông qua Steam Community Market (SCM). Nhằm tránh việc bị Steam chặn kết nối, số lượt xác thực SCM được giới hạn tối đa 3 lần mỗi lượt chạy, đảm bảo tuân thủ giới hạn an toàn SCM là 19 yêu cầu/phút và 950 yêu cầu/ngày.
+3. **Tự động cập nhật trên trình duyệt**:
+   - Khi tab trang quản trị đang hoạt động, ứng dụng sẽ tự động làm mới giá trị danh sách theo dõi và kho đồ dựa theo số phút cấu hình trong trường `priceRefreshIntervalMin` trong cơ sở dữ liệu.
+   - Người dùng cũng có thể buộc tính toán lại vốn hóa thị trường ngay lập tức bằng nút bấm trong phần Cài Đặt.
+
+---
+
+## Các Lệnh Điều Khiển
+
+Quản lý vòng đời dự án bằng các dòng lệnh `npm` dưới đây:
+
+| Lệnh | Ý nghĩa chức năng |
+|--------|-------------|
+| `npm run dev` | Khởi chạy máy chủ phát triển Next.js hỗ trợ tải lại trực tiếp (hot-reload). |
+| `npm run build` | Tạo Prisma client, đồng bộ/nạp cơ sở dữ liệu và đóng gói sản phẩm Next.js production. |
+| `npm run start` | Khởi chạy máy chủ sản xuất Next.js sau khi đã build xong. |
+| `npm run lint` | Kiểm tra cú pháp và định dạng mã nguồn bằng ESLint. |
+| `npm run test` | Chạy bộ kiểm thử đơn vị và tích hợp với Vitest. |
+| `npm run test:watch` | Chạy bộ kiểm thử đơn vị với chế độ tự động theo dõi thay đổi. |
+| `npm run db:push:turso` | Đồng bộ cấu trúc cơ sở dữ liệu cục bộ và nạp dữ liệu cấu hình lên cơ sở dữ liệu Turso sản xuất. |
+| `npm run db:migrate` | Tạo và áp dụng tệp di cư (migration) mới trên cơ sở dữ liệu SQLite cục bộ. |
+| `npm run db:studio` | Khởi chạy giao diện web quản trị cơ sở dữ liệu Prisma Studio trực quan. |
+
+---
+
+## Triển Khai Sản Phẩm
+
+### Môi trường sản xuất: Vercel + Turso
+
+Dự án sử dụng cơ sở dữ liệu đám mây Turso để cung cấp dịch vụ SQLite trên nền tảng Serverless thông qua giao thức HTTP.
+
+1. **Khởi tạo cơ sở dữ liệu Turso**:
+   ```bash
+   # Cài đặt Turso CLI trên máy
+   curl -sSfL https://get.tur.so/install.sh | bash
+
+   # Khởi tạo một cơ sở dữ liệu mới
+   turso db create cs2vault
+
+   # Lấy đường dẫn kết nối và mã khóa bảo mật
+   turso db show cs2vault --url
+   turso db tokens create cs2vault
+   ```
+2. **Đồng bộ cấu trúc lên Turso**:
+   Cấu hình các giá trị `TURSO_DATABASE_URL` và `TURSO_AUTH_TOKEN` vào tệp `.env.local` của bạn, sau đó chạy lệnh:
+   ```bash
+   npm run db:push:turso
+   ```
+3. **Triển khai ứng dụng trên Vercel**:
+   - Kết nối kho mã nguồn GitHub của bạn với Vercel.
+   - Nhập toàn bộ biến môi trường từ tệp cấu hình vào phần thiết lập của dự án trên Vercel.
+   - Ghi đè lệnh build (Build Command) mặc định thành:
+     ```bash
+     prisma generate && npx tsx prisma/push-schema.ts && next build
+     ```
+   - Thực hiện triển khai (Deploy).
+
+*Lưu ý: Nếu quá trình biên dịch gặp lỗi quá tải bộ nhớ (OOM), hãy thêm tiền tố sau vào trước lệnh build: `NODE_OPTIONS=--max-old-space-size=4096`*
+
+---
+
+## Giấy Phép
 
 GPL v3
-
-</div>
