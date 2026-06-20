@@ -26,6 +26,7 @@ export async function detectSignificantChanges(
   const snapshots = await prisma.priceSnapshot.findMany({
     where: {
       timestamp: { gte: cutoff },
+      source: { not: "steam-intelligence" },
     },
     include: { item: true },
     orderBy: { timestamp: "asc" },

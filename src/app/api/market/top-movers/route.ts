@@ -173,7 +173,10 @@ async function computeTopMovers(
             },
             include: {
                 priceSnapshots: {
-                    where: { timestamp: { gte: cutoff24h } },
+                    where: {
+                        timestamp: { gte: cutoff24h },
+                        source: { not: "steam-intelligence" },
+                    },
                     orderBy: { timestamp: "desc" },
                 },
             },
@@ -233,7 +236,11 @@ async function computeTopMovers(
     const allItemIds = localItems.map((item) => item.id);
     const allSnapshots = allItemIds.length > 0
         ? await prisma.priceSnapshot.findMany({
-            where: { itemId: { in: allItemIds }, timestamp: { gte: cutoff24h } },
+            where: {
+                itemId: { in: allItemIds },
+                timestamp: { gte: cutoff24h },
+                source: { not: "steam-intelligence" },
+            },
             orderBy: { timestamp: "asc" },
             select: { itemId: true, price: true, timestamp: true },
         })

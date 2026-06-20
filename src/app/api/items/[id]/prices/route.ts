@@ -49,7 +49,10 @@ export async function GET(
         });
 
         const latestSnapshot = await prisma.priceSnapshot.findFirst({
-            where: { itemId: id },
+            where: {
+                itemId: id,
+                source: { not: "steam-intelligence" },
+            },
             orderBy: { timestamp: "desc" },
         });
 

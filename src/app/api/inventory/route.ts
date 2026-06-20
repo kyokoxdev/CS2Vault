@@ -48,7 +48,10 @@ export async function GET(request: NextRequest) {
         // Get latest prices for all linked items
         const itemIds = [...new Set(inventoryItems.map((i) => i.itemId))];
         const latestPrices = await prisma.priceSnapshot.findMany({
-            where: { itemId: { in: itemIds } },
+            where: {
+                itemId: { in: itemIds },
+                source: { not: "steam-intelligence" },
+            },
             orderBy: { timestamp: "desc" },
             distinct: ["itemId"],
         });

@@ -276,6 +276,7 @@ export async function getRecentSyncLogs(limit: number = 20) {
  */
 export async function getLatestPriceUpdate(): Promise<Date | null> {
     const latest = await prisma.priceSnapshot.findFirst({
+        where: { source: { not: "steam-intelligence" } },
         orderBy: { timestamp: "desc" },
         select: { timestamp: true },
     });

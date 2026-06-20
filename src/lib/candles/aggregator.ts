@@ -51,6 +51,7 @@ export async function aggregateCandlesticks(
         where: {
             itemId,
             timestamp: { gt: sinceDate },
+            source: { not: "steam-intelligence" },
         },
         orderBy: { timestamp: "asc" },
     });

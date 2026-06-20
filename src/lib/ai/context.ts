@@ -108,6 +108,7 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
                 take: MAX_ACTIVE_ITEMS_FOR_MARKET_SCAN,
                 include: {
                     priceSnapshots: {
+                        where: { source: { not: "steam-intelligence" } },
                         orderBy: { timestamp: "desc" },
                         take: 2,
                     },
@@ -160,7 +161,10 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
                 const itemIds = [...new Set(activeInventory.map(i => i.itemId))];
                 const [latestPrices, itemDetails] = await Promise.all([
                     prisma.priceSnapshot.findMany({
-                        where: { itemId: { in: itemIds } },
+                        where: {
+                            itemId: { in: itemIds },
+                            source: { not: "steam-intelligence" },
+                        },
                         orderBy: { timestamp: "desc" },
                         distinct: ["itemId"],
                     }),
@@ -275,6 +279,7 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
             take: MAX_WATCHLIST_ITEMS,
             include: {
                 priceSnapshots: {
+                    where: { source: { not: "steam-intelligence" } },
                     orderBy: { timestamp: "desc" },
                     take: 2,
                 },
@@ -306,7 +311,10 @@ export async function buildMarketContext(userId?: string, query?: string): Promi
 
                 const [history, itemMeta, candles] = await Promise.all([
                     prisma.priceSnapshot.findMany({
-                        where: { itemId: matchedItem.id },
+                        where: {
+                            itemId: matchedItem.id,
+                            source: { not: "steam-intelligence" },
+                        },
                         orderBy: { timestamp: "asc" },
                         select: { price: true, timestamp: true },
                     }),

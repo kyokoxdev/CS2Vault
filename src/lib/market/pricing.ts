@@ -286,7 +286,10 @@ export async function writePriceSnapshotsForItems(
 
     const itemIds = entries.map(([, itemId]) => itemId);
     const latestSnapshots = await prisma.priceSnapshot.findMany({
-        where: { itemId: { in: itemIds } },
+        where: {
+            itemId: { in: itemIds },
+            source: { not: "steam-intelligence" },
+        },
         orderBy: { timestamp: "desc" },
         distinct: ["itemId"],
         select: { itemId: true, timestamp: true },

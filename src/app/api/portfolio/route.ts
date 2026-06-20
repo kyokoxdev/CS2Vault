@@ -73,7 +73,10 @@ export async function GET(request: NextRequest) {
         // Get latest prices
         const itemIds = [...new Set(inventoryItems.map((i) => i.itemId))];
         const latestPrices = await prisma.priceSnapshot.findMany({
-            where: { itemId: { in: itemIds } },
+            where: {
+                itemId: { in: itemIds },
+                source: { not: "steam-intelligence" },
+            },
             orderBy: { timestamp: "desc" },
             distinct: ["itemId"],
         });
@@ -91,6 +94,7 @@ export async function GET(request: NextRequest) {
             where: {
                 itemId: { in: itemIds },
                 timestamp: { gte: cutoff24h },
+                source: { not: "steam-intelligence" },
             },
             orderBy: { timestamp: "asc" },
             distinct: ["itemId"],

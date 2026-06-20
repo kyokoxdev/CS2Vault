@@ -144,6 +144,7 @@ export async function GET(request: NextRequest) {
                 where,
                 include: {
                     priceSnapshots: {
+                        where: { source: { not: "steam-intelligence" } },
                         orderBy: { timestamp: "desc" },
                         take: 1,
                     },
@@ -166,6 +167,7 @@ export async function GET(request: NextRequest) {
                 where: {
                     itemId: { in: itemIds },
                     timestamp: { gte: cutoff7d },
+                    source: { not: "steam-intelligence" },
                 },
                 select: {
                     itemId: true,

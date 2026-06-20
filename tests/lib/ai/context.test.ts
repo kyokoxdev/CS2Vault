@@ -116,7 +116,10 @@ describe("buildMarketContext targeted item resolution", () => {
 
         expect(context.targetedItemData?.name).toBe("AK-47 Redline");
         expect(prisma.priceSnapshot.findMany).toHaveBeenCalledWith(expect.objectContaining({
-            where: { itemId: "item-redline-ft" },
+            where: {
+                itemId: "item-redline-ft",
+                source: { not: "steam-intelligence" },
+            },
         }));
     });
 
@@ -125,7 +128,10 @@ describe("buildMarketContext targeted item resolution", () => {
 
         expect(context.targetedItemData?.name).toBe("AK-47 Redline");
         expect(prisma.priceSnapshot.findMany).toHaveBeenCalledWith(expect.objectContaining({
-            where: { itemId: "item-redline-mw" },
+            where: {
+                itemId: "item-redline-mw",
+                source: { not: "steam-intelligence" },
+            },
         }));
     });
 
@@ -134,7 +140,10 @@ describe("buildMarketContext targeted item resolution", () => {
 
         expect(context.targetedItemData?.name).toBe("AWP Dragon Lore");
         expect(prisma.priceSnapshot.findMany).toHaveBeenCalledWith(expect.objectContaining({
-            where: { itemId: "item-dragon-lore" },
+            where: {
+                itemId: "item-dragon-lore",
+                source: { not: "steam-intelligence" },
+            },
         }));
     });
 
@@ -143,7 +152,10 @@ describe("buildMarketContext targeted item resolution", () => {
 
         expect(context.targetedItemData?.name).toBe("AK-47 Redline");
         expect(prisma.priceSnapshot.findMany).toHaveBeenCalledWith(expect.objectContaining({
-            where: { itemId: "item-redline-ft" },
+            where: {
+                itemId: "item-redline-ft",
+                source: { not: "steam-intelligence" },
+            },
         }));
     });
 });

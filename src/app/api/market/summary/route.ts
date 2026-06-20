@@ -191,6 +191,7 @@ function pickTopItems(stats: Map<string, ItemStat>): string[] {
 export async function GET() {
     try {
         const priceTimestampResult = await prisma.priceSnapshot.findFirst({
+            where: { source: { not: "steam-intelligence" } },
             orderBy: { timestamp: "desc" },
             select: { timestamp: true },
         });
