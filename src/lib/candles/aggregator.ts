@@ -51,12 +51,27 @@ export async function aggregateCandlesticks(
         where: {
             itemId,
             timestamp: { gt: sinceDate },
-            source: { not: "steam-intelligence" },
         },
         orderBy: { timestamp: "asc" },
     });
 
     if (snapshots.length === 0) return 0;
+
+    // Find last known price from preceding non-intelligence snapshots
+    let lastKnownPrice: number | null = lastCandle ? lastCandle.close : null;
+    if (lastKnownPrice === null) {
+        const prevSnapshot = await prisma.priceSnapshot.findFirst({
+            where: {
+                itemId,
+                timestamp: { lte: sinceDate },
+                source: { not: "steam-intelligence" },
+            },
+            orderBy: { timestamp: "desc" },
+        });
+        if (prevSnapshot) {
+            lastKnownPrice = prevSnapshot.price;
+        }
+    }
 
     // Group snapshots by period
     const periods = new Map<
@@ -65,21 +80,29 @@ export async function aggregateCandlesticks(
     >();
 
     for (const snapshot of snapshots) {
+        const isIntelligence = snapshot.source === "steam-intelligence";
+        if (!isIntelligence) {
+            lastKnownPrice = snapshot.price;
+        }
+
         const periodStart = getPeriodStart(snapshot.timestamp, intervalMs);
         const key = periodStart.getTime();
 
         const existing = periods.get(key);
         if (existing) {
-            existing.high = Math.max(existing.high, snapshot.price);
-            existing.low = Math.min(existing.low, snapshot.price);
-            existing.close = snapshot.price; // Last price in period
+            if (!isIntelligence) {
+                existing.high = Math.max(existing.high, snapshot.price);
+                existing.low = Math.min(existing.low, snapshot.price);
+                existing.close = snapshot.price; // Last price in period
+            }
             existing.volume += snapshot.volume ?? 0;
         } else {
+            const price = isIntelligence ? (lastKnownPrice ?? snapshot.price) : snapshot.price;
             periods.set(key, {
-                open: snapshot.price,
-                high: snapshot.price,
-                low: snapshot.price,
-                close: snapshot.price,
+                open: price,
+                high: price,
+                low: price,
+                close: price,
                 volume: snapshot.volume ?? 0,
                 timestamp: periodStart,
             });
