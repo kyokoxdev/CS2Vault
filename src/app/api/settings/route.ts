@@ -19,6 +19,8 @@ const settingsSchema = z.object({
     openRouterApiKey: z.string().max(512).optional(),
     nineRouterApiKey: z.string().max(512).optional(),
     csfloatApiKey: z.string().max(256).optional(),
+    inngestEventKey: z.string().max(256).optional(),
+    inngestSigningKey: z.string().max(256).optional(),
 });
 
 function maskApiKey(key: string | null | undefined, envFallback?: string): string {
@@ -54,6 +56,8 @@ export async function GET() {
                 openRouterApiKey: maskApiKey(null, process.env.OPENROUTER_API_KEY),
                 nineRouterApiKey: maskApiKey(null, process.env.NINEROUTER_API_KEY),
                 csfloatApiKey: maskApiKey(null, process.env.CSFLOAT_API_KEY),
+                inngestEventKey: maskApiKey(null, process.env.INNGEST_EVENT_KEY),
+                inngestSigningKey: maskApiKey(null, process.env.INNGEST_SIGNING_KEY),
             });
         }
 
@@ -68,6 +72,8 @@ export async function GET() {
             openRouterApiKey: maskApiKey(decryptApiKey(settings.openRouterApiKey), process.env.OPENROUTER_API_KEY),
             nineRouterApiKey: maskApiKey(decryptApiKey(settings.nineRouterApiKey), process.env.NINEROUTER_API_KEY),
             csfloatApiKey: maskApiKey(decryptApiKey(settings.csfloatApiKey), process.env.CSFLOAT_API_KEY),
+            inngestEventKey: maskApiKey(decryptApiKey(settings.inngestEventKey), process.env.INNGEST_EVENT_KEY),
+            inngestSigningKey: maskApiKey(decryptApiKey(settings.inngestSigningKey), process.env.INNGEST_SIGNING_KEY),
         });
     } catch (error) {
         console.error("[Settings API GET Error]", { userId, error });
@@ -106,6 +112,8 @@ export async function PATCH(request: Request) {
             nineRouterApiKey,
             csfloatApiKey,
             csgotraderSubProvider,
+            inngestEventKey,
+            inngestSigningKey,
         } = parseResult.data;
 
 		const existing = await prisma.appSettings.findUnique({ where: { id: "singleton" } });
@@ -128,6 +136,8 @@ export async function PATCH(request: Request) {
 		const resolvedOpenRouter = resolveApiKey(openRouterApiKey, existing?.openRouterApiKey, process.env.OPENROUTER_API_KEY);
 		const resolvedNineRouter = resolveApiKey(nineRouterApiKey, existing?.nineRouterApiKey, process.env.NINEROUTER_API_KEY);
 		const resolvedCsfloat = resolveApiKey(csfloatApiKey, existing?.csfloatApiKey, process.env.CSFLOAT_API_KEY);
+		const resolvedInngestEvent = resolveApiKey(inngestEventKey, existing?.inngestEventKey, process.env.INNGEST_EVENT_KEY);
+		const resolvedInngestSigning = resolveApiKey(inngestSigningKey, existing?.inngestSigningKey, process.env.INNGEST_SIGNING_KEY);
         // Upsert to ensure singleton exists
         const updated = await prisma.appSettings.upsert({
             where: { id: "singleton" },
@@ -141,6 +151,8 @@ export async function PATCH(request: Request) {
 				...(resolvedOpenRouter !== undefined && { openRouterApiKey: resolvedOpenRouter }),
 				...(resolvedNineRouter !== undefined && { nineRouterApiKey: resolvedNineRouter }),
 				...(resolvedCsfloat !== undefined && { csfloatApiKey: resolvedCsfloat }),
+				...(resolvedInngestEvent !== undefined && { inngestEventKey: resolvedInngestEvent }),
+				...(resolvedInngestSigning !== undefined && { inngestSigningKey: resolvedInngestSigning }),
                 csgotraderSubProvider,
             },
             create: {
@@ -154,13 +166,11 @@ export async function PATCH(request: Request) {
 				openRouterApiKey: resolvedOpenRouter ?? null,
 				nineRouterApiKey: resolvedNineRouter ?? null,
 				csfloatApiKey: resolvedCsfloat ?? null,
+				inngestEventKey: resolvedInngestEvent ?? null,
+				inngestSigningKey: resolvedInngestSigning ?? null,
                 csgotraderSubProvider: csgotraderSubProvider ?? "csfloat",
             },
         });
-
-        if (activeMarketSource) {
-            await resetProviders();
-        }
 
         // Trigger cache revalidations globally since these settings impact AI and Market engines everywhere
         revalidatePath("/", "layout");
@@ -175,6 +185,8 @@ export async function PATCH(request: Request) {
             openRouterApiKey: maskApiKey(decryptApiKey(updated.openRouterApiKey), process.env.OPENROUTER_API_KEY),
             nineRouterApiKey: maskApiKey(decryptApiKey(updated.nineRouterApiKey), process.env.NINEROUTER_API_KEY),
             csfloatApiKey: maskApiKey(decryptApiKey(updated.csfloatApiKey), process.env.CSFLOAT_API_KEY),
+            inngestEventKey: maskApiKey(decryptApiKey(updated.inngestEventKey), process.env.INNGEST_EVENT_KEY),
+            inngestSigningKey: maskApiKey(decryptApiKey(updated.inngestSigningKey), process.env.INNGEST_SIGNING_KEY),
             csgotraderSubProvider: updated.csgotraderSubProvider,
         });
     } catch (error) {

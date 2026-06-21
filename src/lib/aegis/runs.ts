@@ -1,4 +1,4 @@
-import { inngest } from "./inngest/client";
+import { inngest, initInngestClient } from "./inngest/client";
 import { createAegisRunRequestedEvent } from "./events";
 import { appendAegisTrace, createAegisRun } from "./ledger";
 import type { CreateAegisRunInput } from "./types";
@@ -14,6 +14,7 @@ export async function createAndDispatchAegisRun(input: CreateAegisRunInput) {
         message: "Aegis run queued.",
     });
 
+    await initInngestClient();
     await inngest.send(createAegisRunRequestedEvent(run.id, run.userId));
 
     return run;

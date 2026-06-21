@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type ChangeEvent } from "react";
 import styles from "./Settings.module.css";
-import { FaSave, FaRobot, FaChartLine, FaClock, FaSyncAlt } from "react-icons/fa";
+import { FaSave, FaRobot, FaChartLine, FaClock, FaSyncAlt, FaServer } from "react-icons/fa";
 import { AI_MODELS } from "@/lib/ai/model-labels";
 import { Select } from "@/components/ui/Select";
 import { useUiPreferences } from "@/components/providers/UiPreferencesProvider";
@@ -19,9 +19,11 @@ interface AppSettings {
     nineRouterApiKey: string;
     csfloatApiKey: string;
     csgotraderSubProvider: string;
+    inngestEventKey?: string;
+    inngestSigningKey?: string;
 }
 
-const API_KEY_FIELDS = ["openAiApiKey", "geminiApiKey", "anthropicApiKey", "openRouterApiKey", "nineRouterApiKey", "csfloatApiKey"] as const;
+const API_KEY_FIELDS = ["openAiApiKey", "geminiApiKey", "anthropicApiKey", "openRouterApiKey", "nineRouterApiKey", "csfloatApiKey", "inngestEventKey", "inngestSigningKey"] as const;
 type ApiKeyField = typeof API_KEY_FIELDS[number];
 const SAVED_KEY_INDICATOR = "••••••••••••••••";
 
@@ -32,6 +34,8 @@ const EMPTY_API_KEYS: Record<ApiKeyField, string> = {
     openRouterApiKey: "",
     nineRouterApiKey: "",
     csfloatApiKey: "",
+    inngestEventKey: "",
+    inngestSigningKey: "",
 };
 
 const AI_KEY_INPUTS: { field: ApiKeyField; id: string; label: string; placeholder: string; help: string }[] = [
@@ -437,6 +441,47 @@ export default function SettingsPage() {
                             {refreshingMarketCap ? "Refreshing Market Cap..." : "Refresh Market Cap"}
                         </button>
                         <p className={styles.helpText}>Forces a fresh weighted market-cap calculation immediately, even if the daily cron has not run yet.</p>
+                    </div>
+                </section>
+
+                {/* Aegis & Inngest Panel */}
+                <section className={styles.panel}>
+                    <div className={styles.panelHeader}>
+                        <FaServer className={styles.icon} />
+                        <div>
+                            <h2>Aegis & Inngest Integration</h2>
+                            <p className={styles.panelKicker}>Credentials for event processing and pipeline</p>
+                        </div>
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label htmlFor="settings-inngest-event-key">Inngest Event Key</label>
+                        <input
+                            id="settings-inngest-event-key"
+                            type="password"
+                            value={getKeyDisplayValue("inngestEventKey")}
+                            onChange={(e) => handleKeyChange("inngestEventKey", e.target.value)}
+                            onFocus={() => handleKeyFocus("inngestEventKey")}
+                            onBlur={() => handleKeyBlur("inngestEventKey")}
+                            placeholder="Optional. Required for dispatching Aegis runs..."
+                            className={styles.input}
+                        />
+                        <p className={styles.helpText}>Used to publish events from CS2Vault to your Inngest platform.</p>
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label htmlFor="settings-inngest-signing-key">Inngest Signing Key</label>
+                        <input
+                            id="settings-inngest-signing-key"
+                            type="password"
+                            value={getKeyDisplayValue("inngestSigningKey")}
+                            onChange={(e) => handleKeyChange("inngestSigningKey", e.target.value)}
+                            onFocus={() => handleKeyFocus("inngestSigningKey")}
+                            onBlur={() => handleKeyBlur("inngestSigningKey")}
+                            placeholder="Optional. Required for endpoint request verification..."
+                            className={styles.input}
+                        />
+                        <p className={styles.helpText}>Used to authenticate incoming webhooks and function execution requests from Inngest.</p>
                     </div>
                 </section>
             </div>

@@ -319,6 +319,8 @@ model AppSettings {
   openRouterApiKey        String?
   nineRouterApiKey        String?
   csfloatApiKey           String?
+  inngestEventKey         String?
+  inngestSigningKey       String?
   priceRefreshIntervalMin Int       @default(15)
   watchlistOnly           Boolean   @default(true)
   googleAccessToken       String?
