@@ -40,7 +40,8 @@ export type ProviderFailureReason =
     | "TIMEOUT"
     | "MALFORMED_JSON"
     | "MALFORMED_PAYLOAD"
-    | "PROVIDER_UNSUCCESSFUL";
+    | "PROVIDER_UNSUCCESSFUL"
+    | "NO_PRICE_DATA";
 
 export interface ProviderCacheMetadata {
     hit: boolean;
@@ -199,7 +200,7 @@ export function parseScmPriceOverview(marketHashName: string, payload: unknown):
             source: "scm",
             rawPayload,
             cacheHit: { hit: false },
-            failure: providerFailure("scm", "MALFORMED_PAYLOAD", "SCM response did not include a parseable price", true),
+            failure: providerFailure("scm", "NO_PRICE_DATA", "SCM response did not include a parseable price", false),
         };
     }
 

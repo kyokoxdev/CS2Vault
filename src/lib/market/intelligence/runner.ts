@@ -10,6 +10,7 @@ import {
     releaseQueueItemSuccess,
     rescheduleMsForQueueItem,
     suspendHighSupplyBacklog,
+    disableQueueItem,
     type IntelligenceQueueItemWithMarketHash,
     type QueueSummary,
 } from "@/lib/market/intelligence/queue";
@@ -456,7 +457,11 @@ export async function runIntelligenceQueue(options: IntelligenceRunnerOptions = 
             failed++;
             lane.failed++;
             const message = failureMessage(claimedItem, providerResult);
-            await releaseQueueItemRetry(claimedItem.id, claimedItem.attempts, message, now);
+            if (providerResult.failure?.reason === "NO_PRICE_DATA" && claimedItem.attempts >= 4) {
+                await disableQueueItem(claimedItem.id, "no_price_listings");
+            } else {
+                await releaseQueueItemRetry(claimedItem.id, claimedItem.attempts, message, now);
+            }
             const opened = await markProviderFailure(config, message, shouldCountTowardCircuit(providerResult), now);
             circuitBreakerOpened = circuitBreakerOpened || opened;
             if (opened) break;

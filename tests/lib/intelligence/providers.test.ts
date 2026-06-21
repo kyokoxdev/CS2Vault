@@ -154,8 +154,8 @@ describe("parseScmPriceOverview", () => {
         });
 
         expect(result.ok).toBe(false);
-        expect(result.failure?.reason).toBe("MALFORMED_PAYLOAD");
-        expect(result.failure?.circuitBreakerOpen).toBe(true);
+        expect(result.failure?.reason).toBe("NO_PRICE_DATA");
+        expect(result.failure?.circuitBreakerOpen).toBe(false);
     });
 
     it("signals SCM success:false as provider unsuccessful", () => {

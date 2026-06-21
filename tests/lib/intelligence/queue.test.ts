@@ -829,4 +829,54 @@ describe("runIntelligenceQueue", () => {
         expect(mockDb.rows[0].status).toBe("backoff");
         expect(mockDb.rows[0].lastError).toBe("Scoring persistence failed");
     });
+
+    it("retries on NO_PRICE_DATA failure without circuit failure when attempts < 4", async () => {
+        addRow({ id: "no-price-retry", attempts: 1 });
+        const provider = vi.fn(async () => ({
+            ok: false,
+            source: "scm",
+            cacheHit: { hit: false },
+            rawPayload: {},
+            failure: {
+                provider: "scm",
+                reason: "NO_PRICE_DATA",
+                message: "SCM response did not include a parseable price",
+                circuitBreakerOpen: false,
+            },
+        } as any));
+        const csfloatProvider = vi.fn(async () => csfloatSuccessResult());
+
+        const result = await runIntelligenceQueue({ now: NOW, perRunCap: 5, provider, csfloatProvider });
+
+        expect(result.status).toBe("failed");
+        expect(result.failed).toBe(1);
+        expect(mockDb.config.consecutiveProviderFailures).toBe(1);
+        expect(mockDb.config.circuitBreakerUntil).toBeNull();
+        expect(mockDb.rows[0].status).toBe("backoff");
+        expect(mockDb.rows[0].attempts).toBe(2);
+    });
+
+    it("disables the queue item on NO_PRICE_DATA failure when attempts >= 4", async () => {
+        addRow({ id: "no-price-disable", attempts: 4 });
+        const provider = vi.fn(async () => ({
+            ok: false,
+            source: "scm",
+            cacheHit: { hit: false },
+            rawPayload: {},
+            failure: {
+                provider: "scm",
+                reason: "NO_PRICE_DATA",
+                message: "SCM response did not include a parseable price",
+                circuitBreakerOpen: false,
+            },
+        } as any));
+        const csfloatProvider = vi.fn(async () => csfloatSuccessResult());
+
+        const result = await runIntelligenceQueue({ now: NOW, perRunCap: 5, provider, csfloatProvider });
+
+        expect(result.status).toBe("failed");
+        expect(result.failed).toBe(1);
+        expect(mockDb.rows[0].status).toBe("disabled");
+        expect(mockDb.rows[0].disabledReason).toBe("no_price_listings");
+    });
 });
