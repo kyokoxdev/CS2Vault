@@ -26,12 +26,14 @@ vi.mock("@/lib/candles/aggregator", () => ({
 
 import { prisma } from "@/lib/db";
 import { getMarketProvider } from "@/lib/market/registry";
-import { writePriceSnapshotsForItemsInChunks } from "@/lib/market/pricing";
+import { aggregateAllIntervals } from "@/lib/candles/aggregator";
+import { writePriceSnapshotsForItems, writePriceSnapshotsForItemsInChunks } from "@/lib/market/pricing";
 
 const mockFindSettings = vi.mocked(prisma.appSettings.findUnique);
 const mockFindSnapshots = vi.mocked(prisma.priceSnapshot.findMany);
 const mockCreateMany = vi.mocked(prisma.priceSnapshot.createMany);
 const mockGetMarketProvider = vi.mocked(getMarketProvider);
+const mockAggregateAllIntervals = vi.mocked(aggregateAllIntervals);
 
 describe("writePriceSnapshotsForItemsInChunks", () => {
   beforeEach(() => {
@@ -87,5 +89,34 @@ describe("writePriceSnapshotsForItemsInChunks", () => {
       batchPriced: 1,
       provider: "csfloat",
     }));
+  });
+
+  it("does not fail price writes when candle aggregation fails", async () => {
+    const fetchBulkPrices = vi.fn().mockResolvedValue(new Map([
+      ["AK-47 | Redline", { price: 11, source: "csfloat", timestamp: new Date("2026-04-07T00:00:00.000Z") }],
+    ]));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    mockGetMarketProvider.mockReturnValue({
+      name: "csfloat",
+      fetchBulkPrices,
+    } as never);
+    mockAggregateAllIntervals.mockRejectedValueOnce(new Error("candles unavailable"));
+
+    const result = await writePriceSnapshotsForItems(new Map([
+      ["AK-47 | Redline", "item-1"],
+    ]));
+
+    expect(result.pricedCount).toBe(1);
+    expect(mockCreateMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ itemId: "item-1", price: 11, source: "csfloat" })],
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      "[Pricing] Failed to aggregate candlesticks for item",
+      "item-1",
+      expect.any(Error)
+    );
+
+    consoleError.mockRestore();
   });
 });

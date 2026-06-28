@@ -466,7 +466,11 @@ export async function writePriceSnapshotsForItems(
     if (!options.skipCandleAggregation && pricedCount > 0) {
         const uniqueItemIds = [...new Set(snapshotsToCreate.map((s) => s.itemId))];
         for (const id of uniqueItemIds) {
-            await aggregateAllIntervals(id);
+            try {
+                await aggregateAllIntervals(id);
+            } catch (error) {
+                console.error("[Pricing] Failed to aggregate candlesticks for item", id, error);
+            }
         }
     }
 
