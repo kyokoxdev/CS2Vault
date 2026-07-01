@@ -23,12 +23,16 @@ const MAX_MESSAGES = 50;
 const MAX_OPENROUTER_MODEL_ID_LENGTH = 160;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 30;
+const IMAGE_DATA_URL_PATTERN = /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/i;
 
 const ChatRequestSchema = z.object({
     messages: z.array(z.object({
         role: z.enum(["user", "assistant"]),
         content: z.string().min(1),
-        imageBase64: z.string().max(MAX_IMAGE_BASE64_LENGTH).optional()
+        imageBase64: z.string()
+            .max(MAX_IMAGE_BASE64_LENGTH)
+            .regex(IMAGE_DATA_URL_PATTERN, "Unsupported image data URL")
+            .optional()
     })).min(1).max(MAX_MESSAGES),
     provider: z.enum(AI_PROVIDER_VALUES).optional(),
     reasoningDepth: z.enum(AI_REASONING_DEPTH_VALUES).optional(),
@@ -254,7 +258,7 @@ export async function POST(request: NextRequest) {
         }
         console.error("[API /chat POST]", error);
         return NextResponse.json(
-            { success: false, error: error instanceof Error ? error.message : "Internal Server Error" },
+            { success: false, error: "Internal Server Error" },
             { status: 500 }
         );
     }

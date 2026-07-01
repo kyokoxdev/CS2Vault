@@ -159,4 +159,24 @@ describe("POST /api/chat", () => {
         }));
         expect(runAegisAgentHarness).not.toHaveBeenCalled();
     });
+
+    it("rejects unsupported image data URLs before persistence", async () => {
+        const response = await POST(toNextRequest(new Request("http://localhost/api/chat", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+                messages: [{
+                    role: "user",
+                    content: "Analyze this image",
+                    imageBase64: "data:image/svg+xml;base64,PHN2Zy8+",
+                }],
+                provider: "gemini-flash",
+                agentMode: "consultant",
+            }),
+        })));
+
+        expect(response.status).toBe(400);
+        expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+        expect(createAndDispatchAegisRun).not.toHaveBeenCalled();
+    });
 });
