@@ -44,6 +44,12 @@ export interface RateLimitConfig {
 export interface BulkPriceFetchOptions {
     /** When true, only use fast bulk/CDN paths — skip individual API calls for missing items. */
     bulkOnly?: boolean;
+    /** Absolute deadline for queued provider work. Used by bounded cron routes. */
+    deadlineAtMs?: number;
+    /** Required headroom before `deadlineAtMs` for response serialization/lock release. */
+    minRemainingMs?: number;
+    /** Per-call retry cap for provider queues. */
+    maxRetries?: number;
 }
 
 export interface MarketDataProvider {
