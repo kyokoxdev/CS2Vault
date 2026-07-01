@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { csfloatQueue } from "@/lib/api-queue";
 import { isSyncLocked } from "@/lib/market/sync-lock";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth/guard";
 
 const CSFLOAT_BASE_URL = "https://csfloat.com/api/v1";
 const CSFLOAT_PAGE_LIMIT = 50;
@@ -190,6 +191,9 @@ function pickTopItems(stats: Map<string, ItemStat>): string[] {
 
 export async function GET() {
     try {
+        const authResult = await requireAuth();
+        if (authResult.error) return authResult.error;
+
         const priceTimestampResult = await prisma.priceSnapshot.findFirst({
             where: { source: { not: "steam-intelligence" } },
             orderBy: { timestamp: "desc" },
@@ -209,7 +213,7 @@ export async function GET() {
                 success: true,
                 data: { ...cachedSummary, lastPriceUpdate },
             }, {
-                headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=300" },
+                headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" },
             });
         }
 
@@ -221,7 +225,7 @@ export async function GET() {
                 success: true,
                 data: { ...dbCache.data, lastPriceUpdate },
             }, {
-                headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=300" },
+                headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" },
             });
         }
 
@@ -333,7 +337,7 @@ export async function GET() {
             success: true,
             data: { ...computedSummary, lastPriceUpdate },
         }, {
-            headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=300" },
+            headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" },
         });
     } catch (error) {
         console.warn("[API /market/summary]", error);

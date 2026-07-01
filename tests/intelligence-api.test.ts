@@ -56,11 +56,29 @@ function toNextRequest(request: Request): NextRequest {
     return request as unknown as NextRequest;
 }
 
+function getFirstFindManyArgs() {
+    const call = vi.mocked(prisma.intelligenceSignal.findMany).mock.calls[0];
+    if (!call) {
+        throw new Error("Expected intelligenceSignal.findMany to be called");
+    }
+
+    const [args] = call;
+    if (!args) {
+        throw new Error("Expected intelligenceSignal.findMany args");
+    }
+
+    return args;
+}
+
 const originalCronSecret = process.env.CRON_SECRET;
 
 beforeEach(() => {
     vi.clearAllMocks();
     process.env.CRON_SECRET = "test-secret";
+    vi.mocked(requireAuth).mockResolvedValue({
+        session: { user: { id: "user-1", steamId: "123" } },
+        error: null,
+    } as never);
     vi.mocked(prisma.intelligenceQueueItem.count).mockResolvedValue(0 as never);
 });
 
@@ -206,7 +224,7 @@ describe("GET /api/intelligence/signals", () => {
 
         expect(response.status).toBe(200);
         expect(payload.success).toBe(true);
-        const findManyCall = vi.mocked(prisma.intelligenceSignal.findMany).mock.calls[0][0];
+        const findManyCall = getFirstFindManyArgs();
         expect(findManyCall.where).toHaveProperty("signalType", "pump");
     });
 
@@ -247,7 +265,7 @@ describe("GET /api/intelligence/signals", () => {
         expect(payload.data.items).toHaveLength(1);
         expect(payload.data.items[0].tier).toBe("liquid");
 
-        const findManyCall = vi.mocked(prisma.intelligenceSignal.findMany).mock.calls[0][0];
+        const findManyCall = getFirstFindManyArgs();
         expect(findManyCall.where).toHaveProperty("itemId");
         expect((findManyCall.where as Record<string, unknown>).itemId).toEqual({ in: ["item-1"] });
     });
@@ -259,7 +277,7 @@ describe("GET /api/intelligence/signals", () => {
         const request = new Request("http://localhost/api/intelligence/signals?freshness=fresh");
         await getSignals(toNextRequest(request));
 
-        const findManyCall = vi.mocked(prisma.intelligenceSignal.findMany).mock.calls[0][0];
+        const findManyCall = getFirstFindManyArgs();
         expect(findManyCall.where).toHaveProperty("lastSeenAt");
         const lastSeenAt = (findManyCall.where as Record<string, unknown>).lastSeenAt as Record<string, Date>;
         expect(lastSeenAt.gte).toBeInstanceOf(Date);
@@ -272,7 +290,7 @@ describe("GET /api/intelligence/signals", () => {
         const request = new Request("http://localhost/api/intelligence/signals?freshness=stale");
         await getSignals(toNextRequest(request));
 
-        const findManyCall = vi.mocked(prisma.intelligenceSignal.findMany).mock.calls[0][0];
+        const findManyCall = getFirstFindManyArgs();
         expect(findManyCall.where).toHaveProperty("lastSeenAt");
         const lastSeenAt = (findManyCall.where as Record<string, unknown>).lastSeenAt as Record<string, Date>;
         expect(lastSeenAt.gte).toBeInstanceOf(Date);
@@ -286,7 +304,7 @@ describe("GET /api/intelligence/signals", () => {
         const request = new Request("http://localhost/api/intelligence/signals?freshness=expired");
         await getSignals(toNextRequest(request));
 
-        const findManyCall = vi.mocked(prisma.intelligenceSignal.findMany).mock.calls[0][0];
+        const findManyCall = getFirstFindManyArgs();
         expect(findManyCall.where).toHaveProperty("OR");
     });
 
@@ -299,7 +317,7 @@ describe("GET /api/intelligence/signals", () => {
         const request = new Request("http://localhost/api/intelligence/signals?cursor=sig-abc123");
         await getSignals(toNextRequest(request));
 
-        const findManyCall = vi.mocked(prisma.intelligenceSignal.findMany).mock.calls[0][0];
+        const findManyCall = getFirstFindManyArgs();
         expect(findManyCall.cursor).toEqual({ id: "sig-abc123" });
         expect(findManyCall.skip).toBe(1);
         expect(findManyCall.orderBy).toEqual([{ detectedAt: "desc" }, { id: "desc" }]);
@@ -368,8 +386,7 @@ describe("GET /api/intelligence/status", () => {
             oldestDueAgeMs: 3600000,
         } as never);
 
-        const request = new Request("http://localhost/api/intelligence/status");
-        const response = await getStatus(toNextRequest(request));
+        const response = await getStatus();
         const payload = await response.json();
 
         expect(response.status).toBe(200);
@@ -407,8 +424,7 @@ describe("GET /api/intelligence/status", () => {
             oldestDueAgeMs: null,
         } as never);
 
-        const request = new Request("http://localhost/api/intelligence/status");
-        const response = await getStatus(toNextRequest(request));
+        const response = await getStatus();
         const payload = await response.json();
 
         expect(response.status).toBe(200);
@@ -445,8 +461,7 @@ describe("GET /api/intelligence/status", () => {
             oldestDueAgeMs: null,
         } as never);
 
-        const request = new Request("http://localhost/api/intelligence/status");
-        const response = await getStatus(toNextRequest(request));
+        const response = await getStatus();
         const payload = await response.json();
 
         expect(response.status).toBe(200);
@@ -479,8 +494,7 @@ describe("GET /api/intelligence/status", () => {
             oldestDueAgeMs: null,
         } as never);
 
-        const request = new Request("http://localhost/api/intelligence/status");
-        const response = await getStatus(toNextRequest(request));
+        const response = await getStatus();
         const payload = await response.json();
 
         expect(response.status).toBe(200);
@@ -490,8 +504,7 @@ describe("GET /api/intelligence/status", () => {
     it("returns 500 on database error", async () => {
         vi.mocked(prisma.intelligenceConfig.upsert).mockRejectedValueOnce(new Error("DB error"));
 
-        const request = new Request("http://localhost/api/intelligence/status");
-        const response = await getStatus(toNextRequest(request));
+        const response = await getStatus();
 
         expect(response.status).toBe(500);
     });
@@ -615,8 +628,7 @@ describe("POST /api/intelligence/refresh", () => {
             }),
         } as never);
 
-        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
-        const response = await postRefresh(toNextRequest(request));
+        const response = await postRefresh();
 
         expect(response.status).toBe(401);
         expect(promoteStaleSignalQueueItems).not.toHaveBeenCalled();
@@ -632,8 +644,7 @@ describe("POST /api/intelligence/refresh", () => {
             requestBudget: {},
         } as never);
 
-        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
-        const response = await postRefresh(toNextRequest(request));
+        const response = await postRefresh();
         const payload = await response.json();
 
         expect(response.status).toBe(200);
@@ -655,8 +666,7 @@ describe("POST /api/intelligence/refresh", () => {
             requestBudget: {},
         } as never);
 
-        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
-        const response = await postRefresh(toNextRequest(request));
+        const response = await postRefresh();
         const payload = await response.json();
 
         expect(response.status).toBe(200);
@@ -678,8 +688,7 @@ describe("POST /api/intelligence/refresh", () => {
         } as never);
         vi.mocked(prisma.intelligenceQueueItem.count).mockResolvedValueOnce(1 as never);
 
-        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
-        const response = await postRefresh(toNextRequest(request));
+        const response = await postRefresh();
         const payload = await response.json();
 
         expect(response.status).toBe(200);
@@ -710,8 +719,7 @@ describe("POST /api/intelligence/refresh", () => {
             },
         } as never);
 
-        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
-        const response = await postRefresh(toNextRequest(request));
+        const response = await postRefresh();
         const payload = await response.json();
 
         expect(response.status).toBe(200);
@@ -761,8 +769,7 @@ describe("POST /api/intelligence/refresh", () => {
             summary: { pending: 0, running: 0, backoff: 0, disabled: 0, oldestDueAt: null, oldestDueAgeMs: null },
         } as never);
 
-        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
-        const response = await postRefresh(toNextRequest(request));
+        const response = await postRefresh();
 
         expect(response.status).toBe(200);
         expect(runIntelligenceQueue).toHaveBeenCalledWith(expect.objectContaining({ itemIds: ["item-1"] }));
@@ -806,8 +813,7 @@ describe("POST /api/intelligence/refresh", () => {
             summary: { pending: 3, running: 0, backoff: 0, disabled: 1, oldestDueAt: new Date("2026-01-01T11:30:00Z"), oldestDueAgeMs: 30 * 60 * 1000 },
         } as never);
 
-        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
-        const response = await postRefresh(toNextRequest(request));
+        const response = await postRefresh();
         const payload = await response.json();
 
         expect(response.status).toBe(200);
@@ -844,8 +850,7 @@ describe("POST /api/intelligence/refresh", () => {
             itemIds: [],
         } as never);
 
-        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
-        const response = await postRefresh(toNextRequest(request));
+        const response = await postRefresh();
         const payload = await response.json();
 
         expect(response.status).toBe(200);
@@ -858,8 +863,7 @@ describe("POST /api/intelligence/refresh", () => {
         vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
         vi.mocked(prisma.intelligenceConfig.findUnique).mockResolvedValueOnce(null);
 
-        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
-        const response = await postRefresh(toNextRequest(request));
+        const response = await postRefresh();
         const payload = await response.json();
 
         expect(response.status).toBe(200);
@@ -874,8 +878,7 @@ describe("POST /api/intelligence/refresh", () => {
         vi.mocked(requireAuth).mockResolvedValueOnce({ session: { user: { steamId: "123" } }, error: null } as never);
         vi.mocked(prisma.intelligenceConfig.findUnique).mockRejectedValueOnce(new Error("DB connection lost"));
 
-        const request = new Request("http://localhost/api/intelligence/refresh", { method: "POST" });
-        const response = await postRefresh(toNextRequest(request));
+        const response = await postRefresh();
 
         expect(response.status).toBe(500);
     });

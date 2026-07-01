@@ -54,6 +54,10 @@ function mockConfig(liveScmEnabled: boolean) {
 describe("/api/intelligence/status", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.mocked(requireAuth).mockResolvedValue({
+            session: { user: { id: "user-1", steamId: "123" } },
+            error: null,
+        } as never);
         mockQueueSummary();
     });
 
@@ -74,6 +78,22 @@ describe("/api/intelligence/status", () => {
             update: {},
             create: { id: "default", liveScmEnabled: false },
         }));
+    });
+
+    it("rejects unauthenticated status reads without exposing queue state", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({
+            session: null,
+            error: new Response(JSON.stringify({ success: false, error: "Authentication required" }), {
+                status: 401,
+                headers: { "content-type": "application/json" },
+            }),
+        } as never);
+
+        const response = await GET();
+
+        expect(response.status).toBe(401);
+        expect(prisma.intelligenceConfig.upsert).not.toHaveBeenCalled();
+        expect(getQueueSummary).not.toHaveBeenCalled();
     });
 
     it("reports due rows skipped when the current SCM minute budget is exhausted", async () => {

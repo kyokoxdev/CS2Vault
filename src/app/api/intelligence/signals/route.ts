@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth/guard";
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -94,6 +95,11 @@ function buildCsfloatMarketMap(normalizedPayload: unknown): Map<string, CsfloatM
 
 export async function GET(request: NextRequest) {
     try {
+        const authResult = await requireAuth();
+        if (authResult.error) {
+            return authResult.error;
+        }
+
         const params = getRequestSearchParams(request);
         const now = new Date();
 

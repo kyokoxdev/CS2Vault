@@ -106,6 +106,11 @@ function buildStatusPayload(config: IntelligenceStatusConfig | null, queueSummar
 
 export async function GET() {
     try {
+        const authResult = await requireAuth();
+        if (authResult.error) {
+            return authResult.error;
+        }
+
         const now = new Date();
 
         const [config, queueSummary] = await Promise.all([

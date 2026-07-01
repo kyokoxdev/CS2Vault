@@ -7,6 +7,7 @@ import { fetchSteamNews } from "@/lib/news/steam-news";
 import { detectSignificantChanges } from "@/lib/market/price-activity";
 import { fetchRssFeeds } from "@/lib/news/rss-feeds";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth/guard";
 
 export type FeedItem = {
   id: string;
@@ -169,6 +170,9 @@ async function buildFeed(limit: number): Promise<FeedData> {
 
 export async function GET(request: Request) {
   try {
+    const authResult = await requireAuth();
+    if (authResult.error) return authResult.error;
+
     const { searchParams } = new URL(request.url);
     const limit = Math.min(
       Math.max(parseInt(searchParams.get("limit") ?? "20", 10) || 20, 1),
@@ -183,7 +187,7 @@ export async function GET(request: Request) {
           updatedAt: cachedData.updatedAt,
         },
       }, {
-        headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=240" },
+        headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=240" },
       });
     }
 
@@ -198,7 +202,7 @@ export async function GET(request: Request) {
           updatedAt: dbCache.data.updatedAt,
         },
       }, {
-        headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=240" },
+        headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=240" },
       });
     }
 
@@ -209,7 +213,7 @@ export async function GET(request: Request) {
     await saveDbCache(data);
 
     return NextResponse.json({ success: true, data }, {
-      headers: { "Cache-Control": "public, max-age=60, stale-while-revalidate=240" },
+      headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=240" },
     });
   } catch (error) {
     console.error("[API /market/news-feed]", error);

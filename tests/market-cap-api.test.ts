@@ -5,7 +5,12 @@ vi.mock("@/lib/market/market-cap", () => ({
     getMarketCap: vi.fn(),
 }));
 
+vi.mock("@/lib/auth/guard", () => ({
+    requireAuth: vi.fn(),
+}));
+
 import { getMarketCap } from "@/lib/market/market-cap";
+import { requireAuth } from "@/lib/auth/guard";
 import { GET } from "@/app/api/market/market-cap/route";
 
 function createMockResult(
@@ -27,6 +32,25 @@ function createMockResult(
 describe("GET /api/market/market-cap", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.mocked(requireAuth).mockResolvedValue({
+            session: { user: { id: "user-1", steamId: "123" } },
+            error: null,
+        } as never);
+    });
+
+    it("rejects unauthenticated reads", async () => {
+        vi.mocked(requireAuth).mockResolvedValueOnce({
+            session: null,
+            error: new Response(JSON.stringify({ success: false, error: "Authentication required" }), {
+                status: 401,
+                headers: { "content-type": "application/json" },
+            }),
+        } as never);
+
+        const response = await GET();
+
+        expect(response.status).toBe(401);
+        expect(getMarketCap).not.toHaveBeenCalled();
     });
 
     it("returns success response with market cap data", async () => {

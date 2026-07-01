@@ -482,6 +482,18 @@ vi.mock("@/lib/db", () => ({
     },
 }));
 
+vi.mock("@/lib/auth/guard", () => ({
+    requireAuth: vi.fn(async () => ({
+        session: {
+            user: {
+                id: "user-1",
+                steamId: "76561198000000000",
+            },
+        },
+        error: null,
+    })),
+}));
+
 vi.mock("@/lib/market/intelligence/providers", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@/lib/market/intelligence/providers")>();
     return {

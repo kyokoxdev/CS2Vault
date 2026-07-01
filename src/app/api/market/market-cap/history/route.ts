@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth/guard";
 
 const PROVIDER_NAME = "csgotrader-csfloat";
 
@@ -14,6 +15,9 @@ const PROVIDER_NAME = "csgotrader-csfloat";
  */
 export async function GET(request: Request) {
     try {
+        const authResult = await requireAuth();
+        if (authResult.error) return authResult.error;
+
         const { searchParams } = new URL(request.url);
         const limitParam = searchParams.get("limit");
         const parsedLimit = Number(limitParam);

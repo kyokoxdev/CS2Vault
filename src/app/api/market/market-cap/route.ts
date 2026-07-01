@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { getMarketCap } from "@/lib/market/market-cap";
+import { requireAuth } from "@/lib/auth/guard";
 
 export async function GET() {
     try {
+        const authResult = await requireAuth();
+        if (authResult.error) return authResult.error;
+
         const result = await getMarketCap();
 
         if (result.status === "error" && !result.data) {

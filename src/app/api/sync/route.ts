@@ -149,6 +149,9 @@ export async function GET(request: NextRequest) {
         }
 
         // Normal GET — return sync logs
+        const authResult = await requireAuth();
+        if (authResult.error) return authResult.error;
+
         const logs = await getRecentSyncLogs(20);
         const lastPriceUpdate = await getLatestPriceUpdate();
 

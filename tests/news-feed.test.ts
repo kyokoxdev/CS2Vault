@@ -13,7 +13,12 @@ vi.mock("@/lib/news/rss-feeds", () => ({
   fetchRssFeeds: vi.fn(),
 }));
 
+vi.mock("@/lib/auth/guard", () => ({
+  requireAuth: vi.fn(),
+}));
+
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth/guard";
 import { fetchRssFeeds } from "@/lib/news/rss-feeds";
 import { GET, __resetCache } from "../src/app/api/market/news-feed/route";
 import { fetchSteamNews } from "../src/lib/news/steam-news";
@@ -69,6 +74,10 @@ function makeRequest(limit?: number): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(requireAuth).mockResolvedValue({
+    session: { user: { id: "user-1", steamId: "123" } },
+    error: null,
+  } as never);
   __resetCache();
   // Default: RSS feeds return empty (most tests don't need RSS data)
   mockFetchRssFeeds.mockResolvedValue([]);
@@ -79,6 +88,22 @@ afterEach(() => {
 });
 
 describe("GET /api/market/news-feed", () => {
+  it("rejects unauthenticated reads", async () => {
+    vi.mocked(requireAuth).mockResolvedValueOnce({
+      session: null,
+      error: new Response(JSON.stringify({ success: false, error: "Authentication required" }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      }),
+    } as never);
+
+    const res = await GET(makeRequest());
+
+    expect(res.status).toBe(401);
+    expect(mockFindMany).not.toHaveBeenCalled();
+    expect(mockFetchRssFeeds).not.toHaveBeenCalled();
+  });
+
   it("returns merged news + price_alert items sorted by timestamp desc", async () => {
     // Steam news from 2 hours ago
     vi.stubGlobal(
