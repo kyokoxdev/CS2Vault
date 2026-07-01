@@ -125,6 +125,7 @@ Data refreshes are split between server-side schedulers and client-side triggers
    - `GET /api/market/market-cap-sync` runs daily (`0 8 * * *`) to compute weighted market caps.
 2. **External Schedulers** (e.g., cron-job.org):
    - `GET /api/intelligence/run` must be configured in an external cron service to run every 5 minutes with the `CRON_SECRET` authorization header. This handles candidate scanning via CSFloat and validation via Steam Community Market (SCM). To prevent SCM bans, it executes at most 3 validations per run, respecting SCM limits of 19 requests/minute and 950 requests/day.
+   - `GET /api/market/price-sync/bounded` can be configured in cron-job.org to run every 10 minutes for lightweight price snapshot refreshes. Use either `Authorization: Bearer <CRON_SECRET>` or `x-cron-secret: <CRON_SECRET>`. Defaults are `limit=25`, `minAgeMinutes=60`, and `budgetMs=25000`; the route clamps work to stay below cron-job.org's 30-second timeout, skips candle aggregation, and shares the sync lock with the full `/api/sync` route.
 3. **Browser Refreshes**:
    - The application automatically refreshes watchlist and portfolio metrics while a dashboard tab is active using the interval specified by the `priceRefreshIntervalMin` database setting.
    - Users can manually trigger a market-cap update in the Settings dashboard.
