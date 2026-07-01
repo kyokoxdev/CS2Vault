@@ -119,4 +119,31 @@ describe("writePriceSnapshotsForItemsInChunks", () => {
 
     consoleError.mockRestore();
   });
+
+  it("passes deadline options to provider bulk fetches", async () => {
+    const fetchBulkPrices = vi.fn().mockResolvedValue(new Map([
+      ["AK-47 | Redline", { price: 11, source: "csfloat", timestamp: new Date("2026-04-07T00:00:00.000Z") }],
+    ]));
+
+    mockGetMarketProvider.mockReturnValue({
+      name: "csfloat",
+      fetchBulkPrices,
+    } as never);
+
+    await writePriceSnapshotsForItems(new Map([
+      ["AK-47 | Redline", "item-1"],
+    ]), {
+      bulkOnly: true,
+      deadlineAtMs: 1_234_567,
+      minRemainingMs: 2_500,
+      maxRetries: 0,
+    });
+
+    expect(fetchBulkPrices).toHaveBeenCalledWith(["AK-47 | Redline"], {
+      bulkOnly: true,
+      deadlineAtMs: 1_234_567,
+      minRemainingMs: 2_500,
+      maxRetries: 0,
+    });
+  });
 });

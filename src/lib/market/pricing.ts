@@ -10,7 +10,7 @@ import { initializeMarketProviders } from "@/lib/market/init";
 import { getMarketProvider } from "@/lib/market/registry";
 import { aggregateAllIntervals } from "@/lib/candles/aggregator";
 import { steamProvider } from "@/lib/market/steam";
-import type { MarketDataProvider, MarketSource, PriceData } from "@/types";
+import type { BulkPriceFetchOptions, MarketDataProvider, MarketSource, PriceData } from "@/types";
 
 export interface BulkPriceResult {
     prices: Map<string, PriceData>;
@@ -39,6 +39,9 @@ export interface PriceWriteOptions {
     allowFallback?: boolean;
     skipCandleAggregation?: boolean;
     bulkOnly?: boolean;
+    deadlineAtMs?: number;
+    minRemainingMs?: number;
+    maxRetries?: number;
     /**
      * When true, fetches volume from Steam for items where the primary provider
      * did not include volume data. Limited to small batches to respect rate limits.
@@ -146,6 +149,15 @@ function getProviderLabel(provider: MarketSource): string {
         default:
             return provider;
     }
+}
+
+function buildBulkFetchOptions(options: PriceWriteOptions): BulkPriceFetchOptions {
+    return {
+        bulkOnly: options.bulkOnly,
+        deadlineAtMs: options.deadlineAtMs,
+        minRemainingMs: options.minRemainingMs,
+        maxRetries: options.maxRetries,
+    };
 }
 
 async function resolveMarketProviderInfo(
@@ -353,7 +365,7 @@ export async function writePriceSnapshotsForItems(
     }
     let prices: Map<string, PriceData>;
     try {
-        prices = await provider.fetchBulkPrices(hashNames, { bulkOnly: options.bulkOnly });
+        prices = await provider.fetchBulkPrices(hashNames, buildBulkFetchOptions(options));
     } catch (error) {
         if (options.allowFallback && provider.name !== "steam") {
             provider = getMarketProvider("steam");
@@ -376,7 +388,7 @@ export async function writePriceSnapshotsForItems(
                     fallbackAvailable: false,
                 };
             }
-            prices = await provider.fetchBulkPrices(hashNames, { bulkOnly: options.bulkOnly });
+            prices = await provider.fetchBulkPrices(hashNames, buildBulkFetchOptions(options));
         } else {
             return {
                 totalCandidates: entries.length,
@@ -414,7 +426,7 @@ export async function writePriceSnapshotsForItems(
                     fallbackAvailable: false,
                 };
             }
-            prices = await provider.fetchBulkPrices(hashNames, { bulkOnly: options.bulkOnly });
+            prices = await provider.fetchBulkPrices(hashNames, buildBulkFetchOptions(options));
         } else {
             return {
                 totalCandidates: entries.length,
