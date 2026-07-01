@@ -13,6 +13,7 @@
 import type { BulkPriceFetchOptions, MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
 import { csfloatQueue } from "@/lib/api-queue";
 import { prisma } from "@/lib/db";
+import { createDeadlineSignal } from "@/lib/deadline";
 import { parseSimplePriceFormat, type PriceVolumeEntry } from "@/lib/market/csgotrader-parsers";
 
 const BASE_URL = "https://csfloat.com/api/v1";
@@ -22,7 +23,7 @@ const BULK_CACHE_TTL_MS = 30 * 60 * 1000;
 let bulkPriceCache: Map<string, PriceVolumeEntry> | null = null;
 let bulkCacheTimestamp = 0;
 
-async function getBulkPriceCache(): Promise<Map<string, PriceVolumeEntry>> {
+async function getBulkPriceCache(options?: BulkPriceFetchOptions): Promise<Map<string, PriceVolumeEntry>> {
     const now = Date.now();
 
     if (bulkPriceCache && now - bulkCacheTimestamp < BULK_CACHE_TTL_MS) {
@@ -48,7 +49,7 @@ async function getBulkPriceCache(): Promise<Map<string, PriceVolumeEntry>> {
 
     try {
         const res = await fetch(BULK_CACHE_URL, {
-            signal: AbortSignal.timeout(10_000),
+            signal: createDeadlineSignal(options, 10_000),
         });
         if (!res.ok) {
             console.warn(`[CSFloat Bulk] Failed to fetch bulk cache: ${res.status}`);
@@ -134,7 +135,7 @@ export const csfloatProvider: MarketDataProvider = {
 
     async fetchBulkPrices(items: string[], options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>> {
         const result = new Map<string, PriceData>();
-        const bulkCache = await getBulkPriceCache();
+        const bulkCache = await getBulkPriceCache(options);
         const missingItems: string[] = [];
 
         for (const marketHashName of items) {
@@ -157,7 +158,7 @@ export const csfloatProvider: MarketDataProvider = {
 
         for (const marketHashName of missingItems) {
             try {
-                const priceData = await fetchItemPriceFromApi(marketHashName);
+                const priceData = await fetchItemPriceFromApi(marketHashName, options);
                 result.set(marketHashName, priceData);
             } catch (error) {
                 console.warn(
@@ -205,7 +206,7 @@ export const csfloatProvider: MarketDataProvider = {
     },
 };
 
-async function fetchItemPriceFromApi(marketHashName: string): Promise<PriceData> {
+async function fetchItemPriceFromApi(marketHashName: string, options?: BulkPriceFetchOptions): Promise<PriceData> {
     const listings = await csfloatQueue.enqueue(async () => {
         const url = new URL(`${BASE_URL}/listings`);
         url.searchParams.set("market_hash_name", marketHashName);
@@ -215,13 +216,13 @@ async function fetchItemPriceFromApi(marketHashName: string): Promise<PriceData>
         const headers = await makeHeaders();
         const res = await fetch(url.toString(), {
             headers,
-            signal: AbortSignal.timeout(15_000),
+            signal: createDeadlineSignal(options, 15_000),
         });
         if (!res.ok) {
             throw new Error(`CSFloat API error: ${res.status} ${res.statusText}`);
         }
         return res.json() as Promise<CSFloatListing[]>;
-    });
+    }, 0, options);
 
     if (!listings || listings.length === 0) {
         throw new Error(`No CSFloat listings found for "${marketHashName}"`);

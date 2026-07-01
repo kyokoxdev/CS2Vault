@@ -12,6 +12,7 @@
 
 import type { BulkPriceFetchOptions, MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
 import { steamQueue } from "@/lib/api-queue";
+import { createDeadlineSignal } from "@/lib/deadline";
 
 const MARKET_BASE = "https://steamcommunity.com/market";
 const CS2_APP_ID = "730";
@@ -38,48 +39,52 @@ export function parseSteamPrice(priceStr: string): number {
     return isNaN(parsed) ? 0 : parsed;
 }
 
+async function fetchSteamItemPrice(marketHashName: string, options?: BulkPriceFetchOptions): Promise<PriceData> {
+    const data = await steamQueue.enqueue(async () => {
+        const url = new URL(`${MARKET_BASE}/priceoverview/`);
+        url.searchParams.set("appid", CS2_APP_ID);
+        url.searchParams.set("currency", "1"); // USD
+        url.searchParams.set("market_hash_name", marketHashName);
+
+        const res = await fetch(url.toString(), {
+            signal: createDeadlineSignal(options, 15_000),
+        });
+        if (!res.ok) {
+            throw new Error(`Steam Market API error: ${res.status} ${res.statusText}`);
+        }
+        return res.json();
+    }, 0, options);
+
+    if (!data?.success) {
+        throw new Error(`Steam Market returned no data for "${marketHashName}"`);
+    }
+
+    const price = parseSteamPrice(data.lowest_price ?? data.median_price ?? "$0");
+    const medianPrice = parseSteamPrice(data.median_price ?? "$0");
+
+    return {
+        price: price || medianPrice,
+        volume: data.volume ? parseInt(data.volume.replace(/,/g, ""), 10) : undefined,
+        source: "steam",
+        timestamp: new Date(),
+    };
+}
+
 export const steamProvider: MarketDataProvider = {
     name: "steam",
 
     async fetchItemPrice(marketHashName: string): Promise<PriceData> {
-        const data = await steamQueue.enqueue(async () => {
-            const url = new URL(`${MARKET_BASE}/priceoverview/`);
-            url.searchParams.set("appid", CS2_APP_ID);
-            url.searchParams.set("currency", "1"); // USD
-            url.searchParams.set("market_hash_name", marketHashName);
-
-            const res = await fetch(url.toString(), {
-                signal: AbortSignal.timeout(15_000),
-            });
-            if (!res.ok) {
-                throw new Error(`Steam Market API error: ${res.status} ${res.statusText}`);
-            }
-            return res.json();
-        });
-
-        if (!data?.success) {
-            throw new Error(`Steam Market returned no data for "${marketHashName}"`);
-        }
-
-        const price = parseSteamPrice(data.lowest_price ?? data.median_price ?? "$0");
-        const medianPrice = parseSteamPrice(data.median_price ?? "$0");
-
-        return {
-            price: price || medianPrice,
-            volume: data.volume ? parseInt(data.volume.replace(/,/g, ""), 10) : undefined,
-            source: "steam",
-            timestamp: new Date(),
-        };
+        return fetchSteamItemPrice(marketHashName);
     },
 
-    async fetchBulkPrices(items: string[], _options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>> {
+    async fetchBulkPrices(items: string[], options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>> {
         const result = new Map<string, PriceData>();
 
         // Steam has no bulk endpoint — must fetch one at a time.
         // Very slow due to aggressive rate limiting (1 req per 3s).
         for (const marketHashName of items) {
             try {
-                const priceData = await steamProvider.fetchItemPrice(marketHashName);
+                const priceData = await fetchSteamItemPrice(marketHashName, options);
                 result.set(marketHashName, priceData);
             } catch (error) {
                 console.warn(

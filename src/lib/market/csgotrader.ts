@@ -1,6 +1,7 @@
 import type { BulkPriceFetchOptions, CSGOTraderSubProvider, MarketDataProvider, PriceData, RateLimitConfig } from "@/types";
 import { csgotraderQueue } from "@/lib/api-queue";
 import { prisma } from "@/lib/db";
+import { createDeadlineSignal } from "@/lib/deadline";
 import {
     parseKeyValueFormat,
     parseMultiModeFormat,
@@ -44,30 +45,32 @@ function parseProviderData(
 }
 
 async function fetchPricesForSubProvider(
-    subProvider: CSGOTraderSubProvider
+    subProvider: CSGOTraderSubProvider,
+    options?: BulkPriceFetchOptions
 ): Promise<Map<string, PriceVolumeEntry>> {
     const data = await csgotraderQueue.enqueue(async () => {
         const res = await fetch(`${BASE_URL}/${subProvider}.json`, {
-            signal: AbortSignal.timeout(15_000),
+            signal: createDeadlineSignal(options, 15_000),
         });
         if (!res.ok) {
             throw new Error(`CSGOTrader API error: ${res.status} ${res.statusText}`);
         }
         return res.json() as Promise<unknown>;
-    });
+    }, 0, options);
 
     return parseProviderData(data, subProvider);
 }
 
 async function getCachedPrices(
-    subProvider: CSGOTraderSubProvider
+    subProvider: CSGOTraderSubProvider,
+    options?: BulkPriceFetchOptions
 ): Promise<Map<string, PriceVolumeEntry>> {
     const now = Date.now();
     const isExpired = now - cacheTimestamp > CACHE_TTL_MS;
     const isDifferentProvider = cachedSubProvider !== subProvider;
 
     if (!cachedPrices || isExpired || isDifferentProvider) {
-        cachedPrices = await fetchPricesForSubProvider(subProvider);
+        cachedPrices = await fetchPricesForSubProvider(subProvider, options);
         cacheTimestamp = now;
         cachedSubProvider = subProvider;
     }
@@ -95,10 +98,10 @@ export const csgotraderProvider: MarketDataProvider = {
         };
     },
 
-    async fetchBulkPrices(items: string[], _options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>> {
+    async fetchBulkPrices(items: string[], options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>> {
         const result = new Map<string, PriceData>();
         const subProvider = await getSubProvider();
-        const prices = await getCachedPrices(subProvider);
+        const prices = await getCachedPrices(subProvider, options);
 
         for (const marketHashName of items) {
             const entry = prices.get(marketHashName);

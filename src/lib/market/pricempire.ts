@@ -12,8 +12,10 @@
 
 import type { BulkPriceFetchOptions, MarketDataProvider, PriceData, PricePoint, RateLimitConfig } from "@/types";
 import { pricempireQueue } from "@/lib/api-queue";
+import { createDeadlineSignal } from "@/lib/deadline";
 
 const BASE_URL = "https://api.pricempire.com";
+const PRICE_FETCH_TIMEOUT_MS = 15_000;
 
 function getApiKey(): string {
     const key = process.env.PRICEMPIRE_API_KEY;
@@ -32,7 +34,7 @@ export const pricempireProvider: MarketDataProvider = {
             url.searchParams.set("currency", "USD");
             url.searchParams.set("source", "buff,steam");
 
-            const res = await fetch(url.toString());
+            const res = await fetch(url.toString(), { signal: createDeadlineSignal(undefined, PRICE_FETCH_TIMEOUT_MS) });
             if (!res.ok) {
                 throw new Error(`Pricempire API error: ${res.status} ${res.statusText}`);
             }
@@ -51,7 +53,7 @@ export const pricempireProvider: MarketDataProvider = {
         };
     },
 
-    async fetchBulkPrices(items: string[], _options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>> {
+    async fetchBulkPrices(items: string[], options?: BulkPriceFetchOptions): Promise<Map<string, PriceData>> {
         const result = new Map<string, PriceData>();
 
         // Pricempire supports bulk fetching via a single endpoint
@@ -61,12 +63,12 @@ export const pricempireProvider: MarketDataProvider = {
             url.searchParams.set("currency", "USD");
             url.searchParams.set("source", "buff,steam");
 
-            const res = await fetch(url.toString());
+            const res = await fetch(url.toString(), { signal: createDeadlineSignal(options, PRICE_FETCH_TIMEOUT_MS) });
             if (!res.ok) {
                 throw new Error(`Pricempire API error: ${res.status} ${res.statusText}`);
             }
             return res.json();
-        });
+        }, 0, options);
 
         for (const marketHashName of items) {
             const itemData = data?.[marketHashName];
@@ -117,7 +119,7 @@ export async function fetchAllPrices(): Promise<Map<string, PriceData>> {
         url.searchParams.set("currency", "USD");
         url.searchParams.set("source", "buff,steam");
 
-        const res = await fetch(url.toString());
+        const res = await fetch(url.toString(), { signal: AbortSignal.timeout(PRICE_FETCH_TIMEOUT_MS) });
         if (!res.ok) {
             throw new Error(`Pricempire API error: ${res.status} ${res.statusText}`);
         }
