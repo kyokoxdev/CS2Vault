@@ -11,7 +11,16 @@ interface QueuedRequest<T> {
     resolve: (value: T) => void;
     reject: (error: unknown) => void;
     priority: number;
+    options: ApiQueueRequestOptions;
 }
+
+export interface ApiQueueRequestOptions {
+    deadlineAtMs?: number;
+    minRemainingMs?: number;
+    maxRetries?: number;
+}
+
+const REQUEST_DEADLINE_MESSAGE = "Request deadline exceeded";
 
 export class ApiRequestQueue {
     private queue: QueuedRequest<unknown>[] = [];
@@ -49,8 +58,12 @@ export class ApiRequestQueue {
      */
     async enqueue<T>(
         execute: () => Promise<T>,
-        priority: number = 0
+        priority: number = 0,
+        options: ApiQueueRequestOptions = {}
     ): Promise<T> {
+        const deadlineError = getDeadlineError(options);
+        if (deadlineError) throw deadlineError;
+
         // Check daily limit
         this.resetDailyCounterIfNeeded();
         if (this.dailyRequestCount >= this.maxDailyRequests) {
@@ -65,6 +78,7 @@ export class ApiRequestQueue {
                 resolve: resolve as (value: unknown) => void,
                 reject,
                 priority,
+                options,
             });
 
             // Sort by priority (higher = first)
@@ -83,14 +97,36 @@ export class ApiRequestQueue {
             const request = this.queue.shift();
             if (!request) break;
 
+            const deadlineError = getDeadlineError(request.options);
+            if (deadlineError) {
+                request.reject(deadlineError);
+                continue;
+            }
+
             // Enforce delay — DB-backed global limiter or in-memory fallback
             if (this.useGlobalRateLimit && this.queueName) {
-                await acquireGlobalSlot(this.queueName, this.minDelayMs);
+                try {
+                    await acquireGlobalSlot(this.queueName, this.minDelayMs, request.options);
+                } catch (error) {
+                    request.reject(error);
+                    continue;
+                }
             } else {
                 const elapsed = Date.now() - this.lastRequestTime;
                 if (elapsed < this.minDelayMs) {
-                    await this.sleep(this.minDelayMs - elapsed);
+                    const waitMs = this.minDelayMs - elapsed;
+                    if (!canWaitWithinDeadline(waitMs, request.options)) {
+                        request.reject(new Error(REQUEST_DEADLINE_MESSAGE));
+                        continue;
+                    }
+                    await this.sleep(waitMs);
                 }
+            }
+
+            const beforeExecuteDeadlineError = getDeadlineError(request.options);
+            if (beforeExecuteDeadlineError) {
+                request.reject(beforeExecuteDeadlineError);
+                continue;
             }
 
             // Count this request once (not per retry)
@@ -99,7 +135,8 @@ export class ApiRequestQueue {
 
             // Execute with retry logic
             let lastError: unknown;
-            for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+            const maxRetries = request.options.maxRetries ?? this.maxRetries;
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
                     this.lastRequestTime = Date.now();
                     const result = await request.execute();
@@ -110,13 +147,17 @@ export class ApiRequestQueue {
                     lastError = error;
 
                     // Check if it's a rate limit error (429)
-                    if (isRateLimitError(error) && attempt < this.maxRetries) {
+                    if (isRateLimitError(error) && attempt < maxRetries) {
                         const backoffMs =
                             this.minDelayMs *
                             Math.pow(this.backoffMultiplier, attempt + 1) +
                             Math.random() * 1000; // jitter
+                        if (!canWaitWithinDeadline(backoffMs, request.options)) {
+                            lastError = new Error(`${REQUEST_DEADLINE_MESSAGE} before retry`);
+                            break;
+                        }
                         console.warn(
-                            `[ApiQueue] Rate limited (attempt ${attempt + 1}/${this.maxRetries}). ` +
+                            `[ApiQueue] Rate limited (attempt ${attempt + 1}/${maxRetries}). ` +
                             `Backing off ${Math.round(backoffMs)}ms...`
                         );
                         await this.sleep(backoffMs);
@@ -164,6 +205,20 @@ export class ApiRequestQueue {
         }
         this.queue = [];
     }
+}
+
+function getDeadlineError(options: ApiQueueRequestOptions): Error | null {
+    if (options.deadlineAtMs === undefined) return null;
+    const minRemainingMs = options.minRemainingMs ?? 0;
+    return options.deadlineAtMs - Date.now() <= minRemainingMs
+        ? new Error(REQUEST_DEADLINE_MESSAGE)
+        : null;
+}
+
+function canWaitWithinDeadline(waitMs: number, options: ApiQueueRequestOptions): boolean {
+    if (options.deadlineAtMs === undefined) return true;
+    const minRemainingMs = options.minRemainingMs ?? 0;
+    return waitMs <= options.deadlineAtMs - Date.now() - minRemainingMs;
 }
 
 // ─── Rate-limit error detection (shared utility) ───────
