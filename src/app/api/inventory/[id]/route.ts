@@ -19,7 +19,7 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { session: _s, error: authError } = await requireAuth();
+        const { session, error: authError } = await requireAuth();
         if (authError) return authError;
 
         const { id } = await params;
@@ -27,7 +27,7 @@ export async function PATCH(
         const data = UpdateSchema.parse(body);
 
         const existing = await prisma.inventoryItem.findUnique({ where: { id } });
-        if (!existing) {
+        if (!existing || existing.userId !== session.user.id) {
             return NextResponse.json(
                 { success: false, error: "Inventory item not found" },
                 { status: 404 }
@@ -70,13 +70,13 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { session: _s, error: authError } = await requireAuth();
+        const { session, error: authError } = await requireAuth();
         if (authError) return authError;
 
         const { id } = await params;
 
         const existing = await prisma.inventoryItem.findUnique({ where: { id } });
-        if (!existing) {
+        if (!existing || existing.userId !== session.user.id) {
             return NextResponse.json(
                 { success: false, error: "Inventory item not found" },
                 { status: 404 }
