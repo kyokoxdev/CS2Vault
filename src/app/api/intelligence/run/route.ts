@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runIntelligenceQueue } from "@/lib/market/intelligence/runner";
 import { prisma } from "@/lib/db";
 import { buildScmBudgetSummary, SCM_CRON_PER_RUN_CAP } from "@/lib/market/intelligence/budget";
+import { isCronAuthorized } from "@/lib/auth/cron";
 
 const DEFAULT_RUN_LIMIT = SCM_CRON_PER_RUN_CAP;
 const MIN_RUN_LIMIT = 1;
@@ -23,19 +24,6 @@ const EMPTY_LANES = {
     scmDiscovery: { candidates: 0, claimed: 0, processed: 0, succeeded: 0, failed: 0, skippedDueToBudget: 0, itemIds: [] as string[] },
     csfloatScout: { candidates: 0, processed: 0, failed: 0, itemIds: [] as string[] },
 };
-
-function isCronAuthorized(request: NextRequest): boolean {
-    const cronSecret = process.env.CRON_SECRET;
-    if (!cronSecret) return false;
-
-    const authHeader = request.headers.get("authorization");
-    if (authHeader === `Bearer ${cronSecret}`) return true;
-
-    const cronHeader = request.headers.get("x-cron-secret");
-    if (cronHeader === cronSecret) return true;
-
-    return false;
-}
 
 function parseClampedInteger(value: string | null, fallback: number, min: number, max: number): number {
     if (value === null) return fallback;
