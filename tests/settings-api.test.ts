@@ -2,7 +2,7 @@
  * Unit Tests: Settings API
  * Tests auth guard, API key masking, and Zod validation
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 
 // Mock Prisma
@@ -41,7 +41,9 @@ interface MockAppSettings {
     openRouterApiKey: string | null;
     nineRouterApiKey: string | null;
     csfloatApiKey: string | null;
-    csgotraderSubProvider: string | null;
+    inngestEventKey: string | null;
+    inngestSigningKey: string | null;
+    csgotraderSubProvider: string;
     priceRefreshIntervalMin: number;
     watchlistOnly: boolean;
     googleAccessToken: string | null;
@@ -62,6 +64,8 @@ const createMockSettings = (overrides: Partial<MockAppSettings> = {}): MockAppSe
     openRouterApiKey: null,
     nineRouterApiKey: null,
     csfloatApiKey: null,
+    inngestEventKey: null,
+    inngestSigningKey: null,
     csgotraderSubProvider: "csfloat",
     priceRefreshIntervalMin: 15,
     watchlistOnly: false,
@@ -87,11 +91,23 @@ const createUnauthResult = () => ({
     ),
 });
 
+const ORIGINAL_TOKEN_ENCRYPTION_KEY = process.env.TOKEN_ENCRYPTION_KEY;
+const TEST_TOKEN_ENCRYPTION_KEY = "a".repeat(64);
+
 describe("Settings API", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        process.env.TOKEN_ENCRYPTION_KEY = TEST_TOKEN_ENCRYPTION_KEY;
         // Default: no session (unauthenticated)
         vi.mocked(requireAuth).mockResolvedValue(createUnauthResult());
+    });
+
+    afterEach(() => {
+        if (ORIGINAL_TOKEN_ENCRYPTION_KEY === undefined) {
+            delete process.env.TOKEN_ENCRYPTION_KEY;
+        } else {
+            process.env.TOKEN_ENCRYPTION_KEY = ORIGINAL_TOKEN_ENCRYPTION_KEY;
+        }
     });
 
     describe("Auth Guard", () => {
@@ -352,7 +368,9 @@ describe("Settings API", () => {
             expect(response.status).toBe(200);
 
             const upsertCall = vi.mocked(prisma.appSettings.upsert).mock.calls[0][0];
-            expect(upsertCall.update).toHaveProperty("openAiApiKey", "sk-newkey9876543210fedcba9876");
+            expect(upsertCall.update).toHaveProperty("openAiApiKey");
+            expect(upsertCall.update.openAiApiKey).not.toBe("sk-newkey9876543210fedcba9876");
+            expect(typeof upsertCall.update.openAiApiKey).toBe("string");
         });
 
         it("clears key when empty string is sent", async () => {

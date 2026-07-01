@@ -7,31 +7,60 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { auth, getBaseUrl } from "@/lib/auth/auth";
 import {
     exchangeGoogleCode,
     storeGoogleTokens,
 } from "@/lib/auth/google-oauth";
 
+const GOOGLE_OAUTH_STATE_COOKIE = "cs2vault_google_oauth_state";
+
+function redirectWithClearedState(url: string): NextResponse {
+    const response = NextResponse.redirect(url);
+    response.cookies.set(GOOGLE_OAUTH_STATE_COOKIE, "", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/api/auth/google",
+        maxAge: 0,
+    });
+    return response;
+}
+
+function statesMatch(actual: string | null, expected: string | undefined): boolean {
+    if (!actual || !expected) return false;
+
+    const actualBuffer = Buffer.from(actual);
+    const expectedBuffer = Buffer.from(expected);
+    return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
 export async function GET(request: NextRequest) {
     const session = await auth();
     const baseUrl = getBaseUrl();
 
     if (!session?.user) {
-        return NextResponse.redirect(`${baseUrl}/login`);
+        return redirectWithClearedState(`${baseUrl}/login`);
     }
 
     const code = request.nextUrl.searchParams.get("code");
     const error = request.nextUrl.searchParams.get("error");
+    const state = request.nextUrl.searchParams.get("state");
+    const expectedState = request.cookies.get(GOOGLE_OAUTH_STATE_COOKIE)?.value;
+
+    if (!statesMatch(state, expectedState)) {
+        return redirectWithClearedState(`${baseUrl}/settings?google_error=invalid_state`);
+    }
 
     if (error) {
-        return NextResponse.redirect(
+        return redirectWithClearedState(
             `${baseUrl}/settings?google_error=${encodeURIComponent(error)}`
         );
     }
 
     if (!code) {
-        return NextResponse.redirect(
+        return redirectWithClearedState(
             `${baseUrl}/settings?google_error=no_code`
         );
     }
@@ -41,10 +70,10 @@ export async function GET(request: NextRequest) {
         const tokens = await exchangeGoogleCode(code, redirectUri);
         await storeGoogleTokens(tokens.accessToken, tokens.refreshToken, tokens.expiresAt);
 
-        return NextResponse.redirect(`${baseUrl}/settings?google_connected=true`);
+        return redirectWithClearedState(`${baseUrl}/settings?google_connected=true`);
     } catch (err) {
         console.error("[GoogleOAuth] Token exchange failed:", err);
-        return NextResponse.redirect(
+        return redirectWithClearedState(
             `${baseUrl}/settings?google_error=token_exchange_failed`
         );
     }

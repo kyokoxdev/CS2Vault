@@ -18,7 +18,7 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 /**
  * Build the Google OAuth authorization URL.
  */
-export function buildGoogleAuthUrl(redirectUri: string): string {
+export function buildGoogleAuthUrl(redirectUri: string, state: string): string {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) throw new Error("GOOGLE_CLIENT_ID not configured");
 
@@ -29,6 +29,7 @@ export function buildGoogleAuthUrl(redirectUri: string): string {
         scope: "https://www.googleapis.com/auth/generative-language",
         access_type: "offline",
         prompt: "consent",
+        state,
     });
 
     return `${GOOGLE_AUTH_URL}?${params.toString()}`;

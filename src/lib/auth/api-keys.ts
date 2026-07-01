@@ -6,11 +6,7 @@ import { encrypt, decrypt } from "@/lib/auth/encryption";
  */
 export function encryptApiKey(plaintext: string | null | undefined): string | null {
     if (!plaintext) return null;
-    try {
-        return encrypt(plaintext);
-    } catch {
-        return plaintext;
-    }
+    return encrypt(plaintext);
 }
 
 /**
