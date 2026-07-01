@@ -20,7 +20,12 @@ const PUBLIC_PREFIXES = [
     "/test",            // Smoke test page
 ];
 
-const CRON_AUTHORIZED_PATHS = new Set(["/api/sync", "/api/market/market-cap-sync", "/api/intelligence/run"]);
+const CRON_AUTHORIZED_PATHS = new Set([
+    "/api/sync",
+    "/api/market/market-cap-sync",
+    "/api/market/price-sync/bounded",
+    "/api/intelligence/run",
+]);
 
 function isAuthorizedCronRequest(request: NextRequest): boolean {
     if (request.method !== "GET") {

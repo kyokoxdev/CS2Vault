@@ -143,6 +143,18 @@ describe("proxy", () => {
         expect(res.headers.get("x-middleware-next")).toBe("1");
     });
 
+    it("allows cron-job.org GET /api/market/price-sync/bounded without session", async () => {
+        process.env.CRON_SECRET = "test-secret";
+        const res = proxy(
+            makeRequest("/api/market/price-sync/bounded", false, {
+                method: "GET",
+                cronHeader: "test-secret",
+            })
+        );
+        if (!res) throw new Error("Expected middleware to return a Response");
+        expect(res.headers.get("x-middleware-next")).toBe("1");
+    });
+
     it("still blocks unauthenticated POST /api/sync", async () => {
         process.env.CRON_SECRET = "test-secret";
         const res = proxy(
