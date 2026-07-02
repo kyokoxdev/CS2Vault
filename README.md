@@ -130,6 +130,34 @@ Data refreshes are split between server-side schedulers and client-side triggers
    - The application automatically refreshes watchlist and portfolio metrics while a dashboard tab is active using the interval specified by the `priceRefreshIntervalMin` database setting.
    - Users can manually trigger a market-cap update in the Settings dashboard.
 
+### cron-job.org Setup Guide
+
+Use cron-job.org for short, frequent pings that stay inside its 30-second timeout. Keep secrets in request headers, not in the URL.
+
+1. **Create and deploy `CRON_SECRET`**:
+   - Generate a long random value, for example `openssl rand -hex 32`.
+   - Set the same value in Vercel project environment variables as `CRON_SECRET`.
+   - Keep `.env.local` aligned if testing the cron route locally.
+2. **Create the bounded price refresh job**:
+   - URL: `https://<your-domain>/api/market/price-sync/bounded?limit=25&minAgeMinutes=60&budgetMs=25000`
+   - Method: `GET`
+   - Schedule: every 10 minutes
+   - Headers: `x-cron-secret: <CRON_SECRET>` or `Authorization: Bearer <CRON_SECRET>`
+   - Expected result: HTTP `200` with `data.status` of `success`, `partial`, `skipped`, or `time_budget_exhausted`. `partial` is normal when more stale items remain for the next ping.
+3. **Create the intelligence queue job**:
+   - URL: `https://<your-domain>/api/intelligence/run`
+   - Method: `GET`
+   - Schedule: every 5 minutes
+   - Headers: `x-cron-secret: <CRON_SECRET>` or `Authorization: Bearer <CRON_SECRET>`
+   - Expected result: HTTP `200` when the queue is processed, paused, or budget-limited; HTTP `401` means the secret header is missing or wrong.
+4. **Enable failure notifications**:
+   - In cron-job.org, enable notifications for failed executions.
+   - Treat repeated `401` responses as a secret mismatch.
+   - Treat repeated timeouts as a signal to lower `limit` or `budgetMs` on the bounded price refresh job.
+5. **Avoid external full sync pings on the free tier**:
+   - Do not point cron-job.org's 30-second jobs at `/api/sync`; that route is the legacy full sync path and can run for several minutes.
+   - Keep `/api/sync` on Vercel Cron for compatibility, or run it manually only when a full refresh is needed.
+
 ---
 
 ## Scripts
